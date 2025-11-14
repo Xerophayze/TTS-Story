@@ -84,7 +84,7 @@ All of these voices are browsable in the **Available Voices** tab, where you can
 
 1. **Clone or download the repository**
 ```bash
-git clone <your-repo-url>
+git clone [<your-repo-url>](https://github.com/Xerophayze/Kokoro-Story.git)
 cd Kokoro-Story
 ```
 
