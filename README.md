@@ -1,5 +1,24 @@
 # Kokoro-Story
-![chrome_0FebjKKfeo](https://github.com/user-attachments/assets/a6a98e95-3d2c-4d83-a877-fdee05dcea44)
+<p align="center">
+  <a href="https://github.com/user-attachments/assets/a6a98e95-3d2c-4d83-a877-fdee05dcea44">
+    <img src="https://github.com/user-attachments/assets/a6a98e95-3d2c-4d83-a877-fdee05dcea44" width="220" />
+  </a>
+  <a href="https://github.com/user-attachments/assets/2a8a7202-a97f-49f8-8521-8bc3f298ea80">
+    <img src="https://github.com/user-attachments/assets/2a8a7202-a97f-49f8-8521-8bc3f298ea80" width="220" />
+  </a>
+  <a href="https://github.com/user-attachments/assets/7cd8ae2a-79d7-4358-8e2d-9e38e8aa45d6">
+    <img src="https://github.com/user-attachments/assets/7cd8ae2a-79d7-4358-8e2d-9e38e8aa45d6" width="220" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/user-attachments/assets/51293545-09ad-4bfb-a07f-b3ba6dcdcaed">
+    <img src="https://github.com/user-attachments/assets/51293545-09ad-4bfb-a07f-b3ba6dcdcaed" width="220" />
+  </a>
+  <a href="https://github.com/user-attachments/assets/27a851d3-0283-4a62-a05f-040eeb7c5ce5">
+    <img src="https://github.com/user-attachments/assets/27a851d3-0283-4a62-a05f-040eeb7c5ce5" width="220" />
+  </a>
+</p>
 
 A web-based Text-to-Speech application powered by Kokoro-82M, supporting both local GPU inference and Replicate API for generating multi-voice audiobooks and stories.
 [Multivoice Example 1](https://github.com/user-attachments/files/23542062/kokoro_story_ba5d19be-4b74-4a34-9020-16ba28a78a24.mp3)
