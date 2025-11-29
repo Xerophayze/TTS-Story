@@ -114,7 +114,8 @@ class TTSEngine:
         segments: List[Dict],
         voice_config: Dict[str, Dict],
         output_dir: str,
-        speed: float = 1.0
+        speed: float = 1.0,
+        progress_cb=None
     ) -> List[str]:
         """
         Generate audio for multiple segments
@@ -165,6 +166,8 @@ class TTSEngine:
                     
                     output_files.append(str(output_path))
                     chunk_index += 1
+                    if callable(progress_cb):
+                        progress_cb()
                     
                 except Exception as e:
                     logging.error(f"Error generating chunk {chunk_index}: {e}")

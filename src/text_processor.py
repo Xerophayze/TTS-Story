@@ -17,7 +17,12 @@ class TextProcessor:
         """
         self.chunk_size = chunk_size
         # Support both [speakerN] and [name] formats (e.g., [narrator], [john], etc.)
-        self.speaker_pattern = r'\[([a-zA-Z0-9_]+)\](.*?)\[/\1\]'
+        self.speaker_pattern = r'\[([a-zA-Z0-9_\-]+)\](.*?)\[/\1\]'
+    
+    @staticmethod
+    def _normalize_speaker_name(name: str) -> str:
+        """Normalize speaker identifiers so casing differences don't create duplicates."""
+        return (name or '').strip().lower()
         
     def has_speaker_tags(self, text: str) -> bool:
         """
@@ -41,14 +46,17 @@ class TextProcessor:
         Returns:
             List of unique speaker names (e.g., ["narrator", "speaker1", "john"])
         """
-        matches = re.findall(r'\[([a-zA-Z0-9_]+)\](?:.*?)\[/\1\]', text, re.DOTALL)
+        matches = re.findall(r'\[([a-zA-Z0-9_\-]+)\](?:.*?)\[/\1\]', text, re.DOTALL)
         # Preserve order of first appearance while removing duplicates
         seen = set()
         unique_speakers = []
         for speaker in matches:
-            if speaker not in seen:
-                seen.add(speaker)
-                unique_speakers.append(speaker)
+            normalized = self._normalize_speaker_name(speaker)
+            if not normalized:
+                continue
+            if normalized not in seen:
+                seen.add(normalized)
+                unique_speakers.append(normalized)
         return unique_speakers
         
     def parse_speaker_segments(self, text: str) -> List[Dict]:
@@ -65,10 +73,10 @@ class TextProcessor:
         matches = re.finditer(self.speaker_pattern, text, re.DOTALL)
         
         for match in matches:
-            speaker_name = match.group(1)  # Can be "narrator", "speaker1", "john", etc.
+            speaker_name = self._normalize_speaker_name(match.group(1))  # Can be "narrator", etc.
             speaker_text = match.group(2).strip()
             
-            if speaker_text:
+            if speaker_text and speaker_name:
                 segments.append({
                     "speaker": speaker_name,
                     "text": speaker_text

@@ -61,7 +61,20 @@
                 </div>
                 
                 <div class="button-group">
+                    <button id="gemini-process-btn" class="btn btn-secondary">Prep Text with Gemini</button>
                     <button id="generate-btn" class="btn btn-primary">Generate Audio</button>
+                </div>
+                <p class="help-text" style="margin-top: 5px;">
+                    ✨ Use <strong>Prep Text with Gemini</strong> to send the story (optionally split by chapters) through your configured Gemini prompt before generating audio.
+                </p>
+                <div id="gemini-progress" class="gemini-progress" style="display: none;">
+                    <div class="progress-label">
+                        <span id="gemini-progress-text">Preparing Gemini request…</span>
+                        <span id="gemini-progress-count"></span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="gemini-progress-fill" class="progress-bar-fill"></div>
+                    </div>
                 </div>
                 <div id="queue-indicator" class="queue-indicator" style="display: none;">
                     0 processing, 0 queued
@@ -113,15 +126,15 @@
 
         <!-- Job Queue Tab -->
         <div id="queue-tab" class="tab-content">
-            <div class="section">
-                <h2>Job Queue</h2>
-                <p class="help-text">
-                    Monitor all audio generation jobs. Jobs are processed sequentially in the order they were submitted.
-                </p>
-                <div class="button-group" style="margin-bottom: 20px;">
-                    <button id="refresh-queue-btn" class="btn btn-secondary">Refresh Queue</button>
+            <div class="queue-header">
+                <div>
+                    <h2>Job Queue</h2>
+                    <p>Monitor active and pending audio generation jobs.</p>
                 </div>
-                <div id="queue-list"></div>
+                <button id="refresh-queue-btn" class="btn btn-secondary">Refresh</button>
+            </div>
+            <div id="queue-list">
+                <p><em>Loading queue...</em></p>
             </div>
         </div>
 
@@ -190,6 +203,39 @@
                     <label for="api-key">API Key</label>
                     <input type="password" id="api-key" placeholder="r8_...">
                     <small>Get your API key from <a href="https://replicate.com" target="_blank">replicate.com</a></small>
+                </div>
+            </div>
+
+            <div class="section" id="gemini-settings">
+                <h2>Gemini Pre-Processing</h2>
+                <p class="help-text">
+                    Configure the Google Gemini prompt that will clean up or enhance each chapter before TTS processing.
+                </p>
+                <div class="form-group">
+                    <label for="gemini-api-key">Gemini API Key</label>
+                    <input type="password" id="gemini-api-key" placeholder="AIza...">
+                    <small>Generate a key at <a href="https://makersuite.google.com/app/apikey" target="_blank">makersuite.google.com</a>.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="gemini-model">Model</label>
+                    <select id="gemini-model">
+                        <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                        <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                        <option value="gemini-1.0-pro-latest">gemini-1.0-pro-latest</option>
+                    </select>
+                    <div class="button-group" style="margin-top: 10px;">
+                        <button type="button" id="fetch-gemini-models-btn" class="btn btn-secondary">Fetch Available Models</button>
+                    </div>
+                    <p id="gemini-models-status" class="help-text" style="margin-top: 8px;">
+                        Provide an API key, then click the button to load models directly from Google Gemini.
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label for="gemini-prompt">Prompt Prefix</label>
+                    <textarea id="gemini-prompt" rows="4" placeholder="Provide direction that Gemini should follow before each chapter."></textarea>
+                    <small>This prompt is prepended before each chapter's text. Leave blank to send the raw chapter.</small>
                 </div>
             </div>
 

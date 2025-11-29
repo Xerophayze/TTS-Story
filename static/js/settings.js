@@ -27,6 +27,83 @@ function setupSettingsListeners() {
     
     // Reset settings
     document.getElementById('reset-settings-btn').addEventListener('click', resetSettings);
+
+    const fetchGeminiModelsBtn = document.getElementById('fetch-gemini-models-btn');
+    if (fetchGeminiModelsBtn) {
+        fetchGeminiModelsBtn.addEventListener('click', () => fetchGeminiModels(fetchGeminiModelsBtn));
+    }
+}
+
+async function fetchGeminiModels(buttonEl) {
+    const apiKeyInput = document.getElementById('gemini-api-key');
+    const statusEl = document.getElementById('gemini-models-status');
+    const modelsSelect = document.getElementById('gemini-model');
+
+    if (!apiKeyInput || !modelsSelect) return;
+
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+        if (statusEl) {
+            statusEl.textContent = 'Enter your Gemini API key first, then try again.';
+        }
+        return;
+    }
+
+    const originalLabel = buttonEl ? buttonEl.textContent : '';
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Fetching models...';
+    }
+    if (statusEl) {
+        statusEl.textContent = 'Contacting Gemini to list available models...';
+    }
+
+    try {
+        const response = await fetch('/api/gemini/models', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ api_key: apiKey })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Unable to fetch models');
+        }
+
+        const models = data.models || [];
+        if (!models.length) {
+            throw new Error('No models were returned. Verify your API key.');
+        }
+
+        const previousValue = modelsSelect.value;
+        modelsSelect.innerHTML = '';
+        models.forEach(modelName => {
+            const option = document.createElement('option');
+            option.value = modelName;
+            option.textContent = modelName;
+            modelsSelect.appendChild(option);
+        });
+
+        if (models.includes(previousValue)) {
+            modelsSelect.value = previousValue;
+        }
+
+        if (statusEl) {
+            statusEl.textContent = `Loaded ${models.length} models from Gemini.`;
+        }
+    } catch (error) {
+        console.error('Failed to fetch Gemini models:', error);
+        if (statusEl) {
+            statusEl.textContent = error.message || 'Unable to fetch models. Check the console for details.';
+        }
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = originalLabel || 'Fetch Available Models';
+        }
+    }
 }
 
 // Load settings from API
@@ -71,6 +148,23 @@ function applySettings(settings) {
     
     // Crossfade
     document.getElementById('crossfade').value = settings.crossfade_duration || 0.1;
+
+    // Gemini settings
+    document.getElementById('gemini-api-key').value = settings.gemini_api_key || '';
+    const geminiModelSelect = document.getElementById('gemini-model');
+    const savedGeminiModel = settings.gemini_model || 'gemini-1.5-flash';
+
+    if (geminiModelSelect && savedGeminiModel) {
+        const hasOption = Array.from(geminiModelSelect.options).some(option => option.value === savedGeminiModel);
+        if (!hasOption) {
+            const customOption = document.createElement('option');
+            customOption.value = savedGeminiModel;
+            customOption.textContent = savedGeminiModel;
+            geminiModelSelect.appendChild(customOption);
+        }
+        geminiModelSelect.value = savedGeminiModel;
+    }
+    document.getElementById('gemini-prompt').value = settings.gemini_prompt || '';
 }
 
 // Save settings
@@ -81,7 +175,10 @@ async function saveSettings() {
         chunk_size: parseInt(document.getElementById('chunk-size').value),
         speed: parseFloat(document.getElementById('speed').value),
         output_format: document.getElementById('output-format').value,
-        crossfade_duration: parseFloat(document.getElementById('crossfade').value)
+        crossfade_duration: parseFloat(document.getElementById('crossfade').value),
+        gemini_api_key: document.getElementById('gemini-api-key').value,
+        gemini_model: document.getElementById('gemini-model').value,
+        gemini_prompt: document.getElementById('gemini-prompt').value
     };
     
     const saveBtn = document.getElementById('save-settings-btn');

@@ -100,7 +100,8 @@ class ReplicateAPI:
         voice_config: Dict[str, Dict],
         output_dir: str,
         speed: float = 1.0,
-        max_concurrent: int = 3
+        max_concurrent: int = 3,
+        progress_cb=None
     ) -> List[str]:
         """
         Generate audio for multiple segments
@@ -151,6 +152,8 @@ class ReplicateAPI:
                     
                     output_files.append(str(output_path))
                     chunk_index += 1
+                    if callable(progress_cb):
+                        progress_cb()
                     
                     # Rate limiting
                     if chunk_index % max_concurrent == 0:

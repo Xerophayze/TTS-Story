@@ -35,6 +35,141 @@ function refreshChapterHint() {
     }
 }
 
+async function processWithGemini(buttonEl) {
+    const inputEl = document.getElementById('input-text');
+    if (!inputEl) return;
+
+    const text = inputEl.value;
+    if (!text.trim()) {
+        alert('Please enter some text first');
+        return;
+    }
+
+    const splitByChapter = document.getElementById('split-chapters-checkbox')?.checked ?? true;
+    updateGeminiProgress({ visible: true, label: 'Preparing Gemini request…', count: '', fill: 5 });
+
+    const originalLabel = buttonEl ? buttonEl.textContent : '';
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Processing with Gemini...';
+    }
+
+    showNotification('Sending content to Gemini...', 'info');
+
+    try {
+        const sectionsResponse = await fetch('/api/gemini/sections', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text,
+                prefer_chapters: splitByChapter
+            })
+        });
+
+        const sectionsData = await sectionsResponse.json();
+        if (!sectionsData.success) {
+            throw new Error(sectionsData.error || 'Unable to build Gemini sections');
+        }
+
+        const sections = sectionsData.sections || [];
+        if (!sections.length) {
+            throw new Error('No sections were generated for Gemini processing');
+        }
+
+        const outputs = [];
+        const knownSpeakers = new Set();
+        if (currentStats?.speakers?.length) {
+            currentStats.speakers.forEach(name => {
+                if (typeof name === 'string' && name.trim()) {
+                    knownSpeakers.add(name.trim().toLowerCase());
+                }
+            });
+        }
+        for (let i = 0; i < sections.length; i++) {
+            const section = sections[i];
+            const currentIndex = i + 1;
+            updateGeminiProgress({
+                visible: true,
+                label: `Processing section ${currentIndex} of ${sections.length}…`,
+                count: `${currentIndex} / ${sections.length}`,
+                fill: Math.round((currentIndex / sections.length) * 100)
+            });
+
+            const payload = {
+                content: section.content || ''
+            };
+            if (knownSpeakers.size > 0) {
+                payload.known_speakers = Array.from(knownSpeakers);
+            }
+
+            const sectionResponse = await fetch('/api/gemini/process-section', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const sectionData = await sectionResponse.json();
+            if (!sectionData.success) {
+                throw new Error(sectionData.error || `Gemini failed on section ${i + 1}`);
+            }
+
+            if (Array.isArray(sectionData.speakers)) {
+                sectionData.speakers.forEach(speaker => {
+                    if (typeof speaker === 'string' && speaker.trim()) {
+                        knownSpeakers.add(speaker.trim().toLowerCase());
+                    }
+                });
+            }
+            outputs.push(sectionData.result_text || '');
+        }
+
+        updateGeminiProgress({
+            visible: true,
+            label: 'Combining Gemini output…',
+            count: `${sections.length} / ${sections.length}`,
+            fill: 100
+        });
+
+        inputEl.value = outputs.join('\n\n').trim();
+        lastAnalyzedText = '';
+        showNotification('Gemini processing complete! Text updated.', 'success');
+        await analyzeText({ auto: true });
+    } catch (error) {
+        console.error('Gemini processing failed:', error);
+        alert(error.message || 'Failed to process with Gemini');
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = originalLabel || 'Prep Text with Gemini';
+        }
+        updateGeminiProgress({ visible: false });
+    }
+}
+
+function updateGeminiProgress({ visible, label, count, fill }) {
+    const container = document.getElementById('gemini-progress');
+    const textEl = document.getElementById('gemini-progress-text');
+    const countEl = document.getElementById('gemini-progress-count');
+    const fillEl = document.getElementById('gemini-progress-fill');
+
+    if (!container || !textEl || !countEl || !fillEl) return;
+
+    if (visible) {
+        container.style.display = 'block';
+        if (label) textEl.textContent = label;
+        if (count) countEl.textContent = count;
+        if (typeof fill === 'number') fillEl.style.width = `${Math.min(Math.max(fill, 0), 100)}%`;
+    } else {
+        container.style.display = 'none';
+        fillEl.style.width = '0%';
+        countEl.textContent = '';
+    }
+}
+
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
@@ -117,6 +252,7 @@ function initTabs() {
 function setupEventListeners() {
     const analyzeBtn = document.getElementById('analyze-btn');
     const generateBtn = document.getElementById('generate-btn');
+    const geminiBtn = document.getElementById('gemini-process-btn');
     const downloadBtn = document.getElementById('download-btn');
     const newGenerationBtn = document.getElementById('new-generation-btn');
     const cancelBtn = document.getElementById('cancel-btn');
@@ -127,6 +263,9 @@ function setupEventListeners() {
     }
     if (generateBtn) {
         generateBtn.addEventListener('click', generateAudio);
+    }
+    if (geminiBtn) {
+        geminiBtn.addEventListener('click', () => processWithGemini(geminiBtn));
     }
     if (downloadBtn) {
         downloadBtn.addEventListener('click', downloadAudio);
@@ -195,6 +334,7 @@ async function analyzeText(options = {}) {
             currentStats = data.statistics;
             displayStatistics(data.statistics);
             updateVoiceAssignments(data.statistics.speakers);
+            lastAnalyzedText = text.trim();
             if (!auto) {
                 showNotification('Analysis complete', 'success');
             }

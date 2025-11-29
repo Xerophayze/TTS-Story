@@ -7,6 +7,7 @@ pydub>=0.25.1
 replicate>=0.25.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+google-generativeai>=0.7.0
 # Note: torch, torchvision, and torchaudio are installed by setup.bat with proper CUDA detection
 
 # Extra language-specific dependencies

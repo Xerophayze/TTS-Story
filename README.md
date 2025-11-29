@@ -5,7 +5,9 @@ A web-based Text-to-Speech application powered by Kokoro-82M, supporting both lo
 ## Features
 
 - 🎭 **Multi-Voice Support**: Use Kokoro-82M voices for any number of characters in your story
-- 🔊 **Speaker Tags**: Automatic parsing of `[speaker1]...[/speaker1]` or `[alice]...[/alice]` tags
+- 🔊 **Speaker Tags & Auto Detection**: Automatically parse `[speaker1]...[/speaker1]` or `[alice]...[/alice]` tags, normalize casing, and keep a live registry of every speaker for quick voice assignment
+- 🤖 **Gemini Pre-Processing**: Split long inputs into chapters/chunks, prepend your custom Gemini prompt, and stream each section through Google Gemini with a live progress indicator
+- 🧠 **Speaker Memory Between Chunks**: Gemini requests carry forward the list of already-discovered speaker tags so later chunks keep the same character names (e.g., "Elora" stays "Elora" instead of becoming "Commander Elora")
 - 🖥️ **Local GPU Processing**: Run Kokoro-82M locally on your NVIDIA GPU for privacy and speed
 - ☁️ **Cloud API Option**: Use Replicate API when you don’t have local GPU resources
 - 📝 **Smart Text Chunking**: Automatically splits long texts into manageable chunks
@@ -13,11 +15,10 @@ A web-based Text-to-Speech application powered by Kokoro-82M, supporting both lo
 - 📥 **Job Queue**: Submit multiple jobs, track status, cancel, and download results
 - 📊 **Job Queue Tab**: Dedicated UI to monitor all jobs in real time
 - 📚 **Audio Library**: Browsable list of all completed outputs with inline players and delete/clear
-- 📖 **Per-Chapter Generation**: Detects headings like “Chapter 1” and, when enabled, creates individual audio files per chapter
-- 🗂️ **Chapter-Aware Library**: Library entries become navigable chapter collections when you split audio, with in-card chapter selectors and per-chapter downloads
 - �️ **Available Voices & Previews**: Browse all Kokoro voices, generate preview samples, and click to listen
 - 🔁 **Sample Generation**: Generate or regenerate missing previews with a single button
 - 🎛️ **Configurable Settings**: Control mode (local/Replicate), speed, chunk size, output format, crossfade
+- ⚙️ **Dynamic Gemini Controls**: Save your Gemini API key, fetch the latest available Gemini models on demand, and reuse your preferred model across sessions
 - 🌐 **Web Interface**: Modern single-page UI built with Flask and vanilla JS
 
 ## Available Voices
@@ -173,6 +174,21 @@ You can use either numbered speakers or named speakers:
 
 You can use any alphanumeric name (letters, numbers, underscores). The system will automatically detect all unique speakers and let you assign voices to each one.
 
+### Gemini Pre-Processing Workflow
+
+Need to tidy a manuscript or add consistent speaker tags before running TTS? Use the **Prep Text with Gemini** button:
+
+1. Enter your Gemini API key and model in **Settings**, then click **Fetch Available Models** if you want to load the latest list directly from Google.
+2. Paste your story in the **Generate** tab and choose whether to prioritize chapter-based splitting or balanced chunks.
+3. Click **Prep Text with Gemini**. The app will:
+   - Build sections (chapters or chunks) locally.
+   - Show a real-time progress bar (e.g., “Processing section 3 of 7”).
+   - Send each section to Gemini along with your configured prompt and the running list of known speaker tags so names stay consistent.
+4. When Gemini finishes, the cleaned/expanded narrative replaces the input field. Chapter headings stay inside the narrator tags so audio splitting still works.
+5. Re-run **Analyze Text** if needed and assign voices—your previous voice selections are preserved unless the text actually changes.
+
+Because the speaker list is tracked across sections, characters that appear later continue to use the same tag, which keeps the voice assignment UI tidy and prevents duplicate dropdowns.
+
 ### Plain Text Mode
 
 If no speaker tags are found, the entire text will be processed with a single voice.
@@ -249,6 +265,10 @@ Kokoro-Story/
 - `GET /api/settings` - Get current settings
 - `POST /api/settings` - Update settings
 - `POST /api/analyze` - Analyze text and return statistics/speakers
+- `POST /api/gemini/sections` - Preview the sections (chapters/chunks) Gemini will process for a given input
+- `POST /api/gemini/process-section` - Send a single section to Gemini (called in sequence by the frontend for live progress updates)
+- `POST /api/gemini/process` - Process the entire text through Gemini in one backend call (used for scripted workflows)
+- `POST /api/gemini/models` - Fetch available Gemini models after providing an API key
 - `POST /api/generate` - Queue a new audio generation job
 - `GET /api/status/<job_id>` - Check status of a specific job
 - `POST /api/cancel/<job_id>` - Cancel a queued or running job

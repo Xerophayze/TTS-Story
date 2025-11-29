@@ -95,6 +95,7 @@ function displayQueue(data) {
                 <tr>
                     <th>Status</th>
                     <th>Job ID</th>
+                    <th>Progress</th>
                     <th>Text Preview</th>
                     <th>Created</th>
                     <th>Actions</th>
@@ -113,6 +114,7 @@ function displayQueue(data) {
             <tr class="${isCurrentJob ? 'current-job' : ''}">
                 <td><span class="status-badge ${statusClass}">${statusIcon} ${job.status}</span></td>
                 <td><code>${job.job_id.substring(0, 8)}</code></td>
+                <td>${renderJobProgress(job)}</td>
                 <td class="text-preview">${job.text_preview || 'N/A'}</td>
                 <td>${createdTime}</td>
                 <td>
@@ -170,6 +172,52 @@ function getStatusIcon(status) {
         default:
             return '';
     }
+}
+
+function renderJobProgress(job) {
+    const total = job.total_chunks || 0;
+    const processed = Math.min(job.processed_chunks || 0, total || Infinity);
+    const percent = total > 0 ? Math.round((processed / total) * 100) : (job.status === 'completed' ? 100 : 0);
+    const chunkLabel = total ? `${processed} / ${total} chunk${total === 1 ? '' : 's'}` : 'Estimating…';
+    const etaLabel = formatEta(job.eta_seconds, job.status);
+    const chapterLabel = job.chapter_mode
+        ? `${job.chapter_count || '?'} chapter${(job.chapter_count || 0) === 1 ? '' : 's'} (per chapter merge)`
+        : 'Single output file';
+
+    return `
+        <div class="queue-progress">
+            <div class="queue-progress-header">
+                <span>${chunkLabel}</span>
+                <span>${etaLabel}</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-bar-fill" style="width: ${Math.min(Math.max(percent, 0), 100)}%;"></div>
+            </div>
+            <div class="queue-progress-footer">
+                <span>${chapterLabel}</span>
+                <span>${job.status === 'completed' ? 'Done' : job.status}</span>
+            </div>
+        </div>
+    `;
+}
+
+function formatEta(seconds, status) {
+    if (status === 'completed') {
+        return 'Done';
+    }
+    if (seconds === 0) {
+        return 'Finishing up…';
+    }
+    if (typeof seconds !== 'number' || seconds < 0 || Number.isNaN(seconds)) {
+        return 'Calculating…';
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.max(seconds % 60, 0);
+    if (minutes > 0) {
+        return `ETA ${minutes}m ${secs.toFixed(0)}s`;
+    }
+    return `ETA ${secs.toFixed(0)}s`;
 }
 
 async function cancelQueueJob(jobId) {

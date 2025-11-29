@@ -14,12 +14,15 @@ import threading
 import queue
 import time
 import stat
+import io
+import zipfile
 
 from src.text_processor import TextProcessor
 from src.voice_manager import VoiceManager
 from src.voice_sample_generator import generate_voice_samples
 from src.tts_engine import TTSEngine, KOKORO_AVAILABLE
 from src.replicate_api import ReplicateAPI
+from src.gemini_processor import GeminiProcessor, GeminiProcessorError
 from src.audio_merger import AudioMerger
 
 # Setup logging
@@ -38,7 +41,12 @@ CONFIG_FILE = "config.json"
 OUTPUT_DIR = Path("static/audio")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 JOB_METADATA_FILENAME = "metadata.json"
-CHAPTER_HEADING_PATTERN = re.compile(r'^\s*(chapter(?:\s+[^\n\r]*)?)', re.IGNORECASE | re.MULTILINE)
+DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
+# Allow headings like [narrator]\nChapter 1 or Chapter 1 without tags.
+CHAPTER_HEADING_PATTERN = re.compile(
+    r'^\s*(?:\[[^\]]+\]\s*)*(chapter(?:\s+[^\n\r]*)?)',
+    re.IGNORECASE | re.MULTILINE
+)
 
 # Global state
 jobs = {}  # Track all jobs (queued, processing, completed)
@@ -90,6 +98,80 @@ def split_text_into_chapters(text: str):
             })
 
     return chapters
+
+
+def build_gemini_sections(text: str, prefer_chapters: bool, config: dict):
+    """Create sections for Gemini processing based on chapters or chunks."""
+    sections = []
+    if not text:
+        return sections
+
+    chapter_matches = list(CHAPTER_HEADING_PATTERN.finditer(text))
+    if prefer_chapters and chapter_matches:
+        for chapter in split_text_into_chapters(text):
+            sections.append({
+                "title": chapter.get("title"),
+                "content": (chapter.get("content") or "").strip(),
+                "source": "chapter"
+            })
+    else:
+        processor = TextProcessor(chunk_size=config.get('chunk_size', 500))
+        chunks = processor.chunk_text(text)
+        if not chunks:
+            chunks = [text]
+        for chunk in chunks:
+            clean_chunk = chunk.strip()
+            if not clean_chunk:
+                continue
+            sections.append({
+                "title": None,
+                "content": clean_chunk,
+                "source": "chunk"
+            })
+
+    return sections
+
+
+def compose_gemini_prompt(section: dict, prompt_prefix: str = "", known_speakers=None) -> str:
+    """Build the prompt for a Gemini section, optionally referencing known speakers."""
+    parts = []
+    if prompt_prefix:
+        parts.append(prompt_prefix.strip())
+
+    speakers = [s for s in (known_speakers or []) if s]
+    if speakers:
+        speaker_line = (
+            "Known speaker tags so far (reference only, keep names consistent): "
+            + ", ".join(speakers)
+        )
+        parts.append(speaker_line)
+
+    content = (section.get("content") or "").strip()
+    if content:
+        parts.append(content)
+    return "\n\n".join(parts).strip()
+
+
+def estimate_total_chunks(text: str, split_by_chapter: bool, chunk_size: int) -> int:
+    """Estimate total chunk count for a job to power progress indicators."""
+    processor = TextProcessor(chunk_size=chunk_size)
+    sections = [{"content": text}]
+    if split_by_chapter:
+        detected = split_text_into_chapters(text)
+        if detected:
+            sections = detected
+
+    merge_steps = len(sections) if sections else 1
+    total_chunks = 0
+    for section in sections:
+        section_text = (section.get("content") or "").strip()
+        if not section_text:
+            continue
+        segments = processor.process_text(section_text)
+        for segment in segments:
+            total_chunks += len(segment.get("chunks", []))
+
+    return max(total_chunks + merge_steps, 1)
 
 
 def save_job_metadata(job_dir: Path, metadata: dict):
@@ -193,6 +275,33 @@ def process_audio_job(job_data):
         processor = TextProcessor(chunk_size=config['chunk_size'])
         job_dir = OUTPUT_DIR / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
+        total_chunks = max(1, job_data.get('total_chunks') or jobs.get(job_id, {}).get('total_chunks') or 1)
+        processed_chunks = 0
+        job_start_time = datetime.now()
+
+        def update_progress(increment: int = 1):
+            nonlocal processed_chunks
+            processed_chunks += increment
+            processed_chunks = min(processed_chunks, total_chunks)
+            elapsed = max((datetime.now() - job_start_time).total_seconds(), 0.001)
+            remaining = max(total_chunks - processed_chunks, 0)
+            eta_seconds = None
+            if processed_chunks and remaining:
+                eta_seconds = int((elapsed / processed_chunks) * remaining)
+            elif remaining == 0:
+                eta_seconds = 0
+
+            percent = int((processed_chunks / total_chunks) * 100)
+            percent = max(0, min(100, percent))
+
+            with queue_lock:
+                job_entry = jobs.get(job_id)
+                if job_entry:
+                    job_entry['processed_chunks'] = processed_chunks
+                    job_entry['total_chunks'] = total_chunks
+                    job_entry['progress'] = percent if job_entry.get('status') != 'completed' else 100
+                    job_entry['eta_seconds'] = eta_seconds
+                    job_entry['last_update'] = datetime.now().isoformat()
         
         # Determine chapter sections when requested
         chapter_sections = [{"title": "Full Story", "content": text}]
@@ -203,6 +312,13 @@ def process_audio_job(job_data):
             else:
                 logger.info("Chapter splitting enabled but no chapter headings detected; falling back to single output")
                 split_by_chapter = False
+        
+        chapter_count = len(chapter_sections)
+        with queue_lock:
+            job_entry = jobs.get(job_id)
+            if job_entry:
+                job_entry['chapter_count'] = chapter_count
+                job_entry['chapter_mode'] = split_by_chapter
         
         mode = config['mode']
         output_format = config['output_format']
@@ -234,13 +350,15 @@ def process_audio_job(job_data):
                     segments=segments,
                     voice_config=voice_assignments,
                     output_dir=str(output_dir),
-                    speed=config['speed']
+                    speed=config['speed'],
+                    progress_cb=update_progress
                 )
             return api.generate_batch(
                 segments=segments,
                 voice_config=voice_assignments,
                 output_dir=str(output_dir),
-                speed=config['speed']
+                speed=config['speed'],
+                progress_cb=update_progress
             )
 
         try:
@@ -267,6 +385,7 @@ def process_audio_job(job_data):
                         output_path=str(output_path),
                         format=output_format
                     )
+                    update_progress()
 
                     # Cleanup empty chunk directory
                     if chunk_dir.exists():
@@ -293,6 +412,7 @@ def process_audio_job(job_data):
                     output_path=str(output_file),
                     format=output_format
                 )
+                update_progress()
                 if chunk_dir.exists():
                     try:
                         chunk_dir.rmdir()
@@ -321,7 +441,8 @@ def process_audio_job(job_data):
         metadata = {
             "chapter_mode": split_by_chapter,
             "output_format": output_format,
-            "chapters": chapter_outputs
+            "chapters": chapter_outputs,
+            "chapter_count": chapter_count
         }
         save_job_metadata(job_dir, metadata)
         
@@ -329,6 +450,9 @@ def process_audio_job(job_data):
         with queue_lock:
             jobs[job_id]['status'] = 'completed'
             jobs[job_id]['progress'] = 100
+            jobs[job_id]['processed_chunks'] = total_chunks
+            jobs[job_id]['total_chunks'] = total_chunks
+            jobs[job_id]['eta_seconds'] = 0
             jobs[job_id]['output_file'] = chapter_outputs[0]['file_url']
             jobs[job_id]['chapter_outputs'] = chapter_outputs
             jobs[job_id]['chapter_mode'] = split_by_chapter
@@ -365,7 +489,10 @@ def load_config():
         "sample_rate": 24000,
         "speed": 1.0,
         "output_format": "mp3",
-        "crossfade_duration": 0.1
+        "crossfade_duration": 0.1,
+        "gemini_api_key": "",
+        "gemini_model": DEFAULT_GEMINI_MODEL,
+        "gemini_prompt": ""
     }
 
 
@@ -471,19 +598,55 @@ def settings():
             }), 400
 
 
+@app.route('/api/gemini/models', methods=['POST'])
+def list_gemini_models():
+    """List available Gemini models using the provided or saved API key."""
+    try:
+        data = request.json or {}
+        api_key = (data.get('api_key') or '').strip()
+
+        if not api_key:
+            config = load_config()
+            api_key = (config.get('gemini_api_key') or '').strip()
+
+        if not api_key:
+            return jsonify({
+                "success": False,
+                "error": "Gemini API key is required"
+            }), 400
+
+        models = GeminiProcessor.list_available_models(api_key)
+        return jsonify({
+            "success": True,
+            "models": models
+        })
+
+    except GeminiProcessorError as exc:
+        return jsonify({
+            "success": False,
+            "error": str(exc)
+        }), 400
+    except Exception as e:  # pragma: no cover - general failure
+        logger.error(f"Error listing Gemini models: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "Failed to list Gemini models"
+        }), 500
+
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze_text():
     """Analyze text and return statistics"""
     try:
         data = request.json
-        text = data.get('text', '')
-        
+        text = (data.get('text') or '').strip()
+
         if not text:
             return jsonify({
                 "success": False,
                 "error": "No text provided"
             }), 400
-            
+
         config = load_config()
         processor = TextProcessor(chunk_size=config['chunk_size'])
         stats = processor.get_statistics(text)
@@ -501,17 +664,211 @@ def analyze_text():
                 "count": 0,
                 "titles": []
             }
-        
+
         return jsonify({
             "success": True,
             "statistics": stats
         })
-        
+
     except Exception as e:
         logger.error(f"Error analyzing text: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
+        }), 500
+
+
+@app.route('/api/gemini/process', methods=['POST'])
+def process_text_with_gemini():
+    """Send text (optionally chapterized) through Google Gemini."""
+    try:
+        data = request.json or {}
+        text = (data.get('text') or '').strip()
+        prefer_chapters = bool(data.get('prefer_chapters', True))
+
+        if not text:
+            return jsonify({
+                "success": False,
+                "error": "No text provided"
+            }), 400
+
+        config = load_config()
+        api_key = (config.get('gemini_api_key') or '').strip()
+        if not api_key:
+            return jsonify({
+                "success": False,
+                "error": "Gemini API key not configured"
+            }), 400
+
+        model_name = config.get('gemini_model') or DEFAULT_GEMINI_MODEL
+        prompt_prefix = (config.get('gemini_prompt') or '').strip()
+
+        sections = build_gemini_sections(text, prefer_chapters, config)
+        if not sections:
+            return jsonify({
+                "success": False,
+                "error": "Unable to create sections for Gemini processing"
+            }), 400
+
+        processor = GeminiProcessor(api_key=api_key, model_name=model_name)
+        text_processor = TextProcessor(chunk_size=config.get('chunk_size', 500))
+        known_speakers = set(text_processor.extract_speakers(text))
+
+        processed_sections = []
+        for idx, section in enumerate(sections, start=1):
+            chapter_text = section.get('content', '').strip()
+            if not chapter_text:
+                continue
+
+            combined_prompt = compose_gemini_prompt(
+                section,
+                prompt_prefix,
+                sorted(known_speakers)
+            )
+            response_text = processor.generate_text(combined_prompt)
+            detected_speakers = text_processor.extract_speakers(response_text)
+            for speaker_name in detected_speakers:
+                known_speakers.add(speaker_name)
+            processed_sections.append({
+                "index": idx,
+                "title": section.get('title'),
+                "source": section.get('source'),
+                "output": response_text.strip(),
+                "speakers": detected_speakers
+            })
+
+        if not processed_sections:
+            return jsonify({
+                "success": False,
+                "error": "Gemini processing produced no output"
+            }), 500
+
+        final_text = "\n\n".join(
+            section['output']
+            for section in processed_sections
+            if section.get('output')
+        ).strip()
+
+        return jsonify({
+            "success": True,
+            "result_text": final_text,
+            "processed_sections": processed_sections,
+            "chapter_mode": any(section.get('source') == 'chapter' for section in sections),
+            "section_count": len(processed_sections)
+        })
+
+    except GeminiProcessorError as exc:
+        return jsonify({
+            "success": False,
+            "error": str(exc)
+        }), 400
+    except Exception as e:  # pragma: no cover - general failure
+        logger.error(f"Error during Gemini processing: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "Failed to process text with Gemini"
+        }), 500
+
+
+@app.route('/api/gemini/sections', methods=['POST'])
+def get_gemini_sections():
+    """Return the list of Gemini sections for the provided text."""
+    try:
+        data = request.json or {}
+        text = (data.get('text') or '').strip()
+        prefer_chapters = bool(data.get('prefer_chapters', True))
+
+        if not text:
+            return jsonify({
+                "success": False,
+                "error": "No text provided"
+            }), 400
+
+        config = load_config()
+        sections = build_gemini_sections(text, prefer_chapters, config)
+
+        sanitized = []
+        for idx, section in enumerate(sections, start=1):
+            sanitized.append({
+                "id": idx,
+                "title": section.get('title'),
+                "content": section.get('content'),
+                "source": section.get('source')
+            })
+
+        return jsonify({
+            "success": True,
+            "sections": sanitized,
+            "count": len(sanitized)
+        })
+
+    except Exception as e:  # pragma: no cover - general failure
+        logger.error(f"Error building Gemini sections: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "Failed to build Gemini sections"
+        }), 500
+
+
+@app.route('/api/gemini/process-section', methods=['POST'])
+def process_gemini_section():
+    """Process a single text section via Gemini."""
+    try:
+        data = request.json or {}
+        content = (data.get('content') or '').strip()
+
+        if not content:
+            return jsonify({
+                "success": False,
+                "error": "No section content provided"
+            }), 400
+
+        config = load_config()
+        api_key = (config.get('gemini_api_key') or '').strip()
+        if not api_key:
+            return jsonify({
+                "success": False,
+                "error": "Gemini API key not configured"
+            }), 400
+
+        model_name = config.get('gemini_model') or DEFAULT_GEMINI_MODEL
+        prompt_prefix = (config.get('gemini_prompt') or '').strip()
+
+        raw_known = data.get('known_speakers') or []
+        known_speakers = []
+        if isinstance(raw_known, list):
+            for entry in raw_known:
+                if isinstance(entry, str):
+                    normalized = entry.strip().lower()
+                    if normalized:
+                        known_speakers.append(normalized)
+
+        processor = GeminiProcessor(api_key=api_key, model_name=model_name)
+        text_processor = TextProcessor()
+        prompt = compose_gemini_prompt(
+            {"content": content},
+            prompt_prefix,
+            known_speakers
+        )
+        response_text = processor.generate_text(prompt)
+        detected_speakers = text_processor.extract_speakers(response_text)
+
+        return jsonify({
+            "success": True,
+            "result_text": response_text.strip(),
+            "speakers": detected_speakers
+        })
+
+    except GeminiProcessorError as exc:
+        return jsonify({
+            "success": False,
+            "error": str(exc)
+        }), 400
+    except Exception as e:  # pragma: no cover - general failure
+        logger.error(f"Error processing Gemini section: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "Failed to process section with Gemini"
         }), 500
 
 
@@ -537,6 +894,11 @@ def generate_audio():
         
         # Create job
         job_id = str(uuid.uuid4())
+        estimated_chunks = estimate_total_chunks(
+            text,
+            split_by_chapter,
+            int(config.get('chunk_size', 500))
+        )
         
         with queue_lock:
             jobs[job_id] = {
@@ -544,7 +906,11 @@ def generate_audio():
                 "progress": 0,
                 "created_at": datetime.now().isoformat(),
                 "text_preview": text[:100] + "..." if len(text) > 100 else text,
-                "chapter_mode": split_by_chapter
+                "chapter_mode": split_by_chapter,
+                "total_chunks": estimated_chunks,
+                "processed_chunks": 0,
+                "eta_seconds": None,
+                "chapter_count": None
             }
         
         # Create job data
@@ -553,7 +919,8 @@ def generate_audio():
             "text": text,
             "voice_assignments": voice_assignments,
             "config": config,
-            "split_by_chapter": split_by_chapter
+            "split_by_chapter": split_by_chapter,
+            "total_chunks": estimated_chunks
         }
         
         # Add to queue
@@ -626,6 +993,51 @@ def download_audio(job_id):
         
     except Exception as e:
         logger.error(f"Error downloading file for job {job_id}: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/download/<job_id>/zip', methods=['GET'])
+def download_audio_bundle(job_id):
+    """Download all chapter outputs for a job as a ZIP archive."""
+    try:
+        job_dir = OUTPUT_DIR / job_id
+        if not job_dir.exists():
+            return jsonify({
+                "success": False,
+                "error": "Job directory not found"
+            }), 404
+
+        metadata = load_job_metadata(job_dir)
+        chapters = (metadata or {}).get("chapters")
+        if not chapters:
+            # Fallback to single-file download
+            return download_audio(job_id)
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for chapter in chapters:
+                rel_path = chapter.get("relative_path")
+                if not rel_path:
+                    continue
+                file_path = job_dir / Path(rel_path)
+                if not file_path.exists():
+                    continue
+                arc_name = Path(rel_path).as_posix()
+                zip_file.write(file_path, arcname=arc_name)
+
+        zip_buffer.seek(0)
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f"kokoro_story_{job_id}.zip"
+        )
+
+    except Exception as e:
+        logger.error(f"Error generating ZIP for job {job_id}: {e}", exc_info=True)
         return jsonify({
             "success": False,
             "error": str(e)
@@ -737,9 +1149,9 @@ def delete_library_item(job_id):
                 "error": "Item not found"
             }), 404
         
-        # Delete directory and all contents
+        # Delete directory and all contents (handle Windows read-only files)
         import shutil
-        shutil.rmtree(job_dir)
+        shutil.rmtree(job_dir, onerror=handle_remove_readonly)
         
         # Remove from jobs dict if present
         if job_id in jobs:
@@ -831,7 +1243,12 @@ def get_queue():
                     "created_at": job_info.get("created_at", ""),
                     "text_preview": job_info.get("text_preview", ""),
                     "output_file": job_info.get("output_file", ""),
-                    "error": job_info.get("error", "")
+                    "error": job_info.get("error", ""),
+                    "total_chunks": job_info.get("total_chunks"),
+                    "processed_chunks": job_info.get("processed_chunks", 0),
+                    "eta_seconds": job_info.get("eta_seconds"),
+                    "chapter_mode": job_info.get("chapter_mode", False),
+                    "chapter_count": job_info.get("chapter_count")
                 })
             
             # Sort by creation time (newest first)
