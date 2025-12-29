@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kokoro-Story - Multi-Voice TTS</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2326324a'/%3E%3Cpath d='M18 22h6v20h-6zM28 22h6v20h-6zM38 22h6v20h-6z' fill='%23a78bfa'/%3E%3Ccircle cx='32' cy='16' r='4' fill='%23fcd34d'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23fcd34d'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/static/css/style.css?v=9">
 </head>
 <body>
@@ -58,6 +59,15 @@
                     <p id="chapter-detection-hint" class="help-text" style="margin-top: 10px; margin-bottom: 0;">
                         Chapters not analyzed yet.
                     </p>
+                    <div id="full-story-option" class="chapter-sub-option" style="display: none;">
+                        <label>
+                            <input type="checkbox" id="full-story-checkbox">
+                            Also create a single full-length audiobook after chapter exports
+                        </label>
+                        <p class="help-text" style="margin-top: 6px;">
+                            When enabled, Kokoro-Story keeps the per-chapter files and adds one combined file to the library.
+                        </p>
+                    </div>
                 </div>
                 
                 <div class="button-group">
@@ -179,6 +189,19 @@
                 </div>
                 <div id="voice-library"></div>
             </div>
+
+            <div class="section" id="custom-voices-section">
+                <div class="custom-voices-header">
+                    <div>
+                        <h2>Custom Voice Blends</h2>
+                        <p class="help-text">Craft new voices by blending the tone of existing speakers.</p>
+                    </div>
+                    <button class="btn btn-primary" id="create-custom-voice-btn">New Custom Voice</button>
+                </div>
+                <div id="custom-voices-list" class="custom-voices-grid">
+                    <p class="help-text">Loading custom voices...</p>
+                </div>
+            </div>
         </div>
 
         <!-- Settings Tab -->
@@ -272,6 +295,52 @@
             <div class="button-group">
                 <button id="save-settings-btn" class="btn btn-primary">Save Settings</button>
                 <button id="reset-settings-btn" class="btn btn-secondary">Reset to Defaults</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="custom-voice-modal-overlay">
+        <div class="modal hidden" id="custom-voice-modal">
+            <div class="modal-header">
+                <h3 id="custom-voice-modal-title">Create Custom Voice</h3>
+                <button class="modal-close" id="custom-voice-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="custom-voice-form">
+                    <div class="form-group">
+                        <label for="custom-voice-name">Voice Name</label>
+                        <input type="text" id="custom-voice-name" maxlength="80" required>
+                        <small>Displayed throughout the app. Keep it short and descriptive.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="custom-voice-lang">Language</label>
+                        <select id="custom-voice-lang" required>
+                            <option value="a">American English</option>
+                            <option value="b">British English</option>
+                            <option value="e">Spanish</option>
+                            <option value="f">French</option>
+                            <option value="h">Hindi</option>
+                            <option value="j">Japanese</option>
+                            <option value="z">Mandarin Chinese</option>
+                            <option value="p">Brazilian Portuguese</option>
+                        </select>
+                        <small>Only voices from this language can be blended.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Components</label>
+                        <div id="custom-voice-components" class="component-rows"></div>
+                        <button type="button" class="btn btn-secondary" id="add-component-btn">Add Component</button>
+                        <small>Each component is an existing Kokoro voice plus an optional weight.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="custom-voice-notes">Notes (optional)</label>
+                        <textarea id="custom-voice-notes" rows="3" placeholder="Describe the blend or who it’s for..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="custom-voice-cancel">Cancel</button>
+                <button class="btn btn-primary" id="custom-voice-save">Save Voice</button>
             </div>
         </div>
     </div>

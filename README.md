@@ -1,5 +1,7 @@
 # Kokoro-Story
 
+A web-based Text-to-Speech application powered by Kokoro-82M, supporting both local GPU inference and Replicate API for generating multi-voice audiobooks and stories.
+
 <div align="center">
   <table>
     <tr>
@@ -38,11 +40,11 @@
     </tr>
   </table>
 </div>
-A web-based Text-to-Speech application powered by Kokoro-82M, supporting both local GPU inference and Replicate API for generating multi-voice audiobooks and stories.
 
 ## Features
 
 - 🎭 **Multi-Voice Support**: Use Kokoro-82M voices for any number of characters in your story
+- 🧪 **Custom Voice Blending**: Mix any combination of Kokoro voices with weighted ratios to create reusable “custom_*” voice codes without touching the command line
 - 🔊 **Speaker Tags & Auto Detection**: Automatically parse `[speaker1]...[/speaker1]` or `[alice]...[/alice]` tags, normalize casing, and keep a live registry of every speaker for quick voice assignment
 - 🤖 **Gemini Pre-Processing**: Split long inputs into chapters/chunks, prepend your custom Gemini prompt, and stream each section through Google Gemini with a live progress indicator
 - 🧠 **Speaker Memory Between Chunks**: Gemini requests carry forward the list of already-discovered speaker tags so later chunks keep the same character names (e.g., "Elora" stays "Elora" instead of becoming "Commander Elora")
@@ -53,8 +55,9 @@ A web-based Text-to-Speech application powered by Kokoro-82M, supporting both lo
 - 📥 **Job Queue**: Submit multiple jobs, track status, cancel, and download results
 - 📊 **Job Queue Tab**: Dedicated UI to monitor all jobs in real time
 - 📚 **Audio Library**: Browsable list of all completed outputs with inline players and delete/clear
-- �️ **Available Voices & Previews**: Browse all Kokoro voices, generate preview samples, and click to listen
-- 🔁 **Sample Generation**: Generate or regenerate missing previews with a single button
+- 🅰️ **Available Voices & Previews**: Browse all Kokoro voices, generate preview samples, and click to listen
+- � **Chapter Collections + Full Audiobook**: Toggle per-chapter outputs and optionally create a single combined audiobook alongside the chapter files
+- �🔁 **Sample Generation**: Generate or regenerate missing previews with a single button
 - 🎛️ **Configurable Settings**: Control mode (local/Replicate), speed, chunk size, output format, crossfade
 - ⚙️ **Dynamic Gemini Controls**: Save your Gemini API key, fetch the latest available Gemini models on demand, and reuse your preferred model across sessions
 - 🌐 **Web Interface**: Modern single-page UI built with Flask and vanilla JS
@@ -182,6 +185,7 @@ python app.py
    - **Job Queue** tab (with status and player)
    - **Library** tab (all past generations)
    - **Latest Audio** section on the **Generate** tab (most recent completed job)
+8. When "Generate separate audio files for each chapter" is on, you can also enable "Also create a single full-length audiobook" so the Library presents both individual chapters and a combined ZIP/full download.
 
 **Note:** Local GPU mode runs entirely on your machine and never uses the Replicate API, ensuring complete privacy and no API costs.
 
@@ -246,6 +250,22 @@ If no speaker tags are found, the entire text will be processed with a single vo
   - Generate preview samples for all voices
   - Regenerate (overwrite) samples if you change text or update voices
   - Click any voice to play its preview sample
+
+### Custom Voice Blends
+
+- Open the **Custom Voice Blends** panel inside the **Available Voices** tab to create bespoke voices.
+- Click **New Custom Voice** (or Edit on any card) to open the modal where you can:
+  - Name the blend and choose its language group (lang_code)
+  - Add one or more component voices and set their mix weights (e.g., 0.5 narrator + 0.5 af_heart)
+  - Optionally add notes for future reference
+- Saved blends appear in the grid with metadata (code, language, updated time) and can be edited or deleted at any time.
+- All custom voices automatically show up in:
+  - Default voice dropdowns
+  - Per-speaker assignment selects (grouped by language under “Custom Blends” optgroups)
+  - `/api/voices` responses (`custom_voices` arrays per language) so automation scripts can use them.
+- When the generator encounters a `custom_*` voice, the backend blends the component embeddings on the fly and caches the tensor for fast reuse.
+
+> Tip: The API exposes the full CRUD workflow under `/api/custom-voices`, so you can script voice creation or keep predefined blends in source control.
 
 ## Configuration
 
@@ -315,6 +335,11 @@ Kokoro-Story/
 - `GET /api/library` - List all completed audio files
 - `DELETE /api/library/<job_id>` - Delete a specific library item
 - `POST /api/library/clear` - Delete all library items
+- `GET /api/custom-voices` - List custom voice blends (includes normalized metadata and component weights)
+- `POST /api/custom-voices` - Create a new custom voice blend
+- `GET /api/custom-voices/<voice_id>` - Retrieve a specific custom voice (ID or `custom_` code)
+- `PUT /api/custom-voices/<voice_id>` - Update an existing custom voice blend
+- `DELETE /api/custom-voices/<voice_id>` - Delete a custom voice and invalidate cached tensors
 
 ## Performance
 

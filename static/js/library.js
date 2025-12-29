@@ -83,6 +83,30 @@ function renderChapterControls(item) {
     `;
 }
 
+function renderFullStoryBanner(item) {
+    if (!item.full_story) {
+        return '';
+    }
+
+    const full = item.full_story;
+    return `
+        <div class="full-story-banner" data-job-id="${item.job_id}">
+            <div>
+                <strong>Full Story Audiobook</strong>
+                <p class="help-text">One continuous file combining every chapter.</p>
+            </div>
+            <div class="full-story-actions">
+                <button class="btn btn-secondary btn-xs" onclick="playFullStory('${item.job_id}', '${full.output_file}', '${full.relative_path}')">
+                    Play
+                </button>
+                <button class="btn btn-primary btn-xs" onclick="downloadFullStory('${item.job_id}', '${full.relative_path}')">
+                    Download Full Story
+                </button>
+            </div>
+        </div>
+    `;
+}
+
 function displayLibraryItems(items) {
     const container = document.getElementById('library-items');
     const emptyMessage = document.getElementById('library-empty');
@@ -123,10 +147,16 @@ function displayLibraryItems(items) {
                 <audio controls id="player-${item.job_id}"></audio>
             </div>
             ${renderChapterControls(item)}
+            ${renderFullStoryBanner(item)}
             <div class="library-item-actions">
                 <button class="btn btn-primary btn-sm" onclick="downloadLibraryItem('${item.job_id}')">
                     Download ${item.chapter_mode ? 'Selected Chapter' : ''}
                 </button>
+                ${item.chapter_mode && item.chapters && item.chapters.length > 1 ? `
+                    <button class="btn btn-secondary btn-sm" onclick="downloadChapterZip('${item.job_id}')">
+                        Download All (ZIP)
+                    </button>
+                ` : ''}
                 <button class="btn btn-secondary btn-sm" onclick="deleteLibraryItem('${item.job_id}')">
                     Delete
                 </button>
@@ -177,6 +207,27 @@ function downloadLibraryItem(jobId) {
     const selected = currentChapterSelection[jobId];
     const query = selected ? `?file=${encodeURIComponent(selected.relative_path)}` : '';
     window.location.href = `/api/download/${jobId}${query}`;
+}
+
+function downloadChapterZip(jobId) {
+    window.location.href = `/api/download/${jobId}/zip`;
+}
+
+function playFullStory(jobId, fileUrl, relativePath) {
+    const playerEl = document.getElementById(`player-${jobId}`);
+    if (playerEl && fileUrl) {
+        playerEl.src = fileUrl;
+        playerEl.load();
+    }
+    currentChapterSelection[jobId] = {
+        output_file: fileUrl,
+        relative_path: relativePath,
+        title: 'Full Story'
+    };
+}
+
+function downloadFullStory(jobId, relativePath) {
+    window.location.href = `/api/download/${jobId}?file=${encodeURIComponent(relativePath)}`;
 }
 
 // Delete library item

@@ -5,7 +5,7 @@ import torch
 import soundfile as sf
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional, Union
 import logging
 
 try:
@@ -14,6 +14,8 @@ try:
 except ImportError:
     KOKORO_AVAILABLE = False
     logging.warning("Kokoro not installed. Local TTS will not be available.")
+
+from .custom_voice_store import CUSTOM_CODE_PREFIX, get_custom_voice_by_code
 
 
 class TTSEngine:
@@ -37,8 +39,9 @@ class TTSEngine:
             
         logging.info(f"Initializing TTS engine on {self.device}")
         
-        # Initialize pipeline cache
-        self.pipelines = {}
+        # Initialize pipeline and custom voice caches
+        self.pipelines: Dict[str, KPipeline] = {}
+        self.custom_voice_cache: Dict[str, torch.FloatTensor] = {}
         
     def _get_pipeline(self, lang_code: str) -> KPipeline:
         """
@@ -78,13 +81,14 @@ class TTSEngine:
             Audio array (numpy)
         """
         pipeline = self._get_pipeline(lang_code)
+        voice_input = self._resolve_voice_input(pipeline, voice, lang_code)
         
         # Generate audio
         logging.info(f"Generating audio: voice={voice}, lang={lang_code}, speed={speed}")
         
         generator = pipeline(
             text,
-            voice=voice,
+            voice=voice_input,
             speed=speed,
             split_pattern=r'\n+'
         )
@@ -175,10 +179,110 @@ class TTSEngine:
                     
         logging.info(f"Generated {len(output_files)} audio files")
         return output_files
+
+    def _resolve_voice_input(
+        self,
+        pipeline: KPipeline,
+        voice: str,
+        lang_code: str
+    ) -> Union[str, torch.FloatTensor]:
+        """
+        Resolve incoming voice identifier into either a Kokoro voice string or a blended tensor.
+
+        Returns:
+            Union[str, torch.FloatTensor]: A standard voice name or a blended embedding tensor.
+        """
+        if not voice or not voice.startswith(CUSTOM_CODE_PREFIX):
+            return voice
+
+        cache_key = f"{lang_code}:{voice}"
+        if cache_key in self.custom_voice_cache:
+            return self.custom_voice_cache[cache_key]
+
+        definition = get_custom_voice_by_code(voice)
+        if not definition:
+            raise ValueError(f"Custom voice '{voice}' does not exist.")
+
+        components = definition.get("components") or []
+        if not components:
+            raise ValueError(f"Custom voice '{voice}' has no components.")
+
+        blended_pack = self._blend_custom_voice(pipeline, components)
+        self.custom_voice_cache[cache_key] = blended_pack
+        return blended_pack
+
+    def _blend_custom_voice(
+        self,
+        pipeline: KPipeline,
+        components: List[Union[str, Dict[str, Union[str, float]]]]
+    ) -> torch.FloatTensor:
+        """
+        Blend multiple Kokoro voices into a single embedding tensor.
+
+        Args:
+            pipeline: Active KPipeline for the appropriate language.
+            components: Sequence of component voice definitions. Each component can be a
+                plain string (voice name) or a dict containing:
+                    - voice (required): Kokoro base voice ID (e.g., af_heart)
+                    - weight/ratio (optional): Relative mix ratio (defaults to 1.0)
+
+        Returns:
+            torch.FloatTensor: Blended voice pack tensor.
+        """
+        packs: List[torch.FloatTensor] = []
+        weights: List[float] = []
+
+        for component in components:
+            comp_voice: Optional[str] = None
+            weight_value: float = 1.0
+
+            if isinstance(component, str):
+                comp_voice = component.strip()
+            elif isinstance(component, dict):
+                comp_voice = (component.get("voice") or component.get("name") or "").strip()
+                weight_value = float(
+                    component.get("weight")
+                    or component.get("ratio")
+                    or component.get("mix")
+                    or 1.0
+                )
+            else:
+                continue
+
+            if not comp_voice:
+                continue
+
+            try:
+                pack = pipeline.load_voice(comp_voice)
+            except Exception as exc:
+                raise ValueError(f"Failed to load component voice '{comp_voice}': {exc}") from exc
+
+            packs.append(pack)
+            weights.append(max(weight_value, 0.0))
+
+        if not packs:
+            raise ValueError("No valid component voices could be loaded for blending.")
+
+        stacked = torch.stack(packs)
+
+        weight_tensor = torch.tensor(weights, dtype=stacked.dtype, device=stacked.device)
+        total = float(weight_tensor.sum().item())
+        if total <= 0:
+            weight_tensor = torch.ones_like(weight_tensor)
+            total = float(weight_tensor.sum().item())
+        weight_tensor = weight_tensor / total
+
+        # Reshape weights for broadcasting across embedding dimensions
+        while len(weight_tensor.shape) < len(stacked.shape):
+            weight_tensor = weight_tensor.unsqueeze(-1)
+
+        blended = torch.sum(stacked * weight_tensor, dim=0)
+        return blended
         
     def cleanup(self):
         """Clean up resources"""
         self.pipelines.clear()
+        self.custom_voice_cache.clear()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             
@@ -195,3 +299,30 @@ class TTSEngine:
             info["cuda_memory_reserved"] = torch.cuda.memory_reserved(0)
             
         return info
+
+    def clear_custom_voice_cache(self, voice_code: Optional[str] = None) -> int:
+        """
+        Remove cached blended tensors for all or specific custom voices.
+
+        Args:
+            voice_code: Optional custom voice code (e.g., "custom_<id>").
+                When omitted, the entire cache is cleared.
+
+        Returns:
+            int: Number of cache entries removed.
+        """
+        if not self.custom_voice_cache:
+            return 0
+
+        if not voice_code:
+            removed = len(self.custom_voice_cache)
+            self.custom_voice_cache.clear()
+            return removed
+
+        suffix = f":{voice_code}"
+        original = len(self.custom_voice_cache)
+        self.custom_voice_cache = {
+            key: value for key, value in self.custom_voice_cache.items()
+            if not key.endswith(suffix)
+        }
+        return original - len(self.custom_voice_cache)

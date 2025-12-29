@@ -5,10 +5,27 @@ let currentStats = null;
 let analyzeDebounceTimer = null;
 let lastAnalyzedText = '';
 const ANALYZE_DEBOUNCE_MS = 800;
+const VOICES_EVENT_NAME = window.VOICES_UPDATED_EVENT || 'voices:updated';
+
+window.customVoiceMap = window.customVoiceMap || {};
+window.addEventListener(VOICES_EVENT_NAME, handleVoicesUpdated);
+
+function handleVoicesUpdated(event) {
+    const detail = event?.detail || {};
+    if (detail.voices) {
+        window.availableVoices = detail.voices;
+    }
+    if (detail.customVoiceMap) {
+        window.customVoiceMap = detail.customVoiceMap;
+    }
+    populateDefaultVoiceSelect();
+    populateVoiceSelects();
+}
 
 function refreshChapterHint() {
     const chapterHint = document.getElementById('chapter-detection-hint');
     const chapterCheckbox = document.getElementById('split-chapters-checkbox');
+    syncFullStoryOption(chapterCheckbox);
     if (!chapterHint || !chapterCheckbox) {
         return;
     }
@@ -177,6 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     populateDefaultVoiceSelect();
     initAutoAnalyze();
+    const chapterCheckbox = document.getElementById('split-chapters-checkbox');
+    syncFullStoryOption(chapterCheckbox, true);
 });
 
 function initAutoAnalyze() {
@@ -257,6 +276,7 @@ function setupEventListeners() {
     const newGenerationBtn = document.getElementById('new-generation-btn');
     const cancelBtn = document.getElementById('cancel-btn');
     const chapterCheckbox = document.getElementById('split-chapters-checkbox');
+    const fullStoryCheckbox = document.getElementById('full-story-checkbox');
 
     if (analyzeBtn) {
         analyzeBtn.addEventListener('click', analyzeText);
@@ -277,10 +297,35 @@ function setupEventListeners() {
         cancelBtn.addEventListener('click', cancelGeneration);
     }
     if (chapterCheckbox) {
-        chapterCheckbox.addEventListener('change', () => {
-            chapterCheckbox.dataset.userToggled = 'true';
+        chapterCheckbox.addEventListener('change', event => {
             refreshChapterHint();
+            syncFullStoryOption(event.currentTarget);
         });
+    }
+
+    if (fullStoryCheckbox) {
+        fullStoryCheckbox.addEventListener('change', () => {
+            if (!chapterCheckbox?.checked) {
+                fullStoryCheckbox.checked = false;
+            }
+        });
+    }
+}
+
+function syncFullStoryOption(chapterCheckbox, force = false) {
+    const optionContainer = document.getElementById('full-story-option');
+    const fullStoryCheckbox = document.getElementById('full-story-checkbox');
+    if (!optionContainer || !chapterCheckbox) {
+        return;
+    }
+    const shouldShow = !!chapterCheckbox.checked;
+    if (!force && optionContainer.dataset.visible === String(shouldShow)) {
+        return;
+    }
+    optionContainer.style.display = shouldShow ? 'block' : 'none';
+    optionContainer.dataset.visible = String(shouldShow);
+    if (!shouldShow && fullStoryCheckbox) {
+        fullStoryCheckbox.checked = false;
     }
 }
 
@@ -444,19 +489,10 @@ function populateVoiceSelects() {
     
     const selects = document.querySelectorAll('#inline-voice-assignment-list .voice-select');
     selects.forEach(select => {
-        Object.entries(window.availableVoices).forEach(([langCode, voiceConfig]) => {
-            const optgroup = document.createElement('optgroup');
-            optgroup.label = voiceConfig.language;
-            
-            voiceConfig.voices.forEach(voiceName => {
-                const option = document.createElement('option');
-                option.value = voiceName;
-                option.textContent = voiceName;
-                optgroup.appendChild(option);
-            });
-            
-            select.appendChild(optgroup);
-        });
+        const previousValue = select.value;
+        select.innerHTML = '<option value="">Select Voice...</option>';
+        appendVoiceOptions(select);
+        restoreSelectValue(select, previousValue);
     });
 }
 
@@ -511,6 +547,7 @@ async function generateAudio() {
     const generateBtn = document.getElementById('generate-btn');
     
     const splitByChapter = document.getElementById('split-chapters-checkbox')?.checked || false;
+    const generateFullStory = splitByChapter && (document.getElementById('full-story-checkbox')?.checked || false);
     try {
         const response = await fetch('/api/generate', {
             method: 'POST',
@@ -520,7 +557,8 @@ async function generateAudio() {
             body: JSON.stringify({
                 text,
                 voice_assignments: voiceAssignments,
-                split_by_chapter: splitByChapter
+                split_by_chapter: splitByChapter,
+                generate_full_story: generateFullStory
             })
         });
         
@@ -655,35 +693,70 @@ function simulateProgressWithEstimate(estimatedSeconds) {
 // Populate default voice selector
 function populateDefaultVoiceSelect() {
     const select = document.getElementById('default-voice-select');
-    
-    // Wait for voices to load
-    const checkVoices = setInterval(() => {
-        if (window.availableVoices) {
-            clearInterval(checkVoices);
+    if (!select || !window.availableVoices) {
+        return;
+    }
+
+    const previousValue = select.value;
+    select.innerHTML = '<option value="">Select Default Voice...</option>';
+    appendVoiceOptions(select);
+    restoreSelectValue(select, previousValue);
+}
+
+function appendVoiceOptions(selectElement) {
+    Object.values(window.availableVoices).forEach(voiceConfig => {
+        if (!voiceConfig) return;
+        const baseOptgroup = document.createElement('optgroup');
+        baseOptgroup.label = voiceConfig.language || 'Voices';
+        
+        voiceConfig.voices.forEach(voiceName => {
+            const option = document.createElement('option');
+            option.value = voiceName;
+            option.textContent = voiceName;
+            baseOptgroup.appendChild(option);
+        });
+        
+        selectElement.appendChild(baseOptgroup);
+        
+        const customVoices = voiceConfig.custom_voices || [];
+        if (customVoices.length) {
+            const customGroup = document.createElement('optgroup');
+            customGroup.label = `${voiceConfig.language || 'Voices'} — Custom Blends`;
             
-            // Clear existing options except the first one
-            select.innerHTML = '<option value="">Select Default Voice...</option>';
-            
-            // Add all voices grouped by language
-            Object.entries(window.availableVoices).forEach(([langCode, voiceConfig]) => {
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = voiceConfig.language;
-                
-                voiceConfig.voices.forEach(voiceName => {
-                    const option = document.createElement('option');
-                    option.value = voiceName;
-                    option.textContent = voiceName;
-                    optgroup.appendChild(option);
-                });
-                
-                select.appendChild(optgroup);
+            customVoices.forEach(entry => {
+                const option = document.createElement('option');
+                option.value = entry.code;
+                option.textContent = entry.name || entry.code;
+                option.dataset.customVoice = 'true';
+                customGroup.appendChild(option);
             });
+            
+            selectElement.appendChild(customGroup);
         }
-    }, 100);
+    });
+}
+
+function restoreSelectValue(selectElement, previousValue) {
+    if (!previousValue) {
+        return;
+    }
+    const options = Array.from(selectElement.options);
+    const match = options.find(option => option.value === previousValue);
+    if (match) {
+        selectElement.value = previousValue;
+    }
 }
 
 // Helper function to get lang_code for a voice
 function getLangCodeForVoice(voiceName) {
+    if (!voiceName) {
+        return 'a';
+    }
+
+    if (window.customVoiceMap && window.customVoiceMap[voiceName]) {
+        return window.customVoiceMap[voiceName].lang_code || 'a';
+    }
+
     if (!window.availableVoices) return 'a';
     
     for (const [key, voiceConfig] of Object.entries(window.availableVoices)) {

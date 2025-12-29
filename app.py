@@ -16,6 +16,7 @@ import time
 import stat
 import io
 import zipfile
+from typing import Dict, Optional
 
 from src.text_processor import TextProcessor
 from src.voice_manager import VoiceManager
@@ -24,6 +25,15 @@ from src.tts_engine import TTSEngine, KOKORO_AVAILABLE
 from src.replicate_api import ReplicateAPI
 from src.gemini_processor import GeminiProcessor, GeminiProcessorError
 from src.audio_merger import AudioMerger
+from src.custom_voice_store import (
+    CUSTOM_CODE_PREFIX,
+    delete_custom_voice,
+    get_custom_voice,
+    get_custom_voice_by_code,
+    list_custom_voice_entries,
+    replace_custom_voice,
+    save_custom_voice,
+)
 
 # Setup logging
 logging.basicConfig(
@@ -55,6 +65,127 @@ current_job_id = None  # Currently processing job
 cancel_flags = {}  # Cancellation flags for jobs
 queue_lock = threading.Lock()  # Lock for thread-safe operations
 worker_thread = None  # Background worker thread
+tts_engine_instance = None  # Cached TTS engine
+tts_engine_lock = threading.Lock()
+
+
+def get_tts_engine():
+    """Return a shared TTSEngine instance to avoid repeatedly re-loading Kokoro models."""
+    if not KOKORO_AVAILABLE:
+        raise ImportError("Kokoro is not installed. Run setup to enable local mode.")
+
+    global tts_engine_instance
+    with tts_engine_lock:
+        if tts_engine_instance is None:
+            tts_engine_instance = TTSEngine()
+        return tts_engine_instance
+
+
+def clear_cached_custom_voice(voice_code: str | None = None) -> int:
+    """Ensure cached blended tensors stay in sync after CRUD operations."""
+    global tts_engine_instance
+    if tts_engine_instance is None:
+        return 0
+    return tts_engine_instance.clear_custom_voice_cache(voice_code)
+
+
+def _voice_manager_for_custom_voices() -> VoiceManager:
+    """Create a fresh VoiceManager to validate custom voice payloads."""
+    return VoiceManager()
+
+
+def _normalize_component(component) -> Dict[str, float]:
+    """Normalize a component entry into {'voice': str, 'weight': float}."""
+    voice = None
+    weight = 1.0
+
+    if isinstance(component, str):
+        voice = component.strip()
+    elif isinstance(component, dict):
+        voice = str(component.get("voice") or component.get("name") or "").strip()
+        weight_candidate = component.get("weight") or component.get("ratio") or component.get("mix")
+        if weight_candidate is not None:
+            try:
+                weight = float(weight_candidate)
+            except (TypeError, ValueError):
+                raise ValueError("Component weight must be numeric.")
+    else:
+        raise ValueError("Invalid component format.")
+
+    if not voice:
+        raise ValueError("Component voice is required.")
+    if weight <= 0:
+        raise ValueError("Component weight must be greater than zero.")
+
+    return {"voice": voice, "weight": weight}
+
+
+def _prepare_custom_voice_payload(data: dict, existing: Optional[dict] = None) -> dict:
+    """Validate and normalize incoming custom voice payloads."""
+    if not isinstance(data, dict):
+        raise ValueError("Invalid payload format.")
+
+    existing = existing or {}
+    name = (data.get("name") or existing.get("name") or "Custom Voice").strip()
+    if not name:
+        raise ValueError("Custom voice name cannot be empty.")
+    if len(name) > 80:
+        raise ValueError("Custom voice name must be 80 characters or fewer.")
+
+    lang_code = (data.get("lang_code") or existing.get("lang_code") or "a").lower()
+    manager = _voice_manager_for_custom_voices()
+    if not manager.supports_lang_code(lang_code):
+        raise ValueError(f"Unsupported language code '{lang_code}'.")
+
+    components_input = data.get("components")
+    if components_input is None:
+        components_input = existing.get("components")
+    if not components_input:
+        raise ValueError("Custom voice requires at least one component voice.")
+
+    normalized_components = [_normalize_component(component) for component in components_input]
+    for component in normalized_components:
+        if not manager.validate_voice(component["voice"], lang_code):
+            raise ValueError(f"Voice '{component['voice']}' is not available for language '{lang_code}'.")
+
+    total_weight = sum(component["weight"] for component in normalized_components)
+    if total_weight <= 0:
+        raise ValueError("Total component weight must be greater than zero.")
+
+    notes_value = (data.get("notes") or existing.get("notes") or "").strip()
+
+    payload = existing.copy()
+    payload.update({
+        "name": name,
+        "lang_code": lang_code,
+        "components": normalized_components,
+        "notes": notes_value or None,
+    })
+    return payload
+
+
+def _to_public_custom_voice(entry: dict) -> dict:
+    """Ensure API responses include normalized metadata."""
+    if not entry:
+        return {}
+    public = entry.copy()
+    if "code" not in public and public.get("id"):
+        public["code"] = f"{CUSTOM_CODE_PREFIX}{public['id']}"
+    public["components"] = public.get("components", [])
+    return public
+
+
+def _get_raw_custom_voice(identifier: str) -> Optional[dict]:
+    """Fetch raw custom voice definition by id or code."""
+    if not identifier:
+        return None
+    voice_id = identifier
+    if identifier.startswith(CUSTOM_CODE_PREFIX):
+        entry = get_custom_voice_by_code(identifier)
+        voice_id = entry.get("id") if entry else None
+    if not voice_id:
+        return None
+    return get_custom_voice(voice_id)
 
 
 def slugify_filename(value: str, default: str = "chapter") -> str:
@@ -152,7 +283,12 @@ def compose_gemini_prompt(section: dict, prompt_prefix: str = "", known_speakers
     return "\n\n".join(parts).strip()
 
 
-def estimate_total_chunks(text: str, split_by_chapter: bool, chunk_size: int) -> int:
+def estimate_total_chunks(
+    text: str,
+    split_by_chapter: bool,
+    chunk_size: int,
+    include_full_story: bool = False
+) -> int:
     """Estimate total chunk count for a job to power progress indicators."""
     processor = TextProcessor(chunk_size=chunk_size)
     sections = [{"content": text}]
@@ -162,6 +298,8 @@ def estimate_total_chunks(text: str, split_by_chapter: bool, chunk_size: int) ->
             sections = detected
 
     merge_steps = len(sections) if sections else 1
+    if include_full_story and split_by_chapter and sections:
+        merge_steps += 1  # additional merge for full-length audiobook
     total_chunks = 0
     for section in sections:
         section_text = (section.get("content") or "").strip()
@@ -263,6 +401,7 @@ def process_audio_job(job_data):
     voice_assignments = job_data['voice_assignments']
     config = job_data['config']
     split_by_chapter = job_data.get('split_by_chapter', False)
+    generate_full_story = job_data.get('generate_full_story', False)
     
     try:
         # Check for cancellation
@@ -319,6 +458,7 @@ def process_audio_job(job_data):
             if job_entry:
                 job_entry['chapter_count'] = chapter_count
                 job_entry['chapter_mode'] = split_by_chapter
+                job_entry['full_story_requested'] = generate_full_story
         
         mode = config['mode']
         output_format = config['output_format']
@@ -326,6 +466,9 @@ def process_audio_job(job_data):
             crossfade_ms=int(config['crossfade_duration'] * 1000)
         )
         chapter_outputs = []
+        full_story_entry = None
+        all_full_story_chunks = [] if (split_by_chapter and generate_full_story) else None
+        chunk_dirs_to_cleanup = []
         
         # Prepare TTS engine/API
         engine = None
@@ -333,7 +476,7 @@ def process_audio_job(job_data):
         if mode == "local":
             if not KOKORO_AVAILABLE:
                 raise Exception("Kokoro not installed. Use Replicate API or install kokoro.")
-            engine = TTSEngine()
+            engine = get_tts_engine()
         else:
             api_key = config.get('replicate_api_key', '')
             if not api_key:
@@ -377,18 +520,23 @@ def process_audio_job(job_data):
                         logger.warning(f"Chapter {idx} had no audio chunks; skipping")
                         continue
 
+                    if all_full_story_chunks is not None:
+                        all_full_story_chunks.extend(audio_files)
+                        chunk_dirs_to_cleanup.append(chunk_dir)
+
                     slug = slugify_filename(chapter['title'], f"chapter-{idx:02d}")
                     output_filename = f"{slug}.{output_format}"
                     output_path = chapter_dir / output_filename
                     merger.merge_wav_files(
                         input_files=audio_files,
                         output_path=str(output_path),
-                        format=output_format
+                        format=output_format,
+                        cleanup_chunks=not generate_full_story
                     )
                     update_progress()
 
                     # Cleanup empty chunk directory
-                    if chunk_dir.exists():
+                    if chunk_dir.exists() and not generate_full_story:
                         try:
                             chunk_dir.rmdir()
                         except OSError:
@@ -425,9 +573,32 @@ def process_audio_job(job_data):
                     "file_url": f"/static/audio/{job_id}/output.{output_format}",
                     "relative_path": f"output.{output_format}"
                 })
-        finally:
-            if engine:
-                engine.cleanup()
+
+        except Exception:
+            raise
+
+        if all_full_story_chunks:
+            full_story_name = f"full_story.{output_format}"
+            full_story_path = job_dir / full_story_name
+            merger.merge_wav_files(
+                input_files=all_full_story_chunks,
+                output_path=str(full_story_path),
+                format=output_format
+            )
+            update_progress()
+
+            for chunk_dir in chunk_dirs_to_cleanup:
+                if chunk_dir.exists():
+                    try:
+                        chunk_dir.rmdir()
+                    except OSError:
+                        pass
+
+            full_story_entry = {
+                "title": "Full Story",
+                "file_url": f"/static/audio/{job_id}/{full_story_name}",
+                "relative_path": full_story_name
+            }
 
         if cancel_flags.get(job_id, False):
             logger.info(f"Job {job_id} cancelled before completion")
@@ -442,7 +613,8 @@ def process_audio_job(job_data):
             "chapter_mode": split_by_chapter,
             "output_format": output_format,
             "chapters": chapter_outputs,
-            "chapter_count": chapter_count
+            "chapter_count": chapter_count,
+            "full_story": full_story_entry
         }
         save_job_metadata(job_dir, metadata)
         
@@ -453,10 +625,15 @@ def process_audio_job(job_data):
             jobs[job_id]['processed_chunks'] = total_chunks
             jobs[job_id]['total_chunks'] = total_chunks
             jobs[job_id]['eta_seconds'] = 0
-            jobs[job_id]['output_file'] = chapter_outputs[0]['file_url']
+            primary_output = full_story_entry or (chapter_outputs[0] if chapter_outputs else None)
+            jobs[job_id]['output_file'] = primary_output['file_url'] if primary_output else ''
             jobs[job_id]['chapter_outputs'] = chapter_outputs
             jobs[job_id]['chapter_mode'] = split_by_chapter
+            jobs[job_id]['full_story_requested'] = generate_full_story
+            if full_story_entry:
+                jobs[job_id]['full_story'] = full_story_entry
             jobs[job_id]['completed_at'] = datetime.now().isoformat()
+
         
         logger.info(f"Job {job_id} completed successfully with {len(chapter_outputs)} output file(s)")
         
@@ -568,6 +745,60 @@ def generate_voice_samples_api():
         "total_unique_voices": voice_manager.total_unique_voice_count(),
         "sample_count": voice_manager.sample_count()
     })
+
+
+@app.route('/api/custom-voices', methods=['GET', 'POST'])
+def custom_voices_collection():
+    """List or create custom voice blends."""
+    if request.method == 'GET':
+        entries = list_custom_voice_entries()
+        return jsonify({
+            "success": True,
+            "voices": [_to_public_custom_voice(entry) for entry in entries],
+        })
+
+    try:
+        payload = _prepare_custom_voice_payload(request.json or {})
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+
+    now = datetime.now().isoformat()
+    payload["created_at"] = now
+    payload["updated_at"] = now
+    saved = save_custom_voice(payload)
+    clear_cached_custom_voice()
+    return jsonify({
+        "success": True,
+        "voice": _to_public_custom_voice(saved),
+    }), 201
+
+
+@app.route('/api/custom-voices/<voice_id>', methods=['GET', 'PUT', 'DELETE'])
+def custom_voice_detail(voice_id):
+    """Retrieve, update, or delete a custom voice definition."""
+    raw = _get_raw_custom_voice(voice_id)
+    if not raw:
+        return jsonify({"success": False, "error": "Custom voice not found."}), 404
+
+    if request.method == 'GET':
+        return jsonify({"success": True, "voice": _to_public_custom_voice(raw)})
+
+    if request.method == 'DELETE':
+        delete_custom_voice(raw["id"])
+        clear_cached_custom_voice(f"{CUSTOM_CODE_PREFIX}{raw['id']}")
+        return jsonify({"success": True, "deleted": True})
+
+    try:
+        payload = _prepare_custom_voice_payload(request.json or {}, existing=raw)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+
+    payload["id"] = raw["id"]
+    payload["created_at"] = raw.get("created_at")
+    payload["updated_at"] = datetime.now().isoformat()
+    updated = replace_custom_voice(payload)
+    clear_cached_custom_voice(f"{CUSTOM_CODE_PREFIX}{raw['id']}")
+    return jsonify({"success": True, "voice": _to_public_custom_voice(updated)})
 
 
 @app.route('/api/settings', methods=['GET', 'POST'])
@@ -882,6 +1113,7 @@ def generate_audio():
         text = data.get('text', '')
         voice_assignments = data.get('voice_assignments', {})
         split_by_chapter = bool(data.get('split_by_chapter', False))
+        generate_full_story = bool(data.get('generate_full_story', False)) and split_by_chapter
 
         if not text:
             return jsonify({
@@ -897,7 +1129,8 @@ def generate_audio():
         estimated_chunks = estimate_total_chunks(
             text,
             split_by_chapter,
-            int(config.get('chunk_size', 500))
+            int(config.get('chunk_size', 500)),
+            include_full_story=generate_full_story
         )
         
         with queue_lock:
@@ -910,7 +1143,8 @@ def generate_audio():
                 "total_chunks": estimated_chunks,
                 "processed_chunks": 0,
                 "eta_seconds": None,
-                "chapter_count": None
+                "chapter_count": None,
+                "full_story_requested": generate_full_story
             }
         
         # Create job data
@@ -920,9 +1154,10 @@ def generate_audio():
             "voice_assignments": voice_assignments,
             "config": config,
             "split_by_chapter": split_by_chapter,
-            "total_chunks": estimated_chunks
+            "total_chunks": estimated_chunks,
+            "generate_full_story": generate_full_story
         }
-        
+
         # Add to queue
         job_queue.put(job_data)
         logger.info(f"Job {job_id} added to queue. Queue size: {job_queue.qsize()}")
@@ -1012,13 +1247,14 @@ def download_audio_bundle(job_id):
 
         metadata = load_job_metadata(job_dir)
         chapters = (metadata or {}).get("chapters")
-        if not chapters:
+        full_story = (metadata or {}).get("full_story")
+        if not chapters and not full_story:
             # Fallback to single-file download
             return download_audio(job_id)
 
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for chapter in chapters:
+            for chapter in (chapters or []):
                 rel_path = chapter.get("relative_path")
                 if not rel_path:
                     continue
@@ -1027,6 +1263,14 @@ def download_audio_bundle(job_id):
                     continue
                 arc_name = Path(rel_path).as_posix()
                 zip_file.write(file_path, arcname=arc_name)
+
+            if full_story:
+                rel_path = full_story.get("relative_path")
+                if rel_path:
+                    file_path = job_dir / Path(rel_path)
+                    if file_path.exists():
+                        arc_name = Path(rel_path).as_posix()
+                        zip_file.write(file_path, arcname=arc_name)
 
         zip_buffer.seek(0)
         return send_file(
@@ -1062,6 +1306,7 @@ def get_library():
                     chapters_data = []
                     total_size = 0
                     created_ts = None
+                    full_story_entry = None
                     for chapter in metadata["chapters"]:
                         rel_path = chapter.get("relative_path")
                         if not rel_path:
@@ -1083,6 +1328,20 @@ def get_library():
                             "format": file_path.suffix.lstrip('.')
                         })
 
+                    full_meta = metadata.get("full_story")
+                    if full_meta and full_meta.get("relative_path"):
+                        full_path = job_dir / Path(full_meta["relative_path"])
+                        if full_path.exists():
+                            stat = full_path.stat()
+                            total_size += stat.st_size
+                            full_story_entry = {
+                                "title": full_meta.get("title", "Full Story"),
+                                "output_file": f"/static/audio/{job_id}/{full_meta['relative_path']}",
+                                "relative_path": full_meta['relative_path'],
+                                "file_size": stat.st_size,
+                                "format": full_path.suffix.lstrip('.')
+                            }
+
                     if chapters_data:
                         chapters_data.sort(key=lambda c: c.get("index") or 0)
                         library_items.append({
@@ -1093,7 +1352,8 @@ def get_library():
                             "file_size": total_size,
                             "format": metadata.get("output_format", chapters_data[0]["format"]),
                             "chapter_mode": metadata.get("chapter_mode", False),
-                            "chapters": chapters_data
+                            "chapters": chapters_data,
+                            "full_story": full_story_entry
                         })
                     continue
 
@@ -1248,7 +1508,8 @@ def get_queue():
                     "processed_chunks": job_info.get("processed_chunks", 0),
                     "eta_seconds": job_info.get("eta_seconds"),
                     "chapter_mode": job_info.get("chapter_mode", False),
-                    "chapter_count": job_info.get("chapter_count")
+                    "chapter_count": job_info.get("chapter_count"),
+                    "full_story_requested": job_info.get("full_story_requested", False)
                 })
             
             # Sort by creation time (newest first)

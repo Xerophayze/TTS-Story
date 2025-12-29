@@ -7,7 +7,9 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Optional
+
+from .custom_voice_store import list_custom_voice_entries
 
 
 LANGUAGE_LABELS = {
@@ -120,6 +122,10 @@ class VoiceManager:
     def __init__(self):
         self.speaker_voices = {}
         self.samples_manifest = load_samples_manifest()
+        self._custom_voice_entries = self._load_custom_voice_entries()
+        self.custom_voice_map = {
+            entry["code"]: entry for entry in self._custom_voice_entries
+        }
         
     def assign_voice(self, speaker_id, voice_name, lang_code="a"):
         """
@@ -153,6 +159,7 @@ class VoiceManager:
     def get_all_voices(self):
         """Get all available voices with sample metadata."""
         voices_copy = copy.deepcopy(VOICES)
+        custom_groups: Dict[str, List[Dict]] = {}
         
         for language_key, config in voices_copy.items():
             samples = {}
@@ -165,7 +172,33 @@ class VoiceManager:
                 language_key,
                 language_key.replace("_", " ").title(),
             )
+            config["custom_voices"] = []
         
+        # Append custom voices to their corresponding language groups
+        for entry in self._custom_voice_entries:
+            lang_key = self._get_language_key_by_code(entry["lang_code"])
+            if not lang_key:
+                continue
+            group = voices_copy.setdefault(lang_key, {
+                "lang_code": entry["lang_code"],
+                "voices": [],
+                "samples": {},
+                "language": LANGUAGE_LABELS.get(
+                    lang_key,
+                    lang_key.replace("_", " ").title(),
+                ),
+                "custom_voices": [],
+            })
+            group["custom_voices"].append({
+                "id": entry.get("id"),
+                "code": entry.get("code"),
+                "name": entry.get("name"),
+                "components": entry.get("components", []),
+                "created_at": entry.get("created_at"),
+                "notes": entry.get("notes"),
+            })
+            custom_groups.setdefault(entry["lang_code"], []).append(entry)
+
         return voices_copy
     
     @staticmethod
@@ -211,7 +244,14 @@ class VoiceManager:
         for lang, config in VOICES.items():
             if config["lang_code"] == lang_code:
                 return voice_name in config["voices"]
+        # Also allow custom voices for the same language
+        if voice_name in self.custom_voice_map:
+            return self.custom_voice_map[voice_name]["lang_code"] == lang_code
         return False
+
+    def supports_lang_code(self, lang_code: str) -> bool:
+        """Check whether a language code is supported."""
+        return self._get_language_key_by_code(lang_code) is not None
         
     def clear_assignments(self):
         """Clear all voice assignments"""
@@ -228,3 +268,23 @@ class VoiceManager:
     def import_config(self, config):
         """Import voice configuration from dict"""
         self.speaker_voices = config.copy()
+
+    def get_custom_voice_map(self) -> Dict[str, Dict]:
+        """Expose mapping of custom voice codes to their definitions."""
+        return self.custom_voice_map
+
+    def _get_language_key_by_code(self, lang_code: str) -> Optional[str]:
+        for key, config in VOICES.items():
+            if config.get("lang_code") == lang_code:
+                return key
+        return None
+
+    def _load_custom_voice_entries(self) -> List[Dict]:
+        """Load custom voice definitions and normalize their structure."""
+        entries: List[Dict] = []
+        for voice in list_custom_voice_entries():
+            components = voice.get("components") or []
+            if not components:
+                continue
+            entries.append(voice)
+        return entries
