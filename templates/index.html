@@ -42,141 +42,159 @@
                     rows="15"
                 ></textarea>
                 
-                <div class="section engine-select-card" style="margin-top: 20px;">
-                    <div class="default-voice-header">
-                        <div>
-                            <h3>⚙️ Engine & Voice</h3>
-                            <p>Pick your TTS engine and configure its default voice or reference prompt.</p>
-                        </div>
-                    </div>
-                    <div class="engine-select-grid" style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 10px;">
-                        <div class="form-group">
-                            <label for="job-tts-engine">Engine</label>
-                            <select id="job-tts-engine">
-                                <option value="kokoro">Kokoro · Local GPU</option>
-                                <option value="kokoro_replicate">Kokoro · Replicate</option>
-                                <option value="chatterbox_turbo_local">Chatterbox · Local GPU</option>
-                                <option value="chatterbox_turbo_replicate">Chatterbox · Replicate</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="kokoro-default-voice-card" class="engine-subcard kokoro-card">
-                        <div class="kokoro-header">
-                            <h3>🎤 Default Kokoro Voice</h3>
-                            <p>Select a default Kokoro voice for plain text or unassigned speakers.</p>
-                        </div>
-                        <div class="kokoro-controls">
-                            <div class="kokoro-main-controls">
-                                <select id="default-voice-select" class="voice-select kokoro-voice-dropdown">
-                                    <option value="">Select Default Voice...</option>
-                                </select>
-                                <div id="default-voice-fx-panel" class="voice-fx-panel voice-fx-inline kokoro-sliders" data-speaker="default"></div>
-                            </div>
-                            <div class="kokoro-test-area">
-                                <div id="default-voice-preview-slot"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="chatterbox-turbo-voice-card" class="engine-subcard" style="display: none;">
+                <div class="generate-cards-row">
+                    <!-- Engine & Voice Card -->
+                    <div class="section engine-select-card generate-card-left">
                         <div class="default-voice-header">
                             <div>
-                                <h2>Chatterbox Turbo</h2>
-                                <p class="help-text">Cloned reference prompts provide richer character control.</p>
+                                <h3>⚙️ Engine & Voice</h3>
+                                <p>Pick your TTS engine and configure its default voice or reference prompt.</p>
                             </div>
                         </div>
-                        <div class="engine-options-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 10px;">
+                        <div class="engine-select-grid" style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 10px;">
                             <div class="form-group">
-                                <label for="chatterbox-reference-select">Reference Prompt</label>
-                                <div class="reference-select-row">
-                                    <select id="chatterbox-reference-select" data-meta-target="chatterbox-reference-details">
-                                        <option value="">Use preset voice</option>
-                                    </select>
-                                    <button type="button"
-                                            id="global-chatterbox-preview-btn"
-                                            class="btn btn-secondary btn-sm"
-                                            data-label-play="Play"
-                                            data-label-stop="Stop"
-                                            disabled>
-                                        Play
-                                    </button>
-                                </div>
-                                <small>Manage saved prompts in Available Voices → Chatterbox Voices.</small>
-                                <div class="help-text" id="chatterbox-reference-details"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="section" style="margin-top: 20px; padding: 20px; background: rgba(99, 102, 241, 0.08); border-radius: 8px; border: 1px dashed rgba(99,102,241,0.4);">
-                    <label style="display: flex; align-items: center; gap: 10px; font-size: 16px;">
-                        <input type="checkbox" id="split-chapters-checkbox">
-                        Generate separate audio files for each chapter
-                    </label>
-                    <p id="chapter-detection-hint" class="help-text" style="margin-top: 10px; margin-bottom: 0;">
-                        Chapters not analyzed yet.
-                    </p>
-                    <div id="full-story-option" class="chapter-sub-option" style="display: none;">
-                        <label>
-                            <input type="checkbox" id="full-story-checkbox">
-                            Also create a single full-length audiobook after chapter exports
-                        </label>
-                        <p class="help-text" style="margin-top: 6px;">
-                            When enabled, TTS-Story keeps the per-chapter files and adds one combined file to the library.
-                        </p>
-                    </div>
-                </div>
-
-                
-                <div class="button-group generation-toolbar">
-                    <div class="generation-output-controls">
-                        <div class="compact-field" id="job-output-format-wrapper">
-                            <label for="job-output-format">Format</label>
-                            <select id="job-output-format" class="select-compact">
-                                <option value="mp3">MP3</option>
-                                <option value="wav">WAV</option>
-                                <option value="ogg">OGG</option>
-                            </select>
-                        </div>
-                        <div class="compact-field bitrate-field" id="job-output-bitrate-wrapper">
-                            <label for="job-output-bitrate">MP3 Bitrate</label>
-                            <select id="job-output-bitrate" class="select-compact">
-                                <option value="64">64 kbps</option>
-                                <option value="96">96 kbps</option>
-                                <option value="128">128 kbps</option>
-                                <option value="160">160 kbps</option>
-                                <option value="192">192 kbps</option>
-                                <option value="224">224 kbps</option>
-                                <option value="256">256 kbps</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="generation-buttons">
-                        <div class="gemini-preset-control">
-                            <label for="gemini-preset-select">Prompt Preset</label>
-                            <div class="gemini-preset-row">
-                                <select id="gemini-preset-select" class="select-compact">
-                                    <option value="">Use default prompt</option>
+                                <label for="job-tts-engine">Engine</label>
+                                <select id="job-tts-engine">
+                                    <option value="kokoro">Kokoro · Local GPU</option>
+                                    <option value="kokoro_replicate">Kokoro · Replicate</option>
+                                    <option value="chatterbox_turbo_local">Chatterbox · Local GPU</option>
+                                    <option value="chatterbox_turbo_replicate">Chatterbox · Replicate</option>
                                 </select>
-                                <button id="gemini-process-btn" class="btn btn-secondary">Prep Text with Gemini</button>
                             </div>
                         </div>
-                        <button id="generate-btn" class="btn btn-primary">Generate Audio</button>
+                        <div id="kokoro-default-voice-card" class="engine-subcard kokoro-card">
+                            <div class="kokoro-header">
+                                <h3>🎤 Default Kokoro Voice</h3>
+                                <p>Select a default Kokoro voice for plain text or unassigned speakers.</p>
+                            </div>
+                            <div class="kokoro-controls">
+                                <div class="kokoro-main-controls">
+                                    <select id="default-voice-select" class="voice-select kokoro-voice-dropdown">
+                                        <option value="">Select Default Voice...</option>
+                                    </select>
+                                    <div id="default-voice-fx-panel" class="voice-fx-panel voice-fx-inline kokoro-sliders" data-speaker="default"></div>
+                                </div>
+                                <div class="kokoro-test-area">
+                                    <div id="default-voice-preview-slot"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="chatterbox-turbo-voice-card" class="engine-subcard" style="display: none;">
+                            <div class="default-voice-header">
+                                <div>
+                                    <h2>Chatterbox Turbo</h2>
+                                    <p class="help-text">Cloned reference prompts provide richer character control.</p>
+                                </div>
+                            </div>
+                            <div class="engine-options-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 10px;">
+                                <div class="form-group">
+                                    <label for="chatterbox-reference-select">Reference Prompt</label>
+                                    <div class="reference-select-row">
+                                        <select id="chatterbox-reference-select" data-meta-target="chatterbox-reference-details">
+                                            <option value="">Use preset voice</option>
+                                        </select>
+                                        <button type="button"
+                                                id="global-chatterbox-preview-btn"
+                                                class="btn btn-secondary btn-sm"
+                                                data-label-play="Play"
+                                                data-label-stop="Stop"
+                                                disabled>
+                                            Play
+                                        </button>
+                                    </div>
+                                    <small>Manage saved prompts in Available Voices → Chatterbox Voices.</small>
+                                    <div class="help-text" id="chatterbox-reference-details"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <p class="help-text" style="margin-top: 5px;">
-                    ✨ Use <strong>Prep Text with Gemini</strong> to send the story (optionally split by chapters) through your configured Gemini prompt before generating audio.
-                </p>
-                <div id="gemini-progress" class="gemini-progress" style="display: none;">
-                    <div class="progress-label">
-                        <span id="gemini-progress-text">Preparing Gemini request…</span>
-                        <span id="gemini-progress-count"></span>
+
+                    <!-- Generation Options Card -->
+                    <div class="section generate-card-right">
+                        <div class="default-voice-header">
+                            <div>
+                                <h3>🎬 Generation Options</h3>
+                                <p>Configure output format and generation settings.</p>
+                            </div>
+                        </div>
+
+                        <div class="generation-options-content">
+                            <div class="chapter-split-section">
+                                <label style="display: flex; align-items: center; gap: 10px; font-size: 15px;">
+                                    <input type="checkbox" id="split-chapters-checkbox">
+                                    Generate separate audio files for each chapter
+                                </label>
+                                <p id="chapter-detection-hint" class="help-text" style="margin-top: 8px; margin-bottom: 0;">
+                                    Chapters not analyzed yet.
+                                </p>
+                                <div id="full-story-option" class="chapter-sub-option" style="display: none;">
+                                    <label>
+                                        <input type="checkbox" id="full-story-checkbox">
+                                        Also create a single full-length audiobook after chapter exports
+                                    </label>
+                                    <p class="help-text" style="margin-top: 6px;">
+                                        When enabled, TTS-Story keeps the per-chapter files and adds one combined file to the library.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="output-format-section">
+                                <div class="format-controls-row">
+                                    <div class="compact-field" id="job-output-format-wrapper">
+                                        <label for="job-output-format">Format</label>
+                                        <select id="job-output-format" class="select-compact">
+                                            <option value="mp3">MP3</option>
+                                            <option value="wav">WAV</option>
+                                            <option value="ogg">OGG</option>
+                                        </select>
+                                    </div>
+                                    <div class="compact-field bitrate-field" id="job-output-bitrate-wrapper">
+                                        <label for="job-output-bitrate">MP3 Bitrate</label>
+                                        <select id="job-output-bitrate" class="select-compact">
+                                            <option value="64">64 kbps</option>
+                                            <option value="96">96 kbps</option>
+                                            <option value="128">128 kbps</option>
+                                            <option value="160">160 kbps</option>
+                                            <option value="192">192 kbps</option>
+                                            <option value="224">224 kbps</option>
+                                            <option value="256">256 kbps</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="gemini-section">
+                                <div class="gemini-preset-control">
+                                    <label for="gemini-preset-select">Gemini Prompt Preset</label>
+                                    <div class="gemini-preset-row">
+                                        <select id="gemini-preset-select" class="select-compact">
+                                            <option value="">Use default prompt</option>
+                                        </select>
+                                        <button id="gemini-process-btn" class="btn btn-secondary">Prep Text with Gemini</button>
+                                    </div>
+                                </div>
+                                <p class="help-text" style="margin-top: 8px;">
+                                    ✨ Send the story through your Gemini prompt before generating audio.
+                                </p>
+                                <div id="gemini-progress" class="gemini-progress" style="display: none;">
+                                    <div class="progress-label">
+                                        <span id="gemini-progress-text">Preparing Gemini request…</span>
+                                        <span id="gemini-progress-count"></span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div id="gemini-progress-fill" class="progress-bar-fill"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="generate-button-section">
+                                <button id="generate-btn" class="btn btn-primary btn-large">🎙️ Generate Audio</button>
+                                <div id="queue-indicator" class="queue-indicator" style="display: none;">
+                                    0 processing, 0 queued
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="progress-bar">
-                        <div id="gemini-progress-fill" class="progress-bar-fill"></div>
-                    </div>
-                </div>
-                <div id="queue-indicator" class="queue-indicator" style="display: none;">
-                    0 processing, 0 queued
                 </div>
             </div>
 

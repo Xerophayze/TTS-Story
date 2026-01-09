@@ -6,6 +6,7 @@ from flask_cors import CORS
 import base64
 import copy
 import inspect
+import io
 import json
 import logging
 import math
@@ -512,7 +513,6 @@ def _perform_chunk_regeneration(
             output_dir=str(tmp_dir),
             speed=speed,
             sample_rate=sample_rate,
-            max_concurrent=1,
         )
 
         if not generated_files:
@@ -2102,6 +2102,7 @@ def preview_audio():
     text = (data.get('text') or '').strip()
     speed = float(data.get('speed') or 1.0)
     fx_settings = VoiceFXSettings.from_payload(data.get('fx'))
+    requested_engine = (data.get('tts_engine') or '').strip().lower()
 
     if not voice:
         return jsonify({"success": False, "error": "Voice is required for preview."}), 400
@@ -2109,11 +2110,16 @@ def preview_audio():
         text = "This is a quick Kokoro preview."
 
     config = load_config()
-    engine_name = _normalize_engine_name(config.get("tts_engine"))
+    # Use requested engine if provided, otherwise fall back to config
+    if requested_engine:
+        engine_name = _normalize_engine_name(requested_engine)
+    else:
+        engine_name = _normalize_engine_name(config.get("tts_engine"))
     sample_rate = int(config.get('sample_rate', DEFAULT_SAMPLE_RATE))
     audio_bytes = None
 
     try:
+        logger.info("Preview request: engine=%s, voice=%s, lang_code=%s", engine_name, voice, lang_code)
         engine = get_tts_engine(engine_name, config=config)
         # Check if engine has generate_audio method that returns numpy array
         if hasattr(engine, 'generate_audio'):
@@ -2586,6 +2592,7 @@ def generate_audio():
         data = request.json or {}
         text = data.get('text', '')
         voice_assignments = data.get('voice_assignments', {})
+        logger.info("Received voice_assignments: %s", voice_assignments)
         split_by_chapter = bool(data.get('split_by_chapter', False))
         generate_full_story = bool(data.get('generate_full_story', False)) and split_by_chapter
         requested_format = (data.get('output_format') or '').strip().lower()
