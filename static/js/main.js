@@ -1938,3 +1938,198 @@ async function cancelGeneration() {
     // Redirect to queue tab
     showNotification('Please use the Job Queue tab to cancel jobs', 'info');
 }
+
+// ============================================================
+// Document Upload / Drag-Drop Functionality
+// ============================================================
+
+function initDocumentUpload() {
+    const wrapper = document.getElementById('text-input-wrapper');
+    const textarea = document.getElementById('input-text');
+    const dropOverlay = document.getElementById('drop-overlay');
+    const browseBtn = document.getElementById('browse-document-btn');
+    const fileInput = document.getElementById('document-file-input');
+    const statusEl = document.getElementById('document-upload-status');
+    const clearBtn = document.getElementById('clear-text-btn');
+
+    if (!wrapper || !textarea || !fileInput) return;
+
+    // Clear button click
+    clearBtn?.addEventListener('click', () => {
+        if (textarea.value.trim() && !confirm('Clear all text from the input?')) {
+            return;
+        }
+        textarea.value = '';
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        if (statusEl) {
+            statusEl.textContent = '';
+            statusEl.className = 'upload-status';
+        }
+    });
+
+    // Drag and drop events
+    ['dragenter', 'dragover'].forEach(eventName => {
+        wrapper.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            wrapper.classList.add('drag-over');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        wrapper.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            wrapper.classList.remove('drag-over');
+        });
+    });
+
+    wrapper.addEventListener('drop', (e) => {
+        const files = e.dataTransfer?.files;
+        if (files && files.length > 0) {
+            handleMultipleDocuments(Array.from(files), statusEl, textarea);
+        }
+    });
+
+    // Browse button click
+    browseBtn?.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // File input change - support multiple files
+    fileInput.setAttribute('multiple', 'true');
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files && fileInput.files.length > 0) {
+            handleMultipleDocuments(Array.from(fileInput.files), statusEl, textarea);
+            fileInput.value = ''; // Reset for next selection
+        }
+    });
+}
+
+async function handleMultipleDocuments(files, statusEl, textarea) {
+    const supportedExtensions = ['.txt', '.pdf', '.doc', '.docx', '.rtf', '.epub', '.odt', '.md', '.html', '.htm'];
+    
+    // Filter to supported files
+    const validFiles = files.filter(file => {
+        const ext = '.' + file.name.toLowerCase().split('.').pop();
+        return supportedExtensions.includes(ext);
+    });
+
+    if (validFiles.length === 0) {
+        if (statusEl) {
+            statusEl.textContent = 'No supported documents found';
+            statusEl.className = 'upload-status error';
+        }
+        return;
+    }
+
+    if (statusEl) {
+        statusEl.textContent = `Extracting text from ${validFiles.length} document(s)...`;
+        statusEl.className = 'upload-status loading';
+    }
+
+    let totalWords = 0;
+    let successCount = 0;
+    let errors = [];
+
+    for (const file of validFiles) {
+        try {
+            const result = await extractSingleDocument(file);
+            if (result.success) {
+                // Always append
+                const existingText = textarea.value.trim();
+                if (existingText) {
+                    textarea.value = existingText + '\n\n' + result.text;
+                } else {
+                    textarea.value = result.text;
+                }
+                totalWords += result.word_count;
+                successCount++;
+            } else {
+                errors.push(`${file.name}: ${result.error}`);
+            }
+        } catch (err) {
+            errors.push(`${file.name}: ${err.message}`);
+        }
+    }
+
+    // Update status
+    if (statusEl) {
+        if (successCount > 0) {
+            statusEl.textContent = `✓ Loaded ${successCount} doc(s): ${totalWords.toLocaleString()} words`;
+            statusEl.className = 'upload-status';
+        } else {
+            statusEl.textContent = 'Failed to extract documents';
+            statusEl.className = 'upload-status error';
+        }
+    }
+
+    // Trigger input event
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Show notification
+    if (successCount > 0) {
+        showNotification(`Extracted ${totalWords.toLocaleString()} words from ${successCount} document(s)`, 'success');
+    }
+    if (errors.length > 0) {
+        console.warn('Document extraction errors:', errors);
+    }
+}
+
+async function extractSingleDocument(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/api/extract-document', {
+        method: 'POST',
+        body: formData
+    });
+
+    return await response.json();
+}
+
+// Initialize document upload on page load
+document.addEventListener('DOMContentLoaded', initDocumentUpload);
+
+// ============================================================
+// Paralinguistic Tag Insertion
+// ============================================================
+
+function initParalinguisticTags() {
+    const tagsBar = document.querySelector('.paralinguistic-tags-bar');
+    const textarea = document.getElementById('input-text');
+    
+    if (!tagsBar || !textarea) return;
+    
+    tagsBar.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-tag');
+        if (!btn) return;
+        
+        const tag = btn.dataset.tag;
+        if (!tag) return;
+        
+        insertTextAtCursor(textarea, tag);
+    });
+}
+
+function insertTextAtCursor(textarea, text) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const before = textarea.value.substring(0, start);
+    const after = textarea.value.substring(end);
+    
+    textarea.value = before + text + after;
+    
+    // Move cursor to after the inserted text
+    const newPos = start + text.length;
+    textarea.selectionStart = newPos;
+    textarea.selectionEnd = newPos;
+    
+    // Focus the textarea
+    textarea.focus();
+    
+    // Trigger input event for any listeners
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+document.addEventListener('DOMContentLoaded', initParalinguisticTags);

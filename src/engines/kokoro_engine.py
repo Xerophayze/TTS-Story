@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import gc
+
 import numpy as np
 import soundfile as sf
 import torch
@@ -88,6 +90,7 @@ class KokoroEngine(TtsEngineBase):
         sample_rate: int = DEFAULT_SAMPLE_RATE,
         progress_cb=None,
         chunk_cb=None,
+        parallel_workers: int = 1,
     ) -> List[str]:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -140,10 +143,30 @@ class KokoroEngine(TtsEngineBase):
 
     # ------------------------------------------------------------------
     def cleanup(self) -> None:
+        """Release cached pipelines and GPU memory."""
+        logging.info("Cleaning up Kokoro engine resources")
+        
+        # Clear pipeline references
+        for lang_code, pipeline in list(self.pipelines.items()):
+            try:
+                # Move pipeline model to CPU before deletion to free VRAM
+                if hasattr(pipeline, 'model') and pipeline.model is not None:
+                    pipeline.model.cpu()
+            except Exception:
+                pass
         self.pipelines.clear()
+        
+        # Clear custom voice cache (these are GPU tensors)
         self.custom_voice_cache.clear()
+        
+        # Force garbage collection before emptying CUDA cache
+        gc.collect()
+        
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+            allocated = torch.cuda.memory_allocated(0) / 1024**2
+            reserved = torch.cuda.memory_reserved(0) / 1024**2
+            logging.info("CUDA memory after cleanup: %.1f MB allocated, %.1f MB reserved", allocated, reserved)
 
     # ------------------------------------------------------------------
     def _generate_audio(

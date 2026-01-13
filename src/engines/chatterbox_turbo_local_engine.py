@@ -1,6 +1,7 @@
 """Local Chatterbox Turbo engine powered by chatterbox-tts weights."""
 from __future__ import annotations
 
+import gc
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -201,6 +202,7 @@ class ChatterboxTurboLocalEngine(TtsEngineBase):
         sample_rate: Optional[int] = None,
         progress_cb=None,
         chunk_cb=None,
+        parallel_workers: int = 1,
     ) -> List[str]:
         if sample_rate and sample_rate != self.sample_rate:
             logger.warning(
@@ -246,8 +248,34 @@ class ChatterboxTurboLocalEngine(TtsEngineBase):
 
     # ------------------------------------------------------------------ #
     def cleanup(self) -> None:  # pragma: no cover - device cleanup
+        """Release model and GPU memory."""
+        logger.info("Cleaning up Chatterbox Turbo Local engine resources")
+        
+        # Clear cached conditionals
+        if hasattr(self, 'model') and self.model is not None:
+            try:
+                self.model.conds = None
+            except Exception:
+                pass
+            
+            # Move model components to CPU before deletion to free VRAM
+            try:
+                self.model.cpu()
+            except Exception:
+                pass
+        
+        # Clear prompt cache
+        if hasattr(self, 'prompt_cache'):
+            self.prompt_cache.clear()
+        
+        # Force garbage collection before emptying CUDA cache
+        gc.collect()
+        
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+            allocated = torch.cuda.memory_allocated(0) / 1024**2
+            reserved = torch.cuda.memory_reserved(0) / 1024**2
+            logger.info("CUDA memory after cleanup: %.1f MB allocated, %.1f MB reserved", allocated, reserved)
 
     # ------------------------------------------------------------------ #
     def _voice_assignment_for(self, voice_config: Dict[str, Dict], speaker: str) -> VoiceAssignment:

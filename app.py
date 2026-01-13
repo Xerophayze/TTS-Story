@@ -42,6 +42,7 @@ from src.custom_voice_store import (
     replace_custom_voice,
     save_custom_voice,
 )
+from src.document_extractor import extract_text_from_file, get_supported_formats
 from src.gemini_processor import GeminiProcessor, GeminiProcessorError
 from src.replicate_api import ReplicateAPI
 from src.text_processor import TextProcessor
@@ -119,6 +120,8 @@ DEFAULT_CONFIG = {
     "chatterbox_turbo_replicate_top_k": 1000,
     "chatterbox_turbo_replicate_repetition_penalty": 1.2,
     "chatterbox_turbo_replicate_seed": None,
+    "parallel_chunks": 3,
+    "cleanup_vram_after_job": False,
 }
 
 CHATTERBOX_TURBO_LOCAL_SETTING_KEYS = {
@@ -763,6 +766,42 @@ def clear_cached_custom_voice(voice_code: str | None = None) -> int:
     return engine.clear_custom_voice_cache(voice_code)
 
 
+def _cleanup_engine_vram(engine_name: Optional[str] = None) -> None:
+    """Clean up VRAM for a specific engine or all engines."""
+    import gc
+    
+    with tts_engine_lock:
+        if engine_name:
+            engine = tts_engine_instances.get(engine_name)
+            if engine:
+                try:
+                    engine.cleanup()
+                    logger.info("VRAM cleanup completed for engine: %s", engine_name)
+                except Exception as e:
+                    logger.warning("VRAM cleanup failed for engine %s: %s", engine_name, e)
+                # Remove from cache to force reload on next use
+                tts_engine_instances.pop(engine_name, None)
+                engine_config_signatures.pop(engine_name, None)
+        else:
+            # Clean all engines
+            for name, engine in list(tts_engine_instances.items()):
+                try:
+                    engine.cleanup()
+                except Exception as e:
+                    logger.warning("VRAM cleanup failed for engine %s: %s", name, e)
+            tts_engine_instances.clear()
+            engine_config_signatures.clear()
+    
+    gc.collect()
+    
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
 def _voice_manager_for_custom_voices() -> VoiceManager:
     """Create a fresh VoiceManager to validate custom voice payloads."""
     return VoiceManager()
@@ -1245,6 +1284,8 @@ def process_audio_job(job_data):
             if "chunk_cb" in sig_params:
                 engine_kwargs["chunk_cb"] = chunk_cb
                 supports_chunk_cb = True
+            if "parallel_workers" in sig_params:
+                engine_kwargs["parallel_workers"] = max(1, min(10, int(config.get("parallel_chunks", 1) or 1)))
             audio_files = engine.generate_batch(**engine_kwargs)
 
             if not supports_chunk_cb and audio_files:
@@ -1443,6 +1484,10 @@ def process_audio_job(job_data):
 
         
         logger.info(f"Job {job_id} completed successfully with {len(chapter_outputs)} output file(s)")
+        
+        # Optional VRAM cleanup after job completion
+        if config.get("cleanup_vram_after_job", False):
+            _cleanup_engine_vram(engine_name)
         
     except JobCancelled:
         logger.info(f"Job {job_id} cancelled – halting synthesis")
@@ -3259,16 +3304,127 @@ def get_queue():
         }), 500
 
 
+@app.route('/api/extract-document', methods=['POST'])
+def extract_document_text():
+    """Extract text content from an uploaded document file."""
+    if 'file' not in request.files:
+        return jsonify({"success": False, "error": "No file provided"}), 400
+    
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({"success": False, "error": "No file selected"}), 400
+    
+    filename = secure_filename(file.filename)
+    
+    try:
+        file_content = file.read()
+        text, format_name = extract_text_from_file(filename, file_content)
+        
+        if not text.strip():
+            return jsonify({
+                "success": False,
+                "error": f"No text content found in {format_name} file"
+            }), 400
+        
+        return jsonify({
+            "success": True,
+            "text": text,
+            "format": format_name,
+            "filename": filename,
+            "char_count": len(text),
+            "word_count": len(text.split()),
+        })
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except ImportError as e:
+        return jsonify({
+            "success": False,
+            "error": f"Missing library: {str(e)}. Please install required dependencies."
+        }), 500
+    except Exception as e:
+        logger.error("Document extraction failed: %s", e, exc_info=True)
+        return jsonify({"success": False, "error": f"Failed to extract text: {str(e)}"}), 500
+
+
+@app.route('/api/supported-formats', methods=['GET'])
+def list_supported_formats():
+    """Return list of supported document formats for upload."""
+    return jsonify({
+        "success": True,
+        "formats": get_supported_formats()
+    })
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
     config = load_config()
     
+    # Get VRAM info if available
+    vram_info = {}
+    try:
+        import torch
+        if torch.cuda.is_available():
+            vram_info = {
+                "allocated_mb": round(torch.cuda.memory_allocated(0) / 1024**2, 1),
+                "reserved_mb": round(torch.cuda.memory_reserved(0) / 1024**2, 1),
+                "max_allocated_mb": round(torch.cuda.max_memory_allocated(0) / 1024**2, 1),
+            }
+    except Exception:
+        pass
+    
     return jsonify({
         "success": True,
         "tts_engine": config.get('tts_engine', 'kokoro'),
         "kokoro_available": KOKORO_AVAILABLE,
-        "cuda_available": False if not KOKORO_AVAILABLE else __import__('torch').cuda.is_available()
+        "cuda_available": False if not KOKORO_AVAILABLE else __import__('torch').cuda.is_available(),
+        "vram": vram_info,
+        "loaded_engines": list(tts_engine_instances.keys()),
+    })
+
+
+@app.route('/api/cleanup-vram', methods=['POST'])
+def cleanup_vram():
+    """Manually trigger VRAM cleanup for all loaded engines."""
+    import gc
+    
+    cleaned_engines = []
+    errors = []
+    
+    with tts_engine_lock:
+        for engine_name, engine in list(tts_engine_instances.items()):
+            try:
+                engine.cleanup()
+                cleaned_engines.append(engine_name)
+            except Exception as e:
+                errors.append(f"{engine_name}: {str(e)}")
+        
+        # Clear the engine cache to force reload on next use
+        tts_engine_instances.clear()
+        engine_config_signatures.clear()
+    
+    # Additional garbage collection
+    gc.collect()
+    
+    # Get VRAM info after cleanup
+    vram_after = {}
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
+            vram_after = {
+                "allocated_mb": round(torch.cuda.memory_allocated(0) / 1024**2, 1),
+                "reserved_mb": round(torch.cuda.memory_reserved(0) / 1024**2, 1),
+            }
+    except Exception:
+        pass
+    
+    return jsonify({
+        "success": len(errors) == 0,
+        "cleaned_engines": cleaned_engines,
+        "errors": errors,
+        "vram_after": vram_after,
     })
 
 

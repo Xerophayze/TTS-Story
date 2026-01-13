@@ -2514,6 +2514,147 @@ audio {
     width: 100%;
 }
 
+/* Document Upload / Drag-Drop Styles */
+.text-input-wrapper {
+    position: relative;
+}
+
+.text-input-wrapper textarea {
+    width: 100%;
+}
+
+.clear-text-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    color: #f87171;
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 5;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.clear-text-btn:hover {
+    background: rgba(239, 68, 68, 0.4);
+    border-color: #ef4444;
+    color: #fff;
+}
+
+.clear-text-btn:active {
+    transform: scale(0.9);
+}
+
+.drop-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(99, 102, 241, 0.15);
+    border: 3px dashed var(--primary-color);
+    border-radius: 8px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.text-input-wrapper.drag-over .drop-overlay {
+    display: flex;
+}
+
+.drop-overlay-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--primary-color);
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.drop-overlay .drop-icon {
+    font-size: 3rem;
+}
+
+.document-upload-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.document-upload-bar .upload-hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.document-upload-bar .upload-status {
+    font-size: 0.85rem;
+    color: var(--success-color);
+}
+
+.document-upload-bar .upload-status.error {
+    color: var(--error-color);
+}
+
+.document-upload-bar .upload-status.loading {
+    color: var(--warning-color);
+}
+
+/* Paralinguistic Tags Bar */
+.paralinguistic-tags-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.paralinguistic-tags-bar .tags-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.paralinguistic-tags-bar .tags-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.btn-tag {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    color: var(--primary-light);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-tag:hover {
+    background: rgba(99, 102, 241, 0.3);
+    border-color: var(--primary-color);
+    color: #fff;
+}
+
+.btn-tag:active {
+    transform: scale(0.95);
+}
+
 /* Responsive: Stack cards on smaller screens */
 @media (max-width: 900px) {
     .generate-cards-row {

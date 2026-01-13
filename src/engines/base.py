@@ -54,9 +54,15 @@ class TtsEngineBase(ABC):
         sample_rate: Optional[int] = None,
         progress_cb=None,
         chunk_cb=None,
+        parallel_workers: int = 1,
     ) -> List[str]:
         """
         Render a list of text segments to individual WAV files.
+
+        Args:
+            parallel_workers: Number of chunks to process simultaneously (1-10).
+                              Only effective for API-based engines; local GPU engines
+                              may ignore this parameter.
 
         Returns the file paths that were written in chronological order.
         """

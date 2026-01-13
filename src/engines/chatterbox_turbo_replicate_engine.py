@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import logging
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -75,6 +76,8 @@ class ChatterboxTurboReplicateEngine(TtsEngineBase):
         speed: float = 1.0,
         sample_rate: Optional[int] = None,
         progress_cb=None,
+        chunk_cb=None,
+        parallel_workers: int = 1,
     ) -> List[str]:
         if sample_rate and sample_rate != self.sample_rate:
             logger.warning(
@@ -86,30 +89,196 @@ class ChatterboxTurboReplicateEngine(TtsEngineBase):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        output_files: List[str] = []
-        chunk_index = 0
+        # Build flat list of all chunks with their metadata
+        all_chunks: List[Dict] = []
         for seg_idx, segment in enumerate(segments):
             speaker = segment["speaker"]
             chunks = segment["chunks"]
             assignment = self._voice_assignment_for(voice_config, speaker)
-            logger.info(
-                "Chatterbox Turbo (Replicate) segment %s/%s speaker=%s voice=%s",
-                seg_idx + 1,
-                len(segments),
-                speaker,
-                assignment.voice or self.default_voice,
+            for chunk_idx, chunk_text in enumerate(chunks):
+                all_chunks.append({
+                    "global_index": len(all_chunks),
+                    "seg_idx": seg_idx,
+                    "chunk_idx": chunk_idx,
+                    "speaker": speaker,
+                    "text": chunk_text,
+                    "assignment": assignment,
+                })
+
+        if not all_chunks:
+            return []
+
+        effective_workers = max(1, min(10, parallel_workers))
+        
+        # For parallel processing, submit all predictions at once, then poll
+        if effective_workers > 1:
+            return self._generate_batch_async(
+                all_chunks, output_dir, effective_workers, progress_cb, chunk_cb
+            )
+        else:
+            # Sequential processing
+            return self._generate_batch_sequential(
+                all_chunks, output_dir, progress_cb, chunk_cb
             )
 
-            for chunk_text in chunks:
-                output_path = output_dir / f"chunk_{chunk_index:04d}.wav"
-                audio, sr = self._synthesize(chunk_text, assignment)
-                sf.write(str(output_path), audio, sr)
-                output_files.append(str(output_path))
-                chunk_index += 1
-                if callable(progress_cb):
-                    progress_cb()
+    def _generate_batch_async(
+        self,
+        all_chunks: List[Dict],
+        output_dir: Path,
+        parallel_workers: int,
+        progress_cb,
+        chunk_cb,
+    ) -> List[str]:
+        """Submit predictions in batches of parallel_workers, then poll for results."""
+        
+        logger.info("Processing %d chunks with %d parallel workers", len(all_chunks), parallel_workers)
+        
+        # Parse model string once
+        if ":" in self.model_ref:
+            model_name, version = self.model_ref.split(":", 1)
+        else:
+            model_name = self.model_ref
+            version = None
+        
+        results: Dict[int, str] = {}
+        chunk_queue = list(all_chunks)  # Chunks waiting to be submitted
+        active_predictions = {}  # global_idx -> {prediction, chunk_info}
+        
+        while chunk_queue or active_predictions:
+            # Submit new predictions up to parallel_workers limit
+            while chunk_queue and len(active_predictions) < parallel_workers:
+                chunk_info = chunk_queue.pop(0)
+                global_idx = chunk_info["global_index"]
+                
+                logger.info(
+                    "Submitting chunk %s/%s: speaker=%s (active: %d)",
+                    global_idx + 1,
+                    len(all_chunks),
+                    chunk_info["speaker"],
+                    len(active_predictions) + 1,
+                )
+                
+                try:
+                    # Build params and submit async
+                    reference_url = None
+                    assignment = chunk_info["assignment"]
+                    if assignment.audio_prompt_path:
+                        reference_url = self._upload_reference_audio(assignment.audio_prompt_path)
+                    
+                    params = self._build_payload(chunk_info["text"], assignment, reference_url)
+                    
+                    create_kwargs = {"input": params}
+                    if version:
+                        create_kwargs["version"] = version
+                    else:
+                        create_kwargs["model"] = model_name
+                    
+                    prediction = self.client.predictions.create(**create_kwargs)
+                    active_predictions[global_idx] = {
+                        "prediction": prediction,
+                        "chunk_info": chunk_info,
+                    }
+                except Exception as e:
+                    logger.error("Failed to submit chunk %d: %s", global_idx, e)
+                    raise
+            
+            # Poll active predictions
+            for global_idx in list(active_predictions.keys()):
+                pred_info = active_predictions[global_idx]
+                prediction = pred_info["prediction"]
+                chunk_info = pred_info["chunk_info"]
+                
+                # Reload prediction status
+                prediction.reload()
+                
+                if prediction.status == "succeeded":
+                    output_path = output_dir / f"chunk_{global_idx:04d}.wav"
+                    audio_url = prediction.output
+                    
+                    # Download and process audio
+                    audio = self._download_audio(audio_url)
+                    
+                    # Apply FX if needed
+                    fx_settings = VoiceFXSettings.from_payload(chunk_info["assignment"].fx_payload)
+                    if fx_settings:
+                        audio = self.post_processor.apply(audio, self.sample_rate, fx_settings)
+                    
+                    sf.write(str(output_path), audio, self.sample_rate)
+                    results[global_idx] = str(output_path)
+                    del active_predictions[global_idx]
+                    
+                    logger.info("Chunk %s/%s completed", global_idx + 1, len(all_chunks))
+                    
+                    # Callbacks
+                    if callable(progress_cb):
+                        progress_cb()
+                    if callable(chunk_cb):
+                        chunk_meta = {
+                            "speaker": chunk_info["speaker"],
+                            "text": chunk_info["text"],
+                            "segment_index": chunk_info["seg_idx"],
+                            "chunk_index": chunk_info["chunk_idx"],
+                        }
+                        chunk_cb(global_idx, chunk_meta, str(output_path))
+                        
+                elif prediction.status == "failed":
+                    error_msg = getattr(prediction, "error", "Unknown error")
+                    logger.error("Chunk %d failed: %s", global_idx, error_msg)
+                    del active_predictions[global_idx]
+                    raise RuntimeError(f"Prediction failed for chunk {global_idx}: {error_msg}")
+                    
+                elif prediction.status == "canceled":
+                    logger.error("Chunk %d was canceled", global_idx)
+                    del active_predictions[global_idx]
+                    raise RuntimeError(f"Prediction canceled for chunk {global_idx}")
+            
+            # Small delay before next poll cycle if still have active predictions
+            if active_predictions:
+                time.sleep(0.5)
+        
+        # Return files in order
+        return [results[i] for i in range(len(all_chunks))]
 
-        return output_files
+    def _generate_batch_sequential(
+        self,
+        all_chunks: List[Dict],
+        output_dir: Path,
+        progress_cb,
+        chunk_cb,
+    ) -> List[str]:
+        """Process chunks one at a time using blocking API."""
+        
+        logger.info("Processing %d chunks sequentially", len(all_chunks))
+        results: Dict[int, str] = {}
+        
+        for chunk_info in all_chunks:
+            global_idx = chunk_info["global_index"]
+            output_path = output_dir / f"chunk_{global_idx:04d}.wav"
+            
+            logger.info(
+                "Chatterbox Turbo (Replicate) chunk %s/%s speaker=%s",
+                global_idx + 1,
+                len(all_chunks),
+                chunk_info["speaker"],
+            )
+            
+            audio, sr = self._synthesize(chunk_info["text"], chunk_info["assignment"])
+            sf.write(str(output_path), audio, sr)
+            
+            results[global_idx] = str(output_path)
+            
+            if callable(progress_cb):
+                progress_cb()
+            if callable(chunk_cb):
+                chunk_meta = {
+                    "speaker": chunk_info["speaker"],
+                    "text": chunk_info["text"],
+                    "segment_index": chunk_info["seg_idx"],
+                    "chunk_index": chunk_info["chunk_idx"],
+                }
+                chunk_cb(global_idx, chunk_meta, str(output_path))
+        
+        return [results[i] for i in range(len(all_chunks))]
 
     # ------------------------------------------------------------------ #
     def cleanup(self) -> None:  # pragma: no cover - trivial

@@ -110,6 +110,7 @@ class ChatterboxEngine(TtsEngineBase):
         sample_rate: Optional[int] = None,
         progress_cb=None,
         chunk_cb=None,
+        parallel_workers: int = 1,
     ) -> List[str]:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)

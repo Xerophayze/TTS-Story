@@ -36,11 +36,43 @@
                     <code>[speaker1]text[/speaker1]</code> for multi-voice stories, or plain text for single voice.
                     You can use any name: <code>[alice]</code>, <code>[bob]</code>, <code>[narrator]</code>, etc.
                 </p>
-                <textarea 
-                    id="input-text" 
-                    placeholder="[narrator]Once upon a time...[/narrator]&#10;[alice]Hello, I'm Alice![/alice]&#10;[bob]And I'm Bob![/bob]"
-                    rows="15"
-                ></textarea>
+                <div class="text-input-wrapper" id="text-input-wrapper">
+                    <button type="button" id="clear-text-btn" class="clear-text-btn" title="Clear text">C</button>
+                    <textarea 
+                        id="input-text" 
+                        placeholder="[narrator]Once upon a time...[/narrator]&#10;[alice]Hello, I'm Alice![/alice]&#10;[bob]And I'm Bob![/bob]&#10;&#10;Or drag & drop documents here (Word, PDF, TXT, RTF, EPUB)"
+                        rows="15"
+                    ></textarea>
+                    <div class="drop-overlay" id="drop-overlay">
+                        <div class="drop-overlay-content">
+                            <span class="drop-icon">📄</span>
+                            <span>Drop document(s) to extract text</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="document-upload-bar">
+                    <button type="button" id="browse-document-btn" class="btn btn-secondary btn-sm">
+                        📁 Browse Document
+                    </button>
+                    <input type="file" id="document-file-input" accept=".txt,.pdf,.doc,.docx,.rtf,.epub,.odt,.md,.html,.htm" style="display: none;">
+                    <span class="upload-hint">Supports: TXT, PDF, Word (.doc/.docx), RTF, EPUB, ODT, Markdown, HTML</span>
+                    <span id="document-upload-status" class="upload-status"></span>
+                </div>
+
+                <div class="paralinguistic-tags-bar">
+                    <span class="tags-label">Insert paralinguistic tag:</span>
+                    <div class="tags-buttons">
+                        <button type="button" class="btn btn-tag" data-tag="[clear throat]">[clear throat]</button>
+                        <button type="button" class="btn btn-tag" data-tag="[sigh]">[sigh]</button>
+                        <button type="button" class="btn btn-tag" data-tag="[sush]">[sush]</button>
+                        <button type="button" class="btn btn-tag" data-tag="[cough]">[cough]</button>
+                        <button type="button" class="btn btn-tag" data-tag="[groan]">[groan]</button>
+                        <button type="button" class="btn btn-tag" data-tag="[sniff]">[sniff]</button>
+                        <button type="button" class="btn btn-tag" data-tag="[gasp]">[gasp]</button>
+                        <button type="button" class="btn btn-tag" data-tag="[chuckle]">[chuckle]</button>
+                        <button type="button" class="btn btn-tag" data-tag="[laugh]">[laugh]</button>
+                    </div>
+                </div>
                 
                 <div class="generate-cards-row">
                     <!-- Engine & Voice Card -->
@@ -578,6 +610,20 @@
                     <label for="inter-silence">Silence Between Segments (milliseconds)</label>
                     <input type="number" id="inter-silence" value="0" min="0" max="2000" step="100">
                     <small>Adds a pause after each generated chunk before the next one begins.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="parallel-chunks">Replicate Parallel Chunk Processing</label>
+                    <input type="number" id="parallel-chunks" value="3" min="1" max="25" step="1">
+                    <small>Number of chunks to process simultaneously (1-25) when using Replicate API. Higher values speed up cloud API generation. Only applies to Replicate engines.</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="cleanup-vram-after-job">
+                        <input type="checkbox" id="cleanup-vram-after-job">
+                        Unload GPU model after job completion
+                    </label>
+                    <small>Free VRAM after each job completes. Reduces memory usage but adds ~5-10s model reload time for the next job. Recommended if running other GPU applications.</small>
                 </div>
             </div>
 

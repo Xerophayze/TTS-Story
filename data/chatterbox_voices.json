@@ -390,5 +390,13 @@
     "created_at": "2026-01-08T15:57:09.472644",
     "size_bytes": 1547124,
     "duration_seconds": 16.11541666666667
+  },
+  {
+    "id": "4ca80aa6-6224-450e-9865-25e27c1c2891",
+    "name": "Male Eric Thorup",
+    "file_name": "male_eric_thorup.wav",
+    "created_at": "2026-01-10T03:16:35.379179",
+    "size_bytes": 1163644,
+    "duration_seconds": 12.120833333333334
   }
 ]

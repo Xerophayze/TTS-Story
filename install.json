@@ -1,0 +1,35 @@
+{
+  "run": [
+    {
+      "method": "shell.run",
+      "params": {
+        "message": "git pull"
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "venv": "env",
+        "message": [
+          "pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121",
+          "pip install -r requirements.txt"
+        ]
+      }
+    },
+    {
+      "method": "shell.run",
+      "params": {
+        "venv": "env",
+        "message": "pip install chatterbox-tts"
+      }
+    },
+    {
+      "method": "fs.link",
+      "params": {
+        "drive": {
+          "huggingface": "HF_HOME"
+        }
+      }
+    }
+  ]
+}

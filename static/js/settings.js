@@ -446,6 +446,15 @@ function applySettings(settings) {
     setElementValue('intro-silence', settings.intro_silence_ms ?? 0, 0);
     setElementValue('inter-silence', settings.inter_chunk_silence_ms ?? 0, 0);
 
+    // Parallel processing
+    setElementValue('parallel-chunks', settings.parallel_chunks ?? 3, 3);
+
+    // VRAM cleanup setting
+    const cleanupVramCheckbox = document.getElementById('cleanup-vram-after-job');
+    if (cleanupVramCheckbox) {
+        cleanupVramCheckbox.checked = settings.cleanup_vram_after_job ?? false;
+    }
+
     // Gemini settings
     setElementValue('gemini-api-key', settings.gemini_api_key || '');
     const geminiModelSelect = document.getElementById('gemini-model');
@@ -565,6 +574,8 @@ async function saveSettings() {
         crossfade_duration: parseFloat(document.getElementById('crossfade').value),
         intro_silence_ms: parseInt(document.getElementById('intro-silence').value, 10) || 0,
         inter_chunk_silence_ms: parseInt(document.getElementById('inter-silence').value, 10) || 0,
+        parallel_chunks: Math.min(25, Math.max(1, parseInt(document.getElementById('parallel-chunks')?.value, 10) || 3)),
+        cleanup_vram_after_job: document.getElementById('cleanup-vram-after-job')?.checked ?? false,
         gemini_api_key: document.getElementById('gemini-api-key').value,
         gemini_model: document.getElementById('gemini-model').value,
         gemini_prompt: document.getElementById('gemini-prompt').value,
@@ -646,6 +657,8 @@ async function resetSettings() {
         crossfade_duration: 0.1,
         intro_silence_ms: 0,
         inter_chunk_silence_ms: 0,
+        parallel_chunks: 3,
+        cleanup_vram_after_job: false,
         gemini_api_key: '',
         gemini_model: 'gemini-1.5-flash',
         gemini_prompt: '',
