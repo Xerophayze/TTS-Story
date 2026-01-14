@@ -2039,16 +2039,29 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
         chunk_paths = [str(job_dir / rel_path) for rel_path in rel_chunk_files]
         if not chunk_paths:
             continue
+        # Verify chunk files exist before merging
+        missing_chunks = [p for p in chunk_paths if not Path(p).exists()]
+        if missing_chunks:
+            logger.error(f"Missing chunk files for merge: {missing_chunks}")
+            continue
+        logger.info(f"Merging {len(chunk_paths)} chunks: {chunk_paths}")
         output_filename = chapter.get("output_filename") or f"chapter_{chapter.get('index', 0):02d}.{output_format}"
         chapter_dir = job_dir / (chapter.get("chapter_dir") or ".")
         chapter_dir.mkdir(parents=True, exist_ok=True)
         output_path = chapter_dir / output_filename
+        logger.info(f"Output path: {output_path}")
         merger.merge_wav_files(
             input_files=chunk_paths,
             output_path=str(output_path),
             format=output_format,
             cleanup_chunks=False,
         )
+        # Verify output was created with content
+        if output_path.exists():
+            output_size = output_path.stat().st_size
+            logger.info(f"Merged output size: {output_size} bytes")
+            if output_size < 1000:
+                logger.warning(f"Output file suspiciously small: {output_size} bytes")
         rel_path = (Path(chapter.get("chapter_dir") or ".") / output_filename).as_posix()
         # Normalize "./filename" to just "filename"
         if rel_path.startswith("./"):

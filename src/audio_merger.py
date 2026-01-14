@@ -3,11 +3,65 @@ Audio Merger - Combines audio chunks into single file
 """
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import List, Optional
 from pydub import AudioSegment
 import soundfile as sf
 import numpy as np
+
+# Configure pydub to find ffmpeg - prioritize Pinokio/conda paths over system
+def _find_ffmpeg():
+    """Find ffmpeg executable, checking Pinokio/conda paths first."""
+    # Priority paths to check BEFORE system PATH (Pinokio bundles newer ffmpeg)
+    priority_paths = []
+    
+    # Check for Pinokio installation by looking for pinokio folder structure
+    # Pinokio apps are in: {pinokio_home}/api/{app_name}/
+    script_dir = Path(__file__).resolve().parent.parent  # TTS-Story root
+    
+    # If we're in a Pinokio app folder, find the pinokio bin directory
+    # Structure: H:\...\pinokio\api\TTS-Story.git\src\audio_merger.py
+    #            -> H:\...\pinokio\bin\miniconda\Library\bin\ffmpeg.exe
+    if "pinokio" in str(script_dir).lower():
+        # Walk up to find pinokio root
+        current = script_dir
+        while current.parent != current:
+            if (current / "bin" / "miniconda" / "Library" / "bin" / "ffmpeg.exe").exists():
+                priority_paths.append(current / "bin" / "miniconda" / "Library" / "bin" / "ffmpeg.exe")
+                break
+            if current.name.lower() == "pinokio":
+                priority_paths.append(current / "bin" / "miniconda" / "Library" / "bin" / "ffmpeg.exe")
+                break
+            current = current.parent
+    
+    # Standard conda/venv paths
+    priority_paths.extend([
+        Path(sys.prefix) / "Library" / "bin" / "ffmpeg.exe",  # conda env on Windows
+        Path(sys.prefix) / "bin" / "ffmpeg",  # conda env on Linux/Mac
+        Path.home() / "pinokio" / "bin" / "miniconda" / "Library" / "bin" / "ffmpeg.exe",
+    ])
+    
+    for p in priority_paths:
+        if p.exists():
+            print(f"[audio_merger] Found ffmpeg at: {p}")
+            return str(p)
+    
+    # Fall back to system PATH
+    from pydub.utils import which
+    system_ffmpeg = which("ffmpeg")
+    if system_ffmpeg:
+        print(f"[audio_merger] Using system ffmpeg: {system_ffmpeg}")
+    return system_ffmpeg
+
+# Set ffmpeg path for pydub at module load
+_ffmpeg_path = _find_ffmpeg()
+if _ffmpeg_path:
+    AudioSegment.converter = _ffmpeg_path
+    # Also set ffprobe path
+    ffprobe_path = _ffmpeg_path.replace("ffmpeg", "ffprobe")
+    if os.path.exists(ffprobe_path):
+        AudioSegment.ffprobe = ffprobe_path
 
 
 class AudioMerger:
@@ -59,8 +113,16 @@ class AudioMerger:
             
         logging.info(f"Merging {len(input_files)} audio files")
         
+        # Verify all input files exist
+        for f in input_files:
+            if not os.path.exists(f):
+                raise FileNotFoundError(f"Input file not found: {f}")
+            file_size = os.path.getsize(f)
+            logging.info(f"Input file: {f} ({file_size} bytes)")
+        
         # Load first file
         combined = AudioSegment.from_wav(input_files[0])
+        logging.info(f"Loaded first file: duration={len(combined)}ms, channels={combined.channels}")
         if self.intro_silence_ms > 0:
             combined = AudioSegment.silent(duration=self.intro_silence_ms) + combined
         
@@ -82,11 +144,28 @@ class AudioMerger:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
+        logging.info(f"Exporting {len(combined)}ms audio to {output_path} (format={format})")
+        
+        # Ensure ffmpeg path is set (may not be set if module was cached)
+        if not AudioSegment.converter or "pinokio" not in str(AudioSegment.converter).lower():
+            ffmpeg_path = _find_ffmpeg()
+            if ffmpeg_path:
+                AudioSegment.converter = ffmpeg_path
+                ffprobe_path = ffmpeg_path.replace("ffmpeg", "ffprobe")
+                if os.path.exists(ffprobe_path):
+                    AudioSegment.ffprobe = ffprobe_path
+        
+        logging.info(f"Using ffmpeg: {AudioSegment.converter}")
+        
         export_kwargs = {}
-        if self.bitrate_kbps and format.lower() == "mp3":
-            export_kwargs["bitrate"] = f"{self.bitrate_kbps}k"
+        if format.lower() == "mp3":
+            # Force libmp3lame encoder - Windows MF encoder (mp3_mf) produces empty files
+            export_kwargs["codec"] = "libmp3lame"
+            if self.bitrate_kbps:
+                export_kwargs["bitrate"] = f"{self.bitrate_kbps}k"
         combined.export(str(output_path), format=format, **export_kwargs)
-        logging.info(f"Merged audio saved to {output_path}")
+        output_size = output_path.stat().st_size if output_path.exists() else 0
+        logging.info(f"Merged audio saved to {output_path} ({output_size} bytes)")
         
         # Cleanup WAV chunks if requested
         if cleanup_chunks:
