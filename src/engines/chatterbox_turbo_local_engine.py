@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -19,11 +20,13 @@ CHATTERBOX_TURBO_SAMPLE_RATE = 24000
 
 try:
     from chatterbox.tts_turbo import ChatterboxTurboTTS  # type: ignore
+    from huggingface_hub import snapshot_download  # type: ignore
 
     CHATTERBOX_TURBO_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
     CHATTERBOX_TURBO_AVAILABLE = False
     ChatterboxTurboTTS = None  # type: ignore[assignment]
+    snapshot_download = None  # type: ignore[assignment]
 
 
 class ChatterboxTurboLocalEngine(TtsEngineBase):
@@ -59,8 +62,11 @@ class ChatterboxTurboLocalEngine(TtsEngineBase):
         logger.info("Loading Chatterbox Turbo on device=%s", resolved_device)
         self._patch_s3tokenizer_prepare_audio()  # Must patch BEFORE model loads
         self._patch_prepare_conditionals()  # Patch to ensure float32 audio throughout
-        self.model: ChatterboxTurboTTS = ChatterboxTurboTTS.from_pretrained(
-            device=resolved_device
+        
+        # Download model without requiring HuggingFace token (models are public)
+        local_path = self._download_model()
+        self.model: ChatterboxTurboTTS = ChatterboxTurboTTS.from_local(
+            local_path, resolved_device
         )
         self._coerce_tokenizer_buffers()
 
@@ -76,6 +82,30 @@ class ChatterboxTurboLocalEngine(TtsEngineBase):
         self.prompt_norm_loudness = bool(prompt_norm_loudness)
         self.prompt_cache: Dict[str, Path] = {}
         self.post_processor = AudioPostProcessor()
+
+    def _download_model(self) -> str:
+        """Download Chatterbox Turbo model without requiring HuggingFace token.
+        
+        The Chatterbox models are public on HuggingFace, so we can download
+        them with token=False. The default chatterbox library incorrectly
+        uses token=True which requires authentication even for public models.
+        """
+        REPO_ID = "ResembleAI/chatterbox-turbo"
+        
+        # Use HF_TOKEN env var if available, otherwise False for public access
+        token = os.getenv("HF_TOKEN") or False
+        
+        logger.info("Downloading Chatterbox Turbo model from HuggingFace (token=%s)", 
+                    "env" if os.getenv("HF_TOKEN") else "public")
+        
+        local_path = snapshot_download(
+            repo_id=REPO_ID,
+            token=token,
+            allow_patterns=["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"]
+        )
+        
+        logger.info("Model downloaded to: %s", local_path)
+        return local_path
 
     def _patch_s3tokenizer_prepare_audio(self) -> None:
         """Patch S3Tokenizer._prepare_audio to ensure float32 tensors.
