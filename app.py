@@ -2049,11 +2049,15 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
             format=output_format,
             cleanup_chunks=False,
         )
+        rel_path = (Path(chapter.get("chapter_dir") or ".") / output_filename).as_posix()
+        # Normalize "./filename" to just "filename"
+        if rel_path.startswith("./"):
+            rel_path = rel_path[2:]
         chapter_outputs.append({
             "index": chapter.get("index"),
             "title": chapter.get("title"),
-            "file_url": f"/static/audio/{job_id}/{Path(chapter.get('chapter_dir') or '.') / output_filename}",
-            "relative_path": str(Path(chapter.get("chapter_dir") or ".") / output_filename).replace("\\", "/"),
+            "file_url": f"/static/audio/{job_id}/{rel_path}",
+            "relative_path": rel_path,
         })
 
     full_story_entry = None
