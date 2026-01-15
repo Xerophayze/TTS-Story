@@ -450,6 +450,11 @@
                     <input type="text" id="chatterbox-turbo-local-prompt" placeholder="data/voice_prompts/default.wav">
                     <small>Path to a 5–10s WAV/MP3 clip used when speakers do not supply their own prompt.</small>
                 </div>
+                <div class="form-group">
+                    <label for="chatterbox-turbo-local-chunk-size">Text Chunk Size (characters)</label>
+                    <input type="number" id="chatterbox-turbo-local-chunk-size" min="100" max="1000" step="50" value="450">
+                    <small>Maximum characters per audio chunk. Lower values (200-300) may reduce distortion. Default: 450.</small>
+                </div>
                 <div class="three-column-grid">
                     <div class="form-group">
                         <label for="chatterbox-turbo-local-temperature">Temperature</label>

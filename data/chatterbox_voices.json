@@ -398,5 +398,13 @@
     "created_at": "2026-01-10T03:16:35.379179",
     "size_bytes": 1163644,
     "duration_seconds": 12.120833333333334
+  },
+  {
+    "id": "6401eaa5-d5da-4aac-8cc2-3d6ffaa723af",
+    "name": "Soft male children's story reading voice",
+    "file_name": "soft_male_children_s_story_reading_voice.wav",
+    "created_at": "2026-01-14T03:35:52.663956",
+    "size_bytes": 6959066,
+    "duration_seconds": 72.4898125
   }
 ]

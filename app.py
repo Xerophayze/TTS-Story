@@ -162,6 +162,7 @@ CHATTERBOX_TURBO_LOCAL_FLOAT_SETTINGS = {
 }
 CHATTERBOX_TURBO_LOCAL_INT_SETTINGS = {
     "chatterbox_turbo_local_top_k": (1, 4000, 1000),
+    "chatterbox_turbo_local_chunk_size": (100, 1000, 450),
 }
 
 CHATTERBOX_TURBO_REPLICATE_SETTING_KEYS = {
@@ -961,7 +962,7 @@ def build_gemini_sections(text: str, prefer_chapters: bool, config: dict):
                 "source": "chapter"
             })
     else:
-        processor = _create_text_processor_for_engine(config.get("tts_engine"), config.get('chunk_size', 500))
+        processor = _create_text_processor_for_engine(config.get("tts_engine"), config.get('chunk_size', 500), config)
         chunks = processor.chunk_text(text)
         if not chunks:
             chunks = [text]
@@ -1003,12 +1004,17 @@ def _is_chatterbox_engine(engine_name: str) -> bool:
     return normalized.startswith("chatterbox")
 
 
-def _create_text_processor_for_engine(engine_name: str, chunk_size: int) -> TextProcessor:
+def _create_text_processor_for_engine(engine_name: str, chunk_size: int, config: Optional[Dict] = None) -> TextProcessor:
     if _is_chatterbox_engine(engine_name):
+        # Use configurable chunk size for Chatterbox, default 450
+        chatterbox_chunk_size = 450
+        if config:
+            chatterbox_chunk_size = config.get("chatterbox_turbo_local_chunk_size", 450)
+        # Hard limit is soft limit + 50 to allow sentence completion
         return TextProcessor(
             chunk_strategy="characters",
-            char_soft_limit=450,
-            char_hard_limit=500,
+            char_soft_limit=chatterbox_chunk_size,
+            char_hard_limit=chatterbox_chunk_size + 50,
         )
     return TextProcessor(chunk_size=chunk_size)
 
@@ -1019,9 +1025,10 @@ def estimate_total_chunks(
     chunk_size: int,
     include_full_story: bool = False,
     engine_name: Optional[str] = None,
+    config: Optional[Dict] = None,
 ) -> int:
     """Estimate total chunk count for a job to power progress indicators."""
-    processor = _create_text_processor_for_engine(engine_name or DEFAULT_CONFIG["tts_engine"], chunk_size)
+    processor = _create_text_processor_for_engine(engine_name or DEFAULT_CONFIG["tts_engine"], chunk_size, config)
     sections = [{"content": text}]
     if split_by_chapter:
         detected = split_text_into_chapters(text)
@@ -1139,7 +1146,7 @@ def process_audio_job(job_data):
         
         review_mode = bool(job_data.get('review_mode', False))
         merge_options_override = job_data.get('merge_options') or {}
-        processor = _create_text_processor_for_engine(config.get("tts_engine"), config["chunk_size"])
+        processor = _create_text_processor_for_engine(config.get("tts_engine"), config["chunk_size"], config)
         job_dir = Path(job_data.get('job_dir') or (OUTPUT_DIR / job_id))
         job_dir.mkdir(parents=True, exist_ok=True)
         total_chunks = max(1, job_data.get('total_chunks') or jobs.get(job_id, {}).get('total_chunks') or 1)
@@ -2367,7 +2374,7 @@ def analyze_text():
                     }), 400
                 selected_engine = normalized
 
-            processor = _create_text_processor_for_engine(selected_engine, config["chunk_size"])
+            processor = _create_text_processor_for_engine(selected_engine, config["chunk_size"], config)
             stats = processor.get_statistics(text)
             chapter_matches = list(CHAPTER_HEADING_PATTERN.finditer(text))
             if chapter_matches:
@@ -2716,6 +2723,7 @@ def generate_audio():
             int(config.get('chunk_size', 500)),
             include_full_story=generate_full_story,
             engine_name=active_engine,
+            config=config,
         )
         
         merge_options = {

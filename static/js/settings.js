@@ -522,6 +522,10 @@ function applySettings(settings) {
     if (localPromptNorm) {
         localPromptNorm.checked = settings.chatterbox_turbo_local_prompt_norm_loudness !== false;
     }
+    const localChunkSize = document.getElementById('chatterbox-turbo-local-chunk-size');
+    if (localChunkSize) {
+        localChunkSize.value = settings.chatterbox_turbo_local_chunk_size ?? 450;
+    }
 
     // Chatterbox Replicate settings (uses shared replicate_api_key)
     const turboModelInput = document.getElementById('chatterbox-turbo-replicate-model');
@@ -591,6 +595,7 @@ async function saveSettings() {
         chatterbox_turbo_local_exaggeration: parseFloat(document.getElementById('chatterbox-turbo-local-exaggeration').value) || 0,
         chatterbox_turbo_local_norm_loudness: document.getElementById('chatterbox-turbo-local-norm').checked,
         chatterbox_turbo_local_prompt_norm_loudness: document.getElementById('chatterbox-turbo-local-prompt-norm').checked,
+        chatterbox_turbo_local_chunk_size: parseInt(document.getElementById('chatterbox-turbo-local-chunk-size').value, 10) || 450,
         chatterbox_turbo_replicate_model: document.getElementById('chatterbox-turbo-replicate-model').value,
         chatterbox_turbo_replicate_voice: document.getElementById('chatterbox-turbo-replicate-voice').value,
         chatterbox_turbo_replicate_temperature: parseFloat(document.getElementById('chatterbox-turbo-replicate-temperature').value) || 0.8,
