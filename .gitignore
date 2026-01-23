@@ -5,6 +5,7 @@ __pycache__/
 *.so
 .Python
 venv/
+venv.old/
 env/
 ENV/
 *.egg-info/
@@ -18,6 +19,10 @@ instance/
 # Audio files
 static/audio/*
 !static/audio/.gitkeep
+
+# Voice samples (can be large)
+static/samples/*
+!static/samples/.gitkeep
 
 # Config
 config.json
@@ -38,3 +43,26 @@ Thumbs.db
 
 # Environment
 .env
+
+# Models (large files - downloaded on demand)
+models/
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+*.ckpt
+
+# Voice prompts (user data)
+data/voice_prompts/*
+!data/voice_prompts/.gitkeep
+
+# External voices cache
+data/external_voices/
+data/external_voices_cache.json
+
+# Sync state
+.sync_state.json
+
+# Huggingface cache
+.cache/
