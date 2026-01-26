@@ -70,6 +70,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 - **Voice Cloning**: Upload your own voice recordings (10-15 seconds recommended) to clone any voice with Chatterbox or VoxCPM
 - **Voice Prompt Management**: Add, rename, delete, and preview custom voice prompts with drag-and-drop bulk upload
 - **External Voice Library**: Browse and download 500+ voice samples from the [TTS Samples](https://github.com/yaph/tts-samples) repository directly in the app
+- **Qwen3 TTS Modes**: Dedicated flows for **Custom Voice**, **Clone**, and **Voice Creation** to generate, clone, or design new voices
 
 ### Voice & Audio
 - **Multi-Voice Support**: Use Kokoro-82M voices for any number of characters in your story
@@ -183,18 +184,12 @@ All voice selection dropdowns (main screen and library) now show:
 
 ### Automatic Installation (Recommended)
 
-1. **Clone or download the repository**
+1. **Run the installer/updater**
 ```bash
-git clone <your-repo-url>
-cd TTS-Story
+install-setup.bat
 ```
 
-2. **Run the setup script**
-```bash
-setup.bat
-```
-
-The setup script will automatically:
+The installer will clone or update the repository, then run the setup script which will automatically:
 - ✅ Detect your Python version
 - ✅ Create a Python virtual environment
 - ✅ Detect your NVIDIA GPU and CUDA version
