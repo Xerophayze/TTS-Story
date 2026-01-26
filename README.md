@@ -6,48 +6,53 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
   <table>
     <tr>
       <td>
-        <a href="https://github.com/user-attachments/assets/3709cdf4-036e-4154-8ea2-b1b780ae81d5" target="_blank">
-          <img src="https://github.com/user-attachments/assets/3709cdf4-036e-4154-8ea2-b1b780ae81d5" alt="Screenshot 1" width="280" />
+        <a href="https://github.com/user-attachments/assets/9af12bf6-47f7-45f5-8c0a-e6220b694497" target="_blank">
+          <img src="https://github.com/user-attachments/assets/9af12bf6-47f7-45f5-8c0a-e6220b694497" alt="chrome_d8ZrL1laNn" width="280" />
         </a>
       </td>
       <td>
-        <a href="https://github.com/user-attachments/assets/3972d844-f7c1-4738-91ea-06c0c4289ed3" target="_blank">
-          <img src="https://github.com/user-attachments/assets/3972d844-f7c1-4738-91ea-06c0c4289ed3" alt="Screenshot 2" width="280" />
+        <a href="https://github.com/user-attachments/assets/00dd7984-d685-4482-8401-2ad03dac44e4" target="_blank">
+          <img src="https://github.com/user-attachments/assets/00dd7984-d685-4482-8401-2ad03dac44e4" alt="chrome_Y4WyrXGpRI" width="280" />
         </a>
       </td>
       <td>
-        <a href="https://github.com/user-attachments/assets/eb8a5160-2be4-4c07-ab71-b2a6534a55a9" target="_blank">
-          <img src="https://github.com/user-attachments/assets/eb8a5160-2be4-4c07-ab71-b2a6534a55a9" alt="Screenshot 3" width="280" />
+        <a href="https://github.com/user-attachments/assets/dcf91a06-5f26-45a1-858f-157aff6d60ca" target="_blank">
+          <img src="https://github.com/user-attachments/assets/dcf91a06-5f26-45a1-858f-157aff6d60ca" alt="chrome_YKrqBtk5GU" width="280" />
         </a>
       </td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/user-attachments/assets/8e96ea1e-221d-4ef9-9cc4-d1e86b95c75d" target="_blank">
-          <img src="https://github.com/user-attachments/assets/8e96ea1e-221d-4ef9-9cc4-d1e86b95c75d" alt="Screenshot 4" width="280" />
+        <a href="https://github.com/user-attachments/assets/508fd274-a8a4-4b6e-8b8f-2ceb7ae36571" target="_blank">
+          <img src="https://github.com/user-attachments/assets/508fd274-a8a4-4b6e-8b8f-2ceb7ae36571" alt="chrome_52iXxPMM4R" width="280" />
         </a>
       </td>
       <td>
-        <a href="https://github.com/user-attachments/assets/d73fd188-94a2-4fef-85ae-b1003afee539" target="_blank">
-          <img src="https://github.com/user-attachments/assets/d73fd188-94a2-4fef-85ae-b1003afee539" alt="Screenshot 5" width="280" />
+        <a href="https://github.com/user-attachments/assets/b961444c-6b1f-46a2-b09c-a618e8557ea2" target="_blank">
+          <img src="https://github.com/user-attachments/assets/b961444c-6b1f-46a2-b09c-a618e8557ea2" alt="chrome_CP9EEaBnE5" width="280" />
         </a>
       </td>
       <td>
-        <a href="https://github.com/user-attachments/assets/d410995f-2b3b-4401-a4cd-0186ce28b272" target="_blank">
-          <img src="https://github.com/user-attachments/assets/d410995f-2b3b-4401-a4cd-0186ce28b272" alt="Screenshot 6" width="280" />
+        <a href="https://github.com/user-attachments/assets/fdec637a-e543-4000-88d9-050ca68a413f" target="_blank">
+          <img src="https://github.com/user-attachments/assets/fdec637a-e543-4000-88d9-050ca68a413f" alt="chrome_uQg512nBym" width="280" />
         </a>
       </td>
     </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/user-attachments/assets/2a57d2cc-eddb-4648-89c8-27b353479549" target="_blank">
+          <img src="https://github.com/user-attachments/assets/2a57d2cc-eddb-4648-89c8-27b353479549" alt="chrome_rJUicZZFGM" width="280" />
+        </a>
+      </td>
+      <td>
+        <a href="https://github.com/user-attachments/assets/3307938d-b628-4852-90fa-655a4eca2164" target="_blank">
+          <img src="https://github.com/user-attachments/assets/3307938d-b628-4852-90fa-655a4eca2164" alt="chrome_3heAn2FRjF" width="280" />
+        </a>
+      </td>
+      <td></td>
+    </tr>
   </table>
 </div>
-![chrome_d8ZrL1laNn](https://github.com/user-attachments/assets/9af12bf6-47f7-45f5-8c0a-e6220b694497)
-![chrome_Y4WyrXGpRI](https://github.com/user-attachments/assets/00dd7984-d685-4482-8401-2ad03dac44e4)
-![chrome_YKrqBtk5GU](https://github.com/user-attachments/assets/dcf91a06-5f26-45a1-858f-157aff6d60ca)
-![chrome_52iXxPMM4R](https://github.com/user-attachments/assets/508fd274-a8a4-4b6e-8b8f-2ceb7ae36571)
-![chrome_CP9EEaBnE5](https://github.com/user-attachments/assets/b961444c-6b1f-46a2-b09c-a618e8557ea2)
-![chrome_uQg512nBym](https://github.com/user-attachments/assets/fdec637a-e543-4000-88d9-050ca68a413f)
-![chrome_rJUicZZFGM](https://github.com/user-attachments/assets/2a57d2cc-eddb-4648-89c8-27b353479549)
-![chrome_3heAn2FRjF](https://github.com/user-attachments/assets/3307938d-b628-4852-90fa-655a4eca2164)
 
 ## Features
 
