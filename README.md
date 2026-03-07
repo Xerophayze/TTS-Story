@@ -9,12 +9,14 @@ Thank you — it genuinely means a lot! 🙏
 ---
 
 # Current Updates and Notes - updated 03-06-2026
+
 - Added **Auto Assign** button to the speaker voice assignment panel — fuzzy-matches voice sample names to detected speaker names and proposes assignments in a modal. Includes an adjustable similarity threshold slider (10–100%) that re-evaluates and updates all matches in real time.
 - **Bug fix**: Voice sample assignments (reference-select) no longer reset to "Inherit from global" when text is re-analyzed or section headers are changed. Selections are now persisted in `turboSelectionState` across all re-renders.
 - **Bug fix**: The **Quick Test** button in the speaker editor now plays the selected voice sample file directly with pitch/speed applied — instead of generating new audio — for all voice-cloning engines (Chatterbox, Pocket TTS Clone, IndexTTS, VoxCPM, etc.). Preset-voice engines (Kokoro, KittenTTS) still generate a preview as before.
 - Added **Clear Queue** button in the Job Queue tab — removes all non-processing jobs from the database and disk in one click, with a confirmation prompt and a summary of how many were removed or skipped.
 
 ### Previous Updates
+
 - Added **IndexTTS** as a new TTS engine — zero-shot voice cloning by Bilibili Research. High-quality GPU-accelerated synthesis with a single reference audio clip. Supports multi-chapter batch mode that pre-collects all chapters into a single subprocess call, eliminating per-chapter model-reload overhead (~30–60s per chapter saved).
 - **Bug fix**: Pausing and resuming a job no longer loses chapter/title data collected before the pause. The partial chapter manifest is now saved to disk on pause and restored on resume, so all chapters are present in the library when the job finishes.
 - **Bug fix**: Chunk timing history is now preserved across pause/resume cycles. Historical chunk timestamps are restored on resume so the live timing chart and final metrics reflect the full generation run, not just the post-resume portion.
@@ -79,6 +81,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 ## Features
 
 ### TTS Engines
+
 - **Multi-Engine Support**: Choose from twelve TTS engine options:
   - **Kokoro · Local GPU** - Run Kokoro-82M locally on your NVIDIA GPU
   - **Kokoro · Replicate** - Use Kokoro via Replicate cloud API
@@ -99,8 +102,9 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 - **Qwen3 TTS Modes**: Dedicated flows for **Custom Voice**, **Clone**, and **Voice Creation** to generate, clone, or design new voices
 
 ### Voice & Audio
+
 - **Multi-Voice Support**: Use Kokoro-82M voices for any number of characters in your story
-- **Custom Voice Blending**: Mix any combination of Kokoro voices with weighted ratios to create reusable "custom_*" voice codes
+- **Custom Voice Blending**: Mix any combination of Kokoro voices with weighted ratios to create reusable "custom\_\*" voice codes
 - **Speaker Tags & Auto Detection**: Automatically parse `[speaker1]...[/speaker1]` or `[alice]...[/alice]` tags
 - **Smart Text Chunking**: Automatically splits long texts into manageable chunks with per-engine configurable character limits
 - **Alternate Word Registry**: Define word substitutions for terms TTS engines mispronounce — replacements are applied automatically before synthesis
@@ -108,18 +112,21 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 - **Intro & Inter-Segment Silence Controls**: Dial in precise empty space before the first line and between chunks
 
 ### AI & Processing
+
 - **Gemini Pre-Processing**: Automatically decides between whole-text or chapter-based Gemini runs with speaker-memory context
 - **Speaker Memory Between Chunks**: Gemini requests carry forward discovered speaker tags for consistency
 - **Local GPU Processing**: Run entirely on your machine for privacy and speed
 - **Cloud API Option**: Use Replicate API when you don't have local GPU resources
 
 ### Job Management & Library
+
 - **Job Queue**: Submit multiple jobs, track real-time progress with ETA, cancel, and download results
 - **Job Queue Tab**: Dedicated UI to monitor all jobs with progress bars and chunk counts
 - **Audio Library**: Browsable list of all completed outputs with inline players, **engine indicator** showing which TTS engine was used, and delete/clear controls
 - **Chapter Collections + Full Audiobook**: Toggle per-chapter outputs and optionally create a single combined audiobook
 
 ### UI & Configuration
+
 - **Available Voices & Previews**: Browse all Kokoro voices grouped by language, generate preview samples
 - **Configurable Settings**: Control TTS engine, speed, chunk size, output format, bitrate, crossfade
 - **Dynamic Gemini Controls**: Save your Gemini API key, fetch the latest available Gemini models on demand
@@ -132,29 +139,37 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 TTS-Story exposes the full Kokoro-82M voice set, grouped by language.
 
 ### American English 🇺🇸 (lang_code `a`)
+
 - Female: `af_alloy`, `af_aoede`, `af_bella`, `af_heart`, `af_jessica`, `af_kore`, `af_nicole`, `af_nova`, `af_river`, `af_sarah`, `af_sky`
 - Male: `am_adam`, `am_echo`, `am_eric`, `am_fenrir`, `am_liam`, `am_michael`, `am_onyx`, `am_puck`, `am_santa`
 
 ### British English 🇬🇧 (lang_code `b`)
+
 - Female: `bf_alice`, `bf_emma`, `bf_isabella`, `bf_lily`
 - Male: `bm_daniel`, `bm_fable`, `bm_george`, `bm_lewis`
 
 ### Spanish 🇪🇸 (lang_code `e`)
+
 - `ef_dora`, `em_alex`, `em_santa`
 
 ### French 🇫🇷 (lang_code `f`)
+
 - `ff_siwis`
 
 ### Hindi 🇮🇳 (lang_code `h`)
+
 - `hf_alpha`, `hf_beta`, `hm_omega`
 
 ### Japanese 🇯🇵 (lang_code `j`)
+
 - `jf_alpha`, `jf_gongitsune`, `jf_nezumi`, `jf_tebukuro`, `jm_kumo`
 
 ### Mandarin Chinese 🇨🇳 (lang_code `z`)
+
 - `zf_xiaobei`, `zf_xiaoni`, `zf_xiaoxiao`, `zf_xiaoyi`
 
 ### Brazilian Portuguese 🇧🇷 (lang_code `p`)
+
 - `pf_dora`, `pm_alex`, `pm_santa`
 
 All of these voices are browsable in the **Available Voices** tab, where you can generate and play preview samples.
@@ -177,6 +192,7 @@ You can also drag-and-drop multiple audio files for bulk upload.
 #### Voice Prompt Management
 
 The Voice Prompts section provides a sortable list view with:
+
 - **Name, Gender, Language, Duration, Source** columns
 - **Sortable headers** - Click any column to sort
 - **Filtering** - Filter by gender, language, or source (local vs external)
@@ -197,6 +213,7 @@ TTS-Story integrates with the [TTS Samples](https://github.com/yaph/tts-samples)
 #### Voice Dropdown Enhancements
 
 All voice selection dropdowns (main screen and library) now show:
+
 - **Gender indicator**: `[M]` for Male, `[F]` for Female
 - **Language**: Human-readable language name (e.g., "English (UK)")
 - **Duration**: Sample length in seconds
@@ -205,38 +222,79 @@ All voice selection dropdowns (main screen and library) now show:
 ## Installation
 
 ### Prerequisites
+
 - Python 3.9 or higher
 - NVIDIA GPU with CUDA support (optional, for local GPU inference)
 - Internet connection (for downloading dependencies)
+
+### macOS support at a glance
+
+- **macOS Intel / Apple Silicon**: supported for installation and CPU-friendly engines
+- **Apple Silicon**: the installer uses macOS PyTorch wheels; do **not** use Linux-style `+cpu` package names
+- **Local GPU engines** in this project are primarily written for **NVIDIA/CUDA**, so on macOS you should expect the best results with:
+  - **Pocket TTS**
+  - **KittenTTS**
+  - **Replicate** engines
+- **Recommended Python on macOS**: **3.11 or 3.12**. Some required packages (especially `kokoro>=0.9.4`) currently do not support Python 3.13+.
 
 ### Automatic Installation (Recommended)
 
 1. **Run the installer/updater**
 
-To download the installer, *Right-Click* the link and click "Save As":
+**Windows**
+
+To download the installer, _Right-Click_ the link and click "Save As":
 [Install-Update.bat](https://github.com/Xerophayze/TTS-Story/raw/52b8d3a8edd6ac1ad8acfb1b83421bb4508d8d01/install-update.bat)
 
+**Linux / macOS**
+
+From the repository folder:
+
+```bash
+chmod +x install-update.sh
+./install-update.sh
+```
+
 The installer will clone or update the repository, then run the setup script which will automatically:
+
 - ✅ Detect your Python version
 - ✅ Create a Python virtual environment
 - ✅ Detect your NVIDIA GPU and CUDA version
-- ✅ Install PyTorch with appropriate CUDA support (or CPU-only if no GPU)
+- ✅ Install PyTorch with appropriate CUDA support (or a non-CUDA build on macOS / CPU-only systems)
 - ✅ Download and install espeak-ng automatically
 - ✅ Install all other required dependencies
 - ✅ Download the Rubber Band CLI and wire it up for high-quality pitch/tempo FX
 - ✅ Verify the installation
 
 **Supported CUDA Versions:**
+
 - CUDA 12.9, 12.8, 12.6, 12.4, 12.1
 - CUDA 11.8
 - CPU-only (automatic fallback if no GPU detected)
 
 3. **Start the application**
+
+**Windows**
+
 ```bash
 run.bat
 ```
 
+**Linux / macOS**
+
+```bash
+./run.sh
+```
+
+If port `5000` is already in use, the launcher will automatically try another port.
+You can also choose one explicitly:
+
+```bash
+TTS_STORY_PORT=5001 ./run.sh
+```
+
 4. **Open your browser**
+
 ```
 http://localhost:5000
 ```
@@ -253,13 +311,15 @@ If you prefer to install manually or the automatic setup fails:
    - Download the Windows zip from [breakfastquay.com/rubberband](https://breakfastquay.com/rubberband/)
    - Extract it and add the folder containing `rubberband.exe` to your `PATH`
 
-2. **Create virtual environment**
+3. **Create virtual environment**
+
 ```bash
 python -m venv venv
 venv\Scripts\activate
 ```
 
 3. **Install PyTorch with CUDA support**
+
 ```bash
 # For CUDA 12.1 (most common)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
@@ -268,14 +328,24 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
 
+**macOS note:** use the command above exactly as shown. Do **not** append `+cpu` on macOS (for example, avoid `torch==2.6.0+cpu`).
+
 4. **Install other dependencies**
+
 ```bash
 pip install -r requirements.txt
 ```
 
 5. **Run the application**
+
 ```bash
 python app.py
+```
+
+To run on a different port:
+
+```bash
+TTS_STORY_PORT=5001 python app.py
 ```
 
 ## Usage
@@ -284,20 +354,20 @@ python app.py
 
 TTS-Story supports twelve TTS engine options. In the **Settings** tab, choose your preferred default engine:
 
-| Engine | Description | Requirements |
-|--------|-------------|--------------|
-| **Kokoro · Local GPU** | Run Kokoro-82M locally | NVIDIA GPU with CUDA |
-| **Kokoro · Replicate** | Kokoro via cloud API | Replicate API token |
-| **Chatterbox · Local GPU** | Chatterbox with voice cloning | NVIDIA GPU (~8GB VRAM) |
-| **Chatterbox · Replicate** | Chatterbox via cloud API | Replicate API token |
-| **VoxCPM 1.5 · Local GPU** | VoxCPM with voice cloning & auto-transcription | NVIDIA GPU (~6GB VRAM) |
-| **Qwen3 TTS · Custom Voice** | Qwen3 TTS custom voice prompts | NVIDIA GPU (local) |
-| **Qwen3 TTS · Clone** | Qwen3 TTS voice cloning from reference audio | NVIDIA GPU (local) |
-| **Qwen3 TTS · Voice Creation** | Qwen3 TTS voice design (new voice creation) | NVIDIA GPU (local) |
-| **Pocket TTS · Preset Voices** | CPU-only preset voices, no GPU needed | CPU only |
-| **Pocket TTS · Voice Clone** | CPU-only voice cloning from reference prompts | CPU only |
-| **KittenTTS** | Ultra-lightweight CPU-only, 8 built-in voices | CPU only |
-| **IndexTTS** | Zero-shot voice cloning, English + Chinese | NVIDIA GPU recommended; isolated venv |
+| Engine                         | Description                                    | Requirements                          |
+| ------------------------------ | ---------------------------------------------- | ------------------------------------- |
+| **Kokoro · Local GPU**         | Run Kokoro-82M locally                         | NVIDIA GPU with CUDA                  |
+| **Kokoro · Replicate**         | Kokoro via cloud API                           | Replicate API token                   |
+| **Chatterbox · Local GPU**     | Chatterbox with voice cloning                  | NVIDIA GPU (~8GB VRAM)                |
+| **Chatterbox · Replicate**     | Chatterbox via cloud API                       | Replicate API token                   |
+| **VoxCPM 1.5 · Local GPU**     | VoxCPM with voice cloning & auto-transcription | NVIDIA GPU (~6GB VRAM)                |
+| **Qwen3 TTS · Custom Voice**   | Qwen3 TTS custom voice prompts                 | NVIDIA GPU (local)                    |
+| **Qwen3 TTS · Clone**          | Qwen3 TTS voice cloning from reference audio   | NVIDIA GPU (local)                    |
+| **Qwen3 TTS · Voice Creation** | Qwen3 TTS voice design (new voice creation)    | NVIDIA GPU (local)                    |
+| **Pocket TTS · Preset Voices** | CPU-only preset voices, no GPU needed          | CPU only                              |
+| **Pocket TTS · Voice Clone**   | CPU-only voice cloning from reference prompts  | CPU only                              |
+| **KittenTTS**                  | Ultra-lightweight CPU-only, 8 built-in voices  | CPU only                              |
+| **IndexTTS**                   | Zero-shot voice cloning, English + Chinese     | NVIDIA GPU recommended; isolated venv |
 
 You can also override the engine per-job in the **Generate** tab.
 
@@ -336,14 +406,14 @@ IndexTTS (by Bilibili) is a state-of-the-art zero-shot voice cloning engine with
 
 #### IndexTTS Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Model Version | `IndexTTS-2` | Which model version to use |
-| Chunk Size | `400` chars | Character limit per synthesis chunk |
-| Device | `auto` | cuda, cuda:0, cpu, or auto |
-| Default Voice Prompt | _(empty)_ | Fallback reference audio path |
-| Use FP16 | `true` | Half-precision inference (faster, less VRAM) |
-| Use DeepSpeed | `false` | Optional inference speedup |
+| Setting              | Default      | Description                                  |
+| -------------------- | ------------ | -------------------------------------------- |
+| Model Version        | `IndexTTS-2` | Which model version to use                   |
+| Chunk Size           | `400` chars  | Character limit per synthesis chunk          |
+| Device               | `auto`       | cuda, cuda:0, cpu, or auto                   |
+| Default Voice Prompt | _(empty)_    | Fallback reference audio path                |
+| Use FP16             | `true`       | Half-precision inference (faster, less VRAM) |
+| Use DeepSpeed        | `false`      | Optional inference speedup                   |
 
 ### KittenTTS Engine
 
@@ -358,11 +428,11 @@ KittenTTS is an ultra-lightweight, CPU-only TTS engine — ideal for machines wi
 
 #### KittenTTS Settings
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| Model ID | `KittenML/kitten-tts-mini-0.8` | Which KittenTTS model to load |
-| Default Voice | `Jasper` | Fallback voice when no per-speaker assignment is set |
-| Chunk Size | `300` chars | Character limit per synthesis chunk (lower = faster on CPU) |
+| Setting       | Default                        | Description                                                 |
+| ------------- | ------------------------------ | ----------------------------------------------------------- |
+| Model ID      | `KittenML/kitten-tts-mini-0.8` | Which KittenTTS model to load                               |
+| Default Voice | `Jasper`                       | Fallback voice when no per-speaker assignment is set        |
+| Chunk Size    | `300` chars                    | Character limit per synthesis chunk (lower = faster on CPU) |
 
 ### Basic Workflow
 
@@ -413,6 +483,7 @@ Both Kokoro · Replicate and Chatterbox · Replicate use the same API token:
 You can use either numbered speakers or named speakers:
 
 **Numbered Format:**
+
 ```
 [speaker1]Hello, my name is Alice.[/speaker1]
 [speaker2]Nice to meet you, Alice! I'm Bob.[/speaker2]
@@ -420,6 +491,7 @@ You can use either numbered speakers or named speakers:
 ```
 
 **Named Format:**
+
 ```
 [narrator]Once upon a time, in a land far away...[/narrator]
 [alice]Hello, my name is Alice.[/alice]
@@ -449,11 +521,11 @@ Because the speaker list is tracked across sections, characters that appear late
 
 TTS-Story includes pre-configured Gemini prompt presets optimized for different use cases:
 
-| Preset | Best For | Description |
-|--------|----------|-------------|
-| **Chatterbox Natural Dialogue Conversation** | Chatterbox engines | Transforms text into natural-sounding dialogue with paralinguistic tags (laughter, sighs, pauses) and human speech quirks. Ideal for conversational content where you want expressive, lifelike output. |
-| **Chatterbox Audio Book Conversion** | Chatterbox engines | Maintains strict adherence to the original text while converting symbols and abbreviations that TTS engines struggle with into speakable words (e.g., "/" → "slash", "-" → "dash", "Dr." → "Doctor"). |
-| **Strict Book Narration V1** | Kokoro & other engines | Preserves the exact text of the book while adding speaker tags and preparing the content for TTS conversion. Improved instruction adherence ensures the original prose is never paraphrased or summarised. |
+| Preset                                       | Best For               | Description                                                                                                                                                                                                |
+| -------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Chatterbox Natural Dialogue Conversation** | Chatterbox engines     | Transforms text into natural-sounding dialogue with paralinguistic tags (laughter, sighs, pauses) and human speech quirks. Ideal for conversational content where you want expressive, lifelike output.    |
+| **Chatterbox Audio Book Conversion**         | Chatterbox engines     | Maintains strict adherence to the original text while converting symbols and abbreviations that TTS engines struggle with into speakable words (e.g., "/" → "slash", "-" → "dash", "Dr." → "Doctor").      |
+| **Strict Book Narration V1**                 | Kokoro & other engines | Preserves the exact text of the book while adding speaker tags and preparing the content for TTS conversion. Improved instruction adherence ensures the original prose is never paraphrased or summarised. |
 
 Select a preset from the dropdown in the Gemini section, or create your own custom prompts and save them for reuse.
 
@@ -525,20 +597,20 @@ Settings are stored in `config.json`:
 
 ### TTS Engine Options
 
-| Value | Description |
-|-------|-------------|
-| `kokoro` | Kokoro-82M local GPU inference |
-| `kokoro_replicate` | Kokoro via Replicate cloud API |
-| `chatterbox_turbo_local` | Chatterbox local GPU with voice cloning |
-| `chatterbox_turbo_replicate` | Chatterbox via Replicate cloud API |
-| `voxcpm_local` | VoxCPM 1.5 local GPU with voice cloning |
-| `qwen3_custom_voice` | Qwen3 TTS custom voice mode |
-| `qwen3_clone` | Qwen3 TTS voice cloning mode |
-| `qwen3_voice_creation` | Qwen3 TTS voice creation mode |
-| `pocket_tts` | Pocket TTS preset voices (CPU-only) |
-| `pocket_tts_preset` | Pocket TTS voice clone mode (CPU-only) |
-| `kitten_tts` | KittenTTS CPU-only engine |
-| `index_tts` | IndexTTS zero-shot voice cloning |
+| Value                        | Description                             |
+| ---------------------------- | --------------------------------------- |
+| `kokoro`                     | Kokoro-82M local GPU inference          |
+| `kokoro_replicate`           | Kokoro via Replicate cloud API          |
+| `chatterbox_turbo_local`     | Chatterbox local GPU with voice cloning |
+| `chatterbox_turbo_replicate` | Chatterbox via Replicate cloud API      |
+| `voxcpm_local`               | VoxCPM 1.5 local GPU with voice cloning |
+| `qwen3_custom_voice`         | Qwen3 TTS custom voice mode             |
+| `qwen3_clone`                | Qwen3 TTS voice cloning mode            |
+| `qwen3_voice_creation`       | Qwen3 TTS voice creation mode           |
+| `pocket_tts`                 | Pocket TTS preset voices (CPU-only)     |
+| `pocket_tts_preset`          | Pocket TTS voice clone mode (CPU-only)  |
+| `kitten_tts`                 | KittenTTS CPU-only engine               |
+| `index_tts`                  | IndexTTS zero-shot voice cloning        |
 
 Any settings you override in the Generate tab (format, bitrate, engine) are sent along with the job payload while keeping the saved defaults intact.
 
@@ -627,29 +699,34 @@ TTS-Story/
 ## Performance
 
 ### Kokoro · Local GPU (NVIDIA RTX 3090)
+
 - ~2 seconds per chunk (500 words)
 - No API costs
 - Full privacy
 
 ### Kokoro · Replicate
+
 - ~2-3 seconds per chunk (varies by input)
 - Cost varies by usage
 - No GPU required
 - Model: [jaaari/kokoro-82m](https://replicate.com/jaaari/kokoro-82m)
 
 ### Chatterbox · Local GPU
+
 - Requires ~8GB VRAM
 - Voice cloning from 10-15 second audio samples
 - No API costs
 - Full privacy
 
 ### Chatterbox · Replicate
+
 - Voice cloning via cloud API
 - Model: [resemble-ai/chatterbox-turbo](https://replicate.com/resemble-ai/chatterbox-turbo)
 - Cost varies by usage
 - No GPU required
 
 ### VoxCPM 1.5 · Local GPU
+
 - Requires ~6GB VRAM
 - Voice cloning from audio samples
 - Automatic transcription via SenseVoice ASR
@@ -657,12 +734,14 @@ TTS-Story/
 - Full privacy
 
 ### Pocket TTS · CPU
+
 - No GPU required — runs on any CPU
 - Preset voices and voice cloning from reference prompts
 - No API costs
 - Full privacy
 
 ### KittenTTS · CPU
+
 - No GPU required — ultra-lightweight (<25MB model)
 - 8 built-in English voices
 - Default chunk size: 300 chars (tunable in Settings → Engine Settings)
@@ -671,6 +750,7 @@ TTS-Story/
 - Install: `pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl`
 
 ### IndexTTS · Local GPU (NVIDIA recommended)
+
 - Zero-shot voice cloning from reference audio
 - GPU strongly recommended; CPU mode works but is slow
 - FP16 inference halves VRAM usage
@@ -683,12 +763,15 @@ TTS-Story/
 ## Troubleshooting
 
 ### espeak-ng not found
+
 Make sure espeak-ng is installed and in your PATH.
 
 ### CUDA out of memory
+
 Reduce chunk_size in settings or use a Replicate engine instead of local GPU.
 
 ### Audio quality issues
+
 Adjust the speed parameter (0.5 - 2.0) in settings.
 
 ## License

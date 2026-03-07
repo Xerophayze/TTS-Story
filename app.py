@@ -8694,6 +8694,24 @@ def _cleanup_orphaned_regen_folders():
         logger.info("Cleaned up %d orphaned chunk regen temp folders", cleaned)
 
 
+def _resolve_server_port() -> int:
+    raw_port = (
+        os.environ.get("TTS_STORY_PORT")
+        or os.environ.get("PORT")
+        or "5000"
+    ).strip()
+    try:
+        port = int(raw_port)
+    except (TypeError, ValueError):
+        logger.warning("Invalid port value '%s'; falling back to 5000", raw_port)
+        return 5000
+
+    if not (1 <= port <= 65535):
+        logger.warning("Port %s is out of range; falling back to 5000", port)
+        return 5000
+    return port
+
+
 if __name__ == '__main__':
     logger.info("Starting TTS-Story server")
     _init_jobs_db()
@@ -8703,6 +8721,7 @@ if __name__ == '__main__':
     _cleanup_orphaned_chatterbox_voices()
     _auto_register_voice_prompt_files()
     _cleanup_orphaned_regen_folders()
+    server_port = _resolve_server_port()
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
-        threading.Timer(1.5, lambda: webbrowser.open("http://localhost:5000")).start()
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+        threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{server_port}")).start()
+    app.run(host='0.0.0.0', port=server_port, debug=True, use_reloader=False)

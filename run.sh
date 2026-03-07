@@ -14,6 +14,65 @@ echo "  - GPU users: update to the latest NVIDIA drivers"
 echo "  - Run 'git pull' to pull the latest updates"
 echo
 
+OS_NAME="$(uname -s)"
+IS_MACOS=0
+if [ "$OS_NAME" = "Darwin" ]; then
+    IS_MACOS=1
+fi
+
+is_port_available() {
+    python - "$1" <<'EOF'
+import socket
+import sys
+
+port = int(sys.argv[1])
+addresses = [
+    (socket.AF_INET, "0.0.0.0"),
+]
+
+if socket.has_ipv6:
+    addresses.append((socket.AF_INET6, "::"))
+
+for family, host in addresses:
+    with socket.socket(family, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((host, port))
+        except OSError:
+            raise SystemExit(1)
+raise SystemExit(0)
+EOF
+}
+
+find_available_port() {
+    python - "$1" <<'EOF'
+import socket
+import sys
+
+start_port = int(sys.argv[1])
+for port in range(start_port, min(start_port + 100, 65536)):
+    addresses = [
+        (socket.AF_INET, "0.0.0.0"),
+    ]
+    if socket.has_ipv6:
+        addresses.append((socket.AF_INET6, "::"))
+
+    ok = True
+    for family, host in addresses:
+        with socket.socket(family, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+            except OSError:
+                ok = False
+                break
+    if ok:
+        print(port)
+        raise SystemExit(0)
+raise SystemExit(1)
+EOF
+}
+
 # Check that virtual environment exists
 if [ ! -f "venv/bin/activate" ]; then
     echo "ERROR: Virtual environment not found."
@@ -24,6 +83,36 @@ fi
 # Activate virtual environment
 # shellcheck disable=SC1091
 source "venv/bin/activate"
+
+REQUESTED_PORT="${TTS_STORY_PORT:-${PORT:-5000}}"
+APP_PORT="$REQUESTED_PORT"
+
+if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1 ] || [ "$APP_PORT" -gt 65535 ]; then
+    echo "WARNING: Invalid port '$APP_PORT'. Falling back to 5000."
+    APP_PORT="5000"
+fi
+
+if ! is_port_available "$APP_PORT"; then
+    if [ -n "${TTS_STORY_PORT:-}" ] || [ -n "${PORT:-}" ]; then
+        echo "ERROR: Requested port $APP_PORT is already in use."
+        echo "Set TTS_STORY_PORT to another port and re-run, for example: TTS_STORY_PORT=5001 ./run.sh"
+        exit 1
+    fi
+
+    ALT_PORT="$(find_available_port 5001 || true)"
+    if [ -z "$ALT_PORT" ]; then
+        echo "ERROR: Port 5000 is in use and no fallback port was found in the 5001-5100 range."
+        exit 1
+    fi
+
+    echo "Port 5000 is already in use. Falling back to port $ALT_PORT."
+    if [ "$IS_MACOS" -eq 1 ]; then
+        echo "Tip: this is commonly caused by AirPlay Receiver on macOS."
+    fi
+    APP_PORT="$ALT_PORT"
+fi
+
+export TTS_STORY_PORT="$APP_PORT"
 
 # Detect NVIDIA GPU
 HAS_NVIDIA=0
@@ -38,7 +127,11 @@ fi
 
 # Ensure CPU-only torch on systems without NVIDIA GPUs
 if [ "$HAS_NVIDIA" -eq 0 ]; then
-    echo "CPU-only system detected. Ensuring CPU PyTorch is installed..."
+    if [ "$IS_MACOS" -eq 1 ]; then
+        echo "macOS system detected. Ensuring non-CUDA PyTorch is installed..."
+    else
+        echo "CPU-only system detected. Ensuring CPU PyTorch is installed..."
+    fi
     
     TORCH_PIN="2.6.0"
     TORCHVISION_PIN="0.21.0"
@@ -55,23 +148,35 @@ if [ "$HAS_NVIDIA" -eq 0 ]; then
     # 2. No torch installed
     # 3. CUDA build detected on CPU-only system
     if [ "${FORCE_TORCH_REINSTALL:-0}" = "1" ] || [ -z "$TORCH_INSTALLED" ]; then
-        echo "Installing CPU-only PyTorch..."
+        if [ "$IS_MACOS" -eq 1 ]; then
+            echo "Installing macOS-compatible PyTorch..."
+        else
+            echo "Installing CPU-only PyTorch..."
+        fi
         pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-        pip install --upgrade --force-reinstall \
-            torch==${TORCH_PIN}+cpu \
-            torchvision==${TORCHVISION_PIN}+cpu \
-            torchaudio==${TORCHAUDIO_PIN}+cpu \
-            --index-url https://download.pytorch.org/whl/cpu
-        pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
+        if [ "$IS_MACOS" -eq 1 ]; then
+            pip install --upgrade --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        else
+            pip install --upgrade --force-reinstall \
+                torch==${TORCH_PIN}+cpu \
+                torchvision==${TORCHVISION_PIN}+cpu \
+                torchaudio==${TORCHAUDIO_PIN}+cpu \
+                --index-url https://download.pytorch.org/whl/cpu
+            pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
+        fi
     elif echo "$TORCH_INSTALLED" | grep -q "+cu"; then
         echo "CUDA build detected on CPU-only system. Reinstalling CPU-only torch..."
         pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-        pip install --upgrade --force-reinstall \
-            torch==${TORCH_PIN}+cpu \
-            torchvision==${TORCHVISION_PIN}+cpu \
-            torchaudio==${TORCHAUDIO_PIN}+cpu \
-            --index-url https://download.pytorch.org/whl/cpu
-        pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
+        if [ "$IS_MACOS" -eq 1 ]; then
+            pip install --upgrade --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        else
+            pip install --upgrade --force-reinstall \
+                torch==${TORCH_PIN}+cpu \
+                torchvision==${TORCHVISION_PIN}+cpu \
+                torchaudio==${TORCHAUDIO_PIN}+cpu \
+                --index-url https://download.pytorch.org/whl/cpu
+            pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
+        fi
     else
         echo "Detected PyTorch: $TORCH_INSTALLED"
     fi
@@ -131,7 +236,7 @@ EOF
 
 echo
 echo "Starting Flask server..."
-echo "Open your browser to: http://localhost:5000"
+echo "Open your browser to: http://localhost:${APP_PORT}"
 echo "Press Ctrl+C to stop the server"
 echo
 

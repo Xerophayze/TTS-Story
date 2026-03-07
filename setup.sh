@@ -12,6 +12,58 @@ echo "Quick Troubleshooting:"
 echo "  - If setup fails, delete the 'venv' folder and re-run setup.sh"
 echo "  - GPU users: update to the latest NVIDIA drivers"
 
+OS_NAME="$(uname -s)"
+ARCH_NAME="$(uname -m)"
+IS_MACOS=0
+if [ "$OS_NAME" = "Darwin" ]; then
+    IS_MACOS=1
+fi
+
+PYTHON_BIN=""
+
+find_compatible_python() {
+    local candidate=""
+
+    if command -v python3 >/dev/null 2>&1; then
+        candidate="$(command -v python3)"
+    fi
+
+    if [ -n "$candidate" ]; then
+        local candidate_minor
+        candidate_minor=$("$candidate" -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "")
+        if [ -n "$candidate_minor" ] && [ "$candidate_minor" -le 12 ]; then
+            PYTHON_BIN="$candidate"
+            return 0
+        fi
+    fi
+
+    for alt in python3.12 python3.11; do
+        if command -v "$alt" >/dev/null 2>&1; then
+            PYTHON_BIN="$(command -v "$alt")"
+            return 0
+        fi
+    done
+
+    if [ "$IS_MACOS" -eq 1 ] && command -v brew >/dev/null 2>&1; then
+        echo "Compatible Python not found in PATH. Installing Homebrew python@3.12..."
+        brew install python@3.12
+
+        if command -v python3.12 >/dev/null 2>&1; then
+            PYTHON_BIN="$(command -v python3.12)"
+            return 0
+        fi
+
+        local brew_python_prefix
+        brew_python_prefix="$(brew --prefix python@3.12 2>/dev/null || true)"
+        if [ -n "$brew_python_prefix" ] && [ -x "$brew_python_prefix/bin/python3.12" ]; then
+            PYTHON_BIN="$brew_python_prefix/bin/python3.12"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
 # PyTorch versions (matching setup.bat)
 TORCH_VERSION="2.6.0"
 TORCHVISION_VERSION="0.21.0"
@@ -20,20 +72,27 @@ TORCHAUDIO_VERSION="2.6.0"
 # 1/12 Check Python installation
 echo
 echo "[1/12] Checking Python installation..."
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "ERROR: python3 is not installed or not in PATH"
-    echo "Please install Python 3.9 or higher."
+if ! find_compatible_python; then
+    echo "ERROR: Could not find a compatible Python interpreter."
+    echo "This project currently needs Python 3.9-3.12 for full local install support."
+    echo "Please install Python 3.12 (recommended) and re-run setup.sh."
     exit 1
 fi
 
-PYTHON_VERSION=$(python3 --version 2>&1)
-echo "Found $PYTHON_VERSION"
+PYTHON_VERSION=$("$PYTHON_BIN" --version 2>&1)
+echo "Found $PYTHON_VERSION via $PYTHON_BIN"
 
 # Check Python version (3.9+ required)
-PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info.major)')
-PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
+PYTHON_MAJOR=$("$PYTHON_BIN" -c 'import sys; print(sys.version_info.major)')
+PYTHON_MINOR=$("$PYTHON_BIN" -c 'import sys; print(sys.version_info.minor)')
 if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 9 ]); then
     echo "ERROR: Python 3.9 or higher is required. Found: $PYTHON_VERSION"
+    exit 1
+fi
+
+if [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -gt 12 ]; then
+    echo "ERROR: Python $PYTHON_VERSION is too new for one or more required packages (notably kokoro)."
+    echo "Please install Python 3.12 or 3.11 and re-run setup.sh."
     exit 1
 fi
 
@@ -65,13 +124,13 @@ git config --global --add safe.directory "*" 2>/dev/null || true
 # Check and install python3-venv if not present
 echo
 echo "[1c/12] Checking python3-venv installation..."
-if ! python3 -m venv --help >/dev/null 2>&1; then
+if ! "$PYTHON_BIN" -m venv --help >/dev/null 2>&1; then
     echo "python3-venv not found. Installing..."
     if command -v apt-get >/dev/null 2>&1; then
         sudo apt-get update -qq
         sudo apt-get install -y -qq python3-venv python3-pip
     elif command -v brew >/dev/null 2>&1; then
-        brew install python@3.10
+        brew install python
     elif command -v pacman >/dev/null 2>&1; then
         sudo pacman -Sy --noconfirm python-pythonz
     elif command -v dnf >/dev/null 2>&1; then
@@ -85,10 +144,32 @@ echo "python3-venv is available."
 # 2/12 Create virtual environment
 echo
 echo "[2/12] Creating virtual environment..."
+if [ -d "venv" ] && [ -f "venv/bin/python" ]; then
+    VENV_PYTHON_MINOR=$(venv/bin/python -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "")
+    if [ -n "$VENV_PYTHON_MINOR" ] && [ "$VENV_PYTHON_MINOR" != "$PYTHON_MINOR" ]; then
+        echo "Existing virtual environment uses a different Python version. Recreating venv..."
+        PROJECT_VENV_PATH="$(cd venv 2>/dev/null && pwd || true)"
+        if [ -n "${VIRTUAL_ENV:-}" ] && [ -n "$PROJECT_VENV_PATH" ] && [ "$VIRTUAL_ENV" = "$PROJECT_VENV_PATH" ]; then
+            echo "Deactivating current virtual environment before recreating it..."
+            deactivate 2>/dev/null || true
+            hash -r 2>/dev/null || true
+        fi
+
+        if ! rm -rf venv; then
+            echo "rm -rf venv failed, retrying with Python cleanup..."
+            "$PYTHON_BIN" - <<'EOF'
+import shutil
+
+shutil.rmtree("venv")
+EOF
+        fi
+    fi
+fi
+
 if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
     echo "Virtual environment already exists, skipping..."
 else
-    python3 -m venv venv
+    "$PYTHON_BIN" -m venv venv
 fi
 
 # 3/12 Activate virtual environment
@@ -119,7 +200,11 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 fi
 
 if [ "$HAS_NVIDIA" -eq 0 ]; then
-    echo "No NVIDIA GPU detected. Using CPU-only installs."
+    if [ "$IS_MACOS" -eq 1 ]; then
+        echo "No NVIDIA GPU detected. Using macOS-compatible non-CUDA installs (CPU/MPS where supported)."
+    else
+        echo "No NVIDIA GPU detected. Using CPU-only installs."
+    fi
 fi
 
 # Check if PyTorch is already installed
@@ -169,10 +254,26 @@ else
             fi
         fi
     else
-        echo "Installing CPU-only PyTorch..."
+        if [ "$IS_MACOS" -eq 1 ]; then
+            echo "Installing macOS-compatible PyTorch (no Linux-style +cpu suffix)..."
+        else
+            echo "Installing CPU-only PyTorch..."
+        fi
         pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-        pip install --upgrade --force-reinstall torch==${TORCH_VERSION}+cpu torchvision==${TORCHVISION_VERSION}+cpu torchaudio==${TORCHAUDIO_VERSION}+cpu --index-url https://download.pytorch.org/whl/cpu
-        pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
+        if [ "$IS_MACOS" -eq 1 ]; then
+            pip install --upgrade --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        else
+            if ! pip install --upgrade --force-reinstall torch==${TORCH_VERSION}+cpu torchvision==${TORCHVISION_VERSION}+cpu torchaudio==${TORCHAUDIO_VERSION}+cpu --index-url https://download.pytorch.org/whl/cpu; then
+                echo "Pinned CPU PyTorch install failed, trying latest compatible wheels from the PyTorch CPU index..."
+                pip install --upgrade --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+            fi
+        fi
+
+        if [ "$IS_MACOS" -eq 1 ]; then
+            echo "Skipping legacy Linux CPU compatibility pins on macOS."
+        else
+            pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
+        fi
     fi
 fi
 
@@ -193,7 +294,7 @@ rm -f temp_requirements.txt temp_requirements_filtered.txt
 # Install pyopenjtalk if possible (requires compile tools)
 echo
 echo "Checking for pyopenjtalk (Japanese text support)..."
-if command -v make >/dev/null 2>&1 && command -v g++ >/dev/null 2>&1; then
+if command -v make >/dev/null 2>&1 && (command -v g++ >/dev/null 2>&1 || command -v c++ >/dev/null 2>&1 || command -v clang++ >/dev/null 2>&1); then
     echo "Build tools found. Installing pyopenjtalk..."
     pip install pyopenjtalk || echo "WARNING: pyopenjtalk failed to install. Japanese TTS features will be unavailable."
 else
@@ -204,8 +305,17 @@ fi
 # 7/12 Install Chatterbox Turbo runtime
 echo
 echo "[7/12] Installing Chatterbox Turbo runtime..."
+# On macOS, chatterbox-tts currently tries to drag in an older numpy build path
+# that is noisy and unnecessary for this project setup, so install the package
+# itself without re-resolving torch/numpy.
+if [ "$IS_MACOS" -eq 1 ]; then
+    if pip install chatterbox-tts --no-deps; then
+        echo "Chatterbox Turbo installed without dependency re-resolution on macOS."
+    else
+        echo "WARNING: chatterbox-tts install failed - Chatterbox local engine may be unavailable"
+    fi
 # First try with deps to get torchaudio and other required packages
-if pip install chatterbox-tts; then
+elif pip install chatterbox-tts; then
     echo "Chatterbox Turbo installed with dependencies!"
 else
     # If that fails, try without deps but install torchaudio manually
@@ -241,7 +351,9 @@ pip install voxcpm --no-deps || echo "WARNING: Failed to install voxcpm - VoxCPM
 # Ensure numpy is at a compatible version for all TTS engines
 echo
 echo "Ensuring numpy version compatibility..."
-if [ "$HAS_NVIDIA" -eq 0 ]; then
+if [ "$IS_MACOS" -eq 1 ]; then
+    echo "Skipping legacy numpy compatibility adjustment on macOS."
+elif [ "$HAS_NVIDIA" -eq 0 ]; then
     # CPU-only systems need numpy<1.26.0 for older PyTorch compatibility
     pip install "numpy<1.26.0" --quiet || echo "WARNING: numpy version adjustment failed"
 else
@@ -356,6 +468,11 @@ echo "========================================"
 echo "Setup Complete!"
 echo "========================================"
 echo
+if [ "$IS_MACOS" -eq 1 ]; then
+    echo "macOS note: Local GPU engines in this project target NVIDIA/CUDA."
+    echo "On Apple Silicon, prefer Pocket TTS, KittenTTS, or Replicate-based engines."
+    echo
+fi
 echo "Next steps:"
 echo "  1. If espeak-ng is not installed, install it now"
 echo "  2. Run: ./run.sh"

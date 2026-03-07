@@ -77,7 +77,7 @@ if ! python3 -m venv "$TEST_VENV" >/dev/null 2>&1; then
         sudo apt-get update -qq
         sudo apt-get install -y -qq python3-venv python3-pip
     elif command -v brew >/dev/null 2>&1; then
-        brew install python@3.10
+        brew install python
     elif command -v dnf >/dev/null 2>&1; then
         sudo dnf install -y python3.10-venv
     fi
