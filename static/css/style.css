@@ -933,13 +933,219 @@ input[type="range"] {
     border-radius: 8px;
 }
 
-.gemini-progress .progress-label {
+.gemini-progress.is-hidden {
+    display: none;
+}
+
+.gemini-progress-header {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.gemini-progress-stateline {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+}
+
+.gemini-progress-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.gemini-progress-title-row {
+    display: flex;
+    gap: 10px;
     align-items: center;
-    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.gemini-progress-text {
+    font-size: 0.92rem;
+    color: var(--text-color);
+}
+
+.gemini-progress-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.gemini-status-spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: 2px solid rgba(148, 163, 184, 0.35);
+    border-top-color: var(--primary-color);
+    flex: 0 0 auto;
+    margin-top: 2px;
+    animation: gemini-spin 1s linear infinite;
+}
+
+.gemini-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    color: #e0e7ff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.gemini-progress-count {
+    font-size: 0.82rem;
     color: var(--text-muted);
-    margin-bottom: 8px;
+}
+
+.gemini-progress-meta {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+}
+
+.gemini-progress-meta .meta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.gemini-progress-error {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(127, 29, 29, 0.28);
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    color: #fecaca;
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.gemini-progress-state.state-queued,
+.gemini-progress-state.state-processing,
+.gemini-progress-state.state-retrying {
+    border-color: rgba(99, 102, 241, 0.45);
+}
+
+.gemini-progress-state.state-processing .gemini-status-spinner,
+.gemini-progress-state.state-retrying .gemini-status-spinner,
+.gemini-progress-state.state-queued .gemini-status-spinner {
+    animation-play-state: running;
+}
+
+.gemini-progress-state.state-waiting_to_retry {
+    background: rgba(251, 191, 36, 0.08);
+    border-color: rgba(251, 191, 36, 0.4);
+}
+
+.gemini-progress-state.state-waiting_to_retry .gemini-status-spinner {
+    border-top-color: var(--warning-color);
+    animation: gemini-pulse 1.25s ease-in-out infinite;
+}
+
+.gemini-progress-state.state-waiting_to_retry .gemini-status-badge {
+    background: rgba(251, 191, 36, 0.14);
+    border-color: rgba(251, 191, 36, 0.35);
+    color: #fde68a;
+}
+
+.gemini-progress-state.state-completed {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.gemini-progress-state.state-completed .gemini-status-spinner {
+    animation: none;
+    border-color: rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.2);
+    position: relative;
+}
+
+.gemini-progress-state.state-completed .gemini-status-spinner::after {
+    content: '✓';
+    position: absolute;
+    inset: -2px 0 0 0;
+    font-size: 11px;
+    text-align: center;
+    color: #86efac;
+}
+
+.gemini-progress-state.state-completed .gemini-status-badge {
+    background: rgba(16, 185, 129, 0.16);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #86efac;
+}
+
+.gemini-progress-state.state-failed,
+.gemini-progress-state.state-cancelled {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.gemini-progress-state.state-failed .gemini-status-spinner,
+.gemini-progress-state.state-cancelled .gemini-status-spinner {
+    animation: none;
+    border-color: rgba(248, 113, 113, 0.45);
+    background: rgba(248, 113, 113, 0.16);
+    position: relative;
+}
+
+.gemini-progress-state.state-failed .gemini-status-spinner::after,
+.gemini-progress-state.state-cancelled .gemini-status-spinner::after {
+    content: '!';
+    position: absolute;
+    inset: -2px 0 0 0;
+    text-align: center;
+    font-size: 11px;
+    color: #fecaca;
+}
+
+.gemini-progress-state.state-failed .gemini-status-badge,
+.gemini-progress-state.state-cancelled .gemini-status-badge {
+    background: rgba(239, 68, 68, 0.16);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #fecaca;
+}
+
+@keyframes gemini-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes gemini-pulse {
+    0%,
+    100% {
+        transform: scale(0.9);
+        opacity: 0.65;
+    }
+    50% {
+        transform: scale(1.08);
+        opacity: 1;
+    }
 }
 
 .progress-bar {

@@ -1,75 +1,75 @@
 const MIN_CHATTERBOX_PROMPT_SECONDS = 5;
 
 const HELP_TOPICS = {
-    'input-text': {
-        title: 'Input Text',
-        body: `
+  "input-text": {
+    title: "Input Text",
+    body: `
             <p>Paste or type your story here. Use <code>[speaker]</code> tags for multiple voices.</p>
             <ul>
                 <li><strong>Single voice:</strong> Just write plain text.</li>
                 <li><strong>Multi-voice:</strong> Wrap sections in tags like <code>[alice]Hello[/alice]</code>.</li>
                 <li><strong>Drop files:</strong> Drag documents onto the text area to extract text.</li>
             </ul>
-        `
-    },
-    projects: {
-        title: 'Projects',
-        body: `
+        `,
+  },
+  projects: {
+    title: "Projects",
+    body: `
             <p>Save and reload your full setup: text, speakers, voice assignments, and settings.</p>
             <ul>
                 <li><strong>Save Project:</strong> Stores current text and configuration.</li>
                 <li><strong>Load Project:</strong> Restores a previously saved project.</li>
             </ul>
-        `
-    },
-    'prep-text': {
-        title: 'Prep Text',
-        body: `
+        `,
+  },
+  "prep-text": {
+    title: "Prep Text",
+    body: `
             <p>Run your text through the selected LLM prompt before generating audio.</p>
             <ul>
                 <li>Use this to clean formatting, fix punctuation, or add narration polish.</li>
                 <li>The prompt preset defines the cleanup behavior.</li>
             </ul>
-        `
-    },
-    'paralinguistic-tags': {
-        title: 'Paralinguistic Tags',
-        body: `
+        `,
+  },
+  "paralinguistic-tags": {
+    title: "Paralinguistic Tags",
+    body: `
             <p>Insert expressive tags like <code>[sigh]</code> or <code>[laugh]</code> into your text.</p>
             <p>These are supported by Kokoro engines to add non-verbal cues.</p>
-        `
-    },
-    'text-statistics': {
-        title: 'Text Statistics',
-        body: `
+        `,
+  },
+  "text-statistics": {
+    title: "Text Statistics",
+    body: `
             <p>Quick summary of your input: speaker count, chunks, words, and estimated duration.</p>
             <p>Click a speaker chip to open voice assignments.</p>
-        `
-    },
-    'assign-voices': {
-        title: 'Assign Voices',
-        body: `
+        `,
+  },
+  "assign-voices": {
+    title: "Assign Voices",
+    body: `
             <p>Set voices or reference prompts per speaker.</p>
             <ul>
                 <li>Each speaker can use a unique voice or clone prompt.</li>
                 <li>Use the inline controls to preview and fine-tune voice FX.</li>
             </ul>
-        `
-    },
-    'generation-options': {
-        title: 'Generation Options',
-        body: `
+        `,
+  },
+  "generation-options": {
+    title: "Generation Options",
+    body: `
             <p>Select the engine, output format, and chapter splitting behavior.</p>
             <ul>
                 <li><strong>Engine:</strong> Choose the TTS engine for this job.</li>
                 <li><strong>Format:</strong> Set output type and bitrate.</li>
                 <li><strong>Sections:</strong> Split output by chapters if detected.</li>
             </ul>
-        `
-    },
-    'speaker-edit': {
-        title: 'Edit Speaker',
-        body: `
+        `,
+  },
+  "speaker-edit": {
+    title: "Edit Speaker",
+    body: `
             <p>Rename a speaker and refine how their voice is generated.</p>
             <ul>
                 <li><strong>Speaker name:</strong> Clicking Apply updates the speaker tag names in the main text.</li>
@@ -79,11 +79,11 @@ const HELP_TOPICS = {
                 <li><strong>Voice sample:</strong> Options change by engine—Kokoro has its own voices; other engines share the voice sample list.</li>
                 <li><strong>Pitch & Speed:</strong> Fine-tune the tone and pacing for this speaker.</li>
             </ul>
-        `
-    },
-    'audio-library': {
-        title: 'Audio Library',
-        body: `
+        `,
+  },
+  "audio-library": {
+    title: "Audio Library",
+    body: `
             <p>Your saved jobs live here. Each entry shows the engine, size, and format (MP3/WAV).</p>
             <ul>
                 <li><strong>Stacks:</strong> Click an item to expand the player.</li>
@@ -94,33 +94,33 @@ const HELP_TOPICS = {
                 <li><strong>Chunks list:</strong> Play each chunk or expand to edit text, FX, engine, and voice.</li>
                 <li><strong>Single-chunk regen:</strong> Regenerate one chunk without touching the rest.</li>
             </ul>
-        `
-    },
-    'audio-library-rebuild-full-story': {
-        title: 'Rebuild Full Story',
-        body: `
+        `,
+  },
+  "audio-library-rebuild-full-story": {
+    title: "Rebuild Full Story",
+    body: `
             <p>Rebuilds the audio in two stages:</p>
             <ol>
                 <li><strong>Recombine chunks → chapters:</strong> All chunk audio is merged back into each chapter file.</li>
                 <li><strong>Recombine chapters → full story:</strong> The chapter files are then merged into the final full-story audio.</li>
             </ol>
             <p>Use this after updating speakers/chunks so the final full-story file matches the latest edits.</p>
-        `
-    },
-    'audio-library-actions': {
-        title: 'Audio Library Actions',
-        body: `
+        `,
+  },
+  "audio-library-actions": {
+    title: "Audio Library Actions",
+    body: `
             <ul>
                 <li><strong>Chapter chips:</strong> Click any chapter to open a quick menu with <em>Review Chunks</em> or <em>Download Chapter</em>.</li>
                 <li><strong>Full Story chip:</strong> Opens the same menu, but the download option becomes <em>Download Full Story</em>.</li>
                 <li><strong>Top-row play:</strong> Uses the player controls next to the title to play or stop the full story.</li>
                 <li><strong>Delete:</strong> Permanently removes the entire audiobook (top-right).</li>
             </ul>
-        `
-    },
-    'available-voices': {
-        title: 'Available Voices',
-        body: `
+        `,
+  },
+  "available-voices": {
+    title: "Available Voices",
+    body: `
             <p>Everything related to voices lives here: built-in Kokoro voices, custom blends, Qwen creation, and voice prompts.</p>
             <ul>
                 <li><strong>Kokoro Voices:</strong> Built-in voices with instant previews.</li>
@@ -128,42 +128,42 @@ const HELP_TOPICS = {
                 <li><strong>Qwen Voice Creation:</strong> Generate high-quality custom voices with prompts.</li>
                 <li><strong>Voice Prompts:</strong> Manage prompt clips and external voice libraries.</li>
             </ul>
-        `
-    },
-    'kokoro-voices': {
-        title: 'Kokoro Voices',
-        body: `
+        `,
+  },
+  "kokoro-voices": {
+    title: "Kokoro Voices",
+    body: `
             <p>The full list of Kokoro’s built-in voices.</p>
             <ul>
                 <li>Click any voice to hear a preview sample.</li>
                 <li>These voices appear in the voice selectors throughout the app.</li>
             </ul>
-        `
-    },
-    'custom-kokoro-blends': {
-        title: 'Custom Kokoro Voice Blends',
-        body: `
+        `,
+  },
+  "custom-kokoro-blends": {
+    title: "Custom Kokoro Voice Blends",
+    body: `
             <p>Create new Kokoro voices by blending two built-in voices.</p>
             <ul>
                 <li><strong>New Custom Voice:</strong> Pick two source voices and blend settings.</li>
                 <li>Edit or delete saved blends from the list.</li>
                 <li>Custom voices show up in voice selectors across the app.</li>
             </ul>
-        `
-    },
-    'qwen-voice-creation': {
-        title: 'Qwen Voice Creation',
-        body: `
+        `,
+  },
+  "qwen-voice-creation": {
+    title: "Qwen Voice Creation",
+    body: `
             <p>Use Qwen’s specialized model to generate highly natural custom voices.</p>
             <ul>
                 <li>Enter a prompt + sample text to generate a preview.</li>
                 <li>Save the result into Voice Prompts for reuse.</li>
             </ul>
-        `
-    },
-    'voice-prompts': {
-        title: 'Voice Prompts',
-        body: `
+        `,
+  },
+  "voice-prompts": {
+    title: "Voice Prompts",
+    body: `
             <p>Manage your prompt library for Chatterbox, VoxCPM, and Qwen3.</p>
             <ul>
                 <li>Upload or record prompt clips to build your own library.</li>
@@ -171,11 +171,11 @@ const HELP_TOPICS = {
                 <li>Download voices you want, preview them, or delete entries.</li>
                 <li>Edit name, gender, or language metadata as needed.</li>
             </ul>
-        `
-    },
-    settings: {
-        title: 'Settings',
-        body: `
+        `,
+  },
+  settings: {
+    title: "Settings",
+    body: `
             <p>Control global defaults, engine configuration, audio generation behavior, and LLM prep options.</p>
             <ul>
                 <li><strong>Quick Settings:</strong> Default engine + output format for new sessions.</li>
@@ -183,42 +183,42 @@ const HELP_TOPICS = {
                 <li><strong>Audio & Generation:</strong> Chunking, merge settings, and speed.</li>
                 <li><strong>LLM Pre-Processing:</strong> Prompting and speaker-profile automation.</li>
             </ul>
-        `
-    },
-    'settings-quick': {
-        title: 'Quick Settings',
-        body: `
+        `,
+  },
+  "settings-quick": {
+    title: "Quick Settings",
+    body: `
             <p>These defaults apply when the app starts and when creating new jobs.</p>
             <ul>
                 <li><strong>Default Engine:</strong> Sets the initial TTS engine for new jobs.</li>
                 <li><strong>File Format:</strong> MP3, WAV, or OGG for final output.</li>
                 <li><strong>MP3 Bitrate:</strong> Higher values mean larger files and higher quality.</li>
             </ul>
-        `
-    },
-    'settings-engines': {
-        title: 'Engine Settings',
-        body: `
+        `,
+  },
+  "settings-engines": {
+    title: "Engine Settings",
+    body: `
             <p>Configure the behavior of each TTS engine and related cloud services.</p>
             <ul>
                 <li>Select a tab to edit its engine-specific parameters.</li>
                 <li>Use API Keys for cloud-hosted engines.</li>
             </ul>
-        `
-    },
-    'engine-kokoro': {
-        title: 'Kokoro Settings',
-        body: `
+        `,
+  },
+  "engine-kokoro": {
+    title: "Kokoro Settings",
+    body: `
             <p>Kokoro runs locally with built-in voices.</p>
             <ul>
                 <li>No engine parameters to configure here.</li>
                 <li>Pick the default voice in the Generate tab.</li>
             </ul>
-        `
-    },
-    'engine-chatterbox-local': {
-        title: 'Chatterbox Local',
-        body: `
+        `,
+  },
+  "engine-chatterbox-local": {
+    title: "Chatterbox Local",
+    body: `
             <p>Local Chatterbox Turbo on your GPU.</p>
             <ul>
                 <li><strong>Device:</strong> Choose auto/cuda/cpu.</li>
@@ -226,11 +226,11 @@ const HELP_TOPICS = {
                 <li><strong>Default Prompt:</strong> Optional reference voice prompt.</li>
                 <li><strong>Generation Parameters:</strong> Control creativity and emphasis.</li>
             </ul>
-        `
-    },
-    'engine-chatterbox-cloud': {
-        title: 'Chatterbox Cloud',
-        body: `
+        `,
+  },
+  "engine-chatterbox-cloud": {
+    title: "Chatterbox Cloud",
+    body: `
             <p>Replicate-hosted Chatterbox Turbo for cloud inference.</p>
             <ul>
                 <li><strong>Model Version:</strong> Exact Replicate model tag.</li>
@@ -238,43 +238,43 @@ const HELP_TOPICS = {
                 <li><strong>Generation Parameters:</strong> Temperature, top-p, top-k, etc.</li>
                 <li>Requires a Replicate API key.</li>
             </ul>
-        `
-    },
-    'engine-voxcpm': {
-        title: 'VoxCPM 1.5',
-        body: `
+        `,
+  },
+  "engine-voxcpm": {
+    title: "VoxCPM 1.5",
+    body: `
             <p>Expressive local TTS with voice cloning.</p>
             <ul>
                 <li>Set device, model ID, and default prompt.</li>
                 <li>CFG + timesteps balance speed vs. quality.</li>
                 <li>Normalization/denoise options refine output.</li>
             </ul>
-        `
-    },
-    'engine-qwen3': {
-        title: 'Qwen3-TTS',
-        body: `
+        `,
+  },
+  "engine-qwen3": {
+    title: "Qwen3-TTS",
+    body: `
             <p>Configure Qwen3 custom voice and cloning defaults.</p>
             <ul>
                 <li>Set model ID, device, dtype, attention, and defaults.</li>
                 <li>Custom Voice and Voice Clone use separate defaults.</li>
                 <li>Prompt transcript can auto-generate if left blank.</li>
             </ul>
-        `
-    },
-    'engine-api-keys': {
-        title: 'API Keys',
-        body: `
+        `,
+  },
+  "engine-api-keys": {
+    title: "API Keys",
+    body: `
             <p>Store credentials for cloud engines.</p>
             <ul>
                 <li>Replicate API token is used by Kokoro and Chatterbox cloud engines.</li>
                 <li>Keys are saved locally in your settings.</li>
             </ul>
-        `
-    },
-    'settings-audio': {
-        title: 'Audio & Generation',
-        body: `
+        `,
+  },
+  "settings-audio": {
+    title: "Audio & Generation",
+    body: `
             <p>Global generation controls for chunking, merging, and performance.</p>
             <ul>
                 <li><strong>Chunk Size:</strong> Words per chunk.</li>
@@ -284,11 +284,11 @@ const HELP_TOPICS = {
                 <li><strong>Speech Speed:</strong> Overall rate adjustment.</li>
                 <li><strong>Unload GPU:</strong> Saves VRAM after each job.</li>
             </ul>
-        `
-    },
-    'settings-llm': {
-        title: 'LLM Pre-Processing',
-        body: `
+        `,
+  },
+  "settings-llm": {
+    title: "LLM Pre-Processing",
+    body: `
             <p>Use an LLM to clean text, add punctuation, and build speaker profiles.</p>
             <ul>
                 <li><strong>Provider:</strong> Gemini cloud or local LM Studio/Ollama.</li>
@@ -298,1311 +298,1592 @@ const HELP_TOPICS = {
                 <li><strong>Speaker Profile Prompt:</strong> Guides speaker profile creation.</li>
                 <li><strong>Prompt Presets:</strong> Save reusable prompt templates.</li>
             </ul>
-        `
-    }
+        `,
+  },
 };
 
 async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl) {
-    if (!speaker) return false;
-    const { profile } = findSpeakerProfile(speaker);
-    const description = profile?.description || '';
-    const voice = profile?.voice || '';
-    const instruct = description || '';
-    const shortDescription = voice || '';
-    const sampleText = 'With this line of text, you will always know exactly where I stand, and what I sound like. Whether you like it or not. though, it may not be what you think.';
-    if (!shortDescription) {
-        if (statusEl) {
-            statusEl.textContent = `Skipped ${speaker}: missing voice type.`;
-        }
-        return false;
+  if (!speaker) return false;
+  const { profile } = findSpeakerProfile(speaker);
+  const description = profile?.description || "";
+  const voice = profile?.voice || "";
+  const instruct = description || "";
+  const shortDescription = voice || "";
+  const sampleText =
+    "With this line of text, you will always know exactly where I stand, and what I sound like. Whether you like it or not. though, it may not be what you think.";
+  if (!shortDescription) {
+    if (statusEl) {
+      statusEl.textContent = `Skipped ${speaker}: missing voice type.`;
     }
-    if (!instruct) {
-        if (statusEl) {
-            statusEl.textContent = `Skipped ${speaker}: missing profile description.`;
-        }
-        return false;
+    return false;
+  }
+  if (!instruct) {
+    if (statusEl) {
+      statusEl.textContent = `Skipped ${speaker}: missing profile description.`;
     }
-    const payload = {
-        name: displayName || speaker,
-        gender: parseGenderFromSpeakerName(speaker),
-        language: 'Auto',
-        description: shortDescription,
-        text: sampleText,
-        instruct
-    };
-    try {
-        if (statusEl) {
-            statusEl.textContent = `Generating preview for ${displayName || speaker}...`;
-        }
-        const previewResponse = await fetch('/api/qwen3/voice-design/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: payload.text,
-                instruct: payload.instruct,
-                language: payload.language
-            })
-        });
-        const previewData = await previewResponse.json();
-        if (!previewData.success) {
-            throw new Error(previewData.error || 'Failed to enqueue preview');
-        }
-        const previewResult = await pollQwenVoiceTask(previewData.job_id, `Generating ${displayName || speaker}...`);
-        if (!previewResult.audio_base64) {
-            throw new Error('Preview audio missing from response.');
-        }
-        if (statusEl) {
-            statusEl.textContent = `Saving ${displayName || speaker}...`;
-        }
-        const saveResponse = await fetch('/api/qwen3/voice-design/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...payload,
-                audio_base64: previewResult.audio_base64
-            })
-        });
-        const saveData = await saveResponse.json();
-        if (!saveData.success) {
-            throw new Error(saveData.error || 'Failed to enqueue save');
-        }
-        await pollQwenVoiceTask(saveData.job_id, `Saving ${displayName || speaker}...`);
-        await refreshChatterboxVoices();
-        populateReferenceSelects();
-        const targetName = (displayName || speaker).trim().toLowerCase();
-        const latestVoice = availableChatterboxVoices
-            .filter(entry => (entry?.name || '').trim().toLowerCase() === targetName)
-            .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0))[0];
-        const promptValue = (latestVoice?.prompt_path || latestVoice?.file_name || '').trim();
-        if (promptValue) {
-            turboSelectionState[speaker] = promptValue;
-            document.querySelectorAll('#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select')
-                .forEach(select => {
-                    if (select?.dataset?.speaker === speaker) {
-                        select.value = promptValue;
-                    }
-                });
-            updateInlineSampleButtonState(activeSpeakerRow, { stopPlayback: true });
-        }
-        return true;
-    } catch (error) {
-        console.error('Batch voice generation failed', error);
-        if (statusEl) {
-            statusEl.textContent = `Failed ${speaker}: ${error.message || 'Error'}`;
-        }
-        return false;
+    return false;
+  }
+  const payload = {
+    name: displayName || speaker,
+    gender: parseGenderFromSpeakerName(speaker),
+    language: "Auto",
+    description: shortDescription,
+    text: sampleText,
+    instruct,
+  };
+  try {
+    if (statusEl) {
+      statusEl.textContent = `Generating preview for ${displayName || speaker}...`;
     }
-}
-
-async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, completionEls = {}) {
-    const speakers = Array.isArray(currentStats?.speakers) && currentStats.speakers.length
-        ? currentStats.speakers
-        : [];
-    if (!speakers.length) {
-        showNotification('No detected speakers to generate.', 'warning');
-        return;
+    const previewResponse = await fetch("/api/qwen3/voice-design/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: payload.text,
+        instruct: payload.instruct,
+        language: payload.language,
+      }),
+    });
+    const previewData = await previewResponse.json();
+    if (!previewData.success) {
+      throw new Error(previewData.error || "Failed to enqueue preview");
     }
-    const { container, fill, label } = progressEls;
-    const { completeCard, completeSummary } = completionEls;
-    if (container) {
-        container.style.display = 'flex';
-    }
-    if (fill) {
-        fill.style.width = '0%';
-    }
-    if (label) {
-        label.textContent = `0 / ${speakers.length} complete`;
-    }
-    if (completeCard) {
-        completeCard.classList.add('hidden');
-    }
-    let successCount = 0;
-    for (let index = 0; index < speakers.length; index += 1) {
-        const speaker = speakers[index];
-        const displayName = buildBatchVoiceName(prefix, speaker);
-        if (statusEl) {
-            statusEl.textContent = `Processing ${index + 1} of ${speakers.length}: ${displayName}`;
-        }
-        if (label) {
-            label.textContent = `${index} / ${speakers.length} complete`;
-        }
-        if (fill) {
-            fill.style.width = `${Math.round((index / speakers.length) * 100)}%`;
-        }
-        const success = await generateSpeakerVoicePromptBatch(speaker, displayName, statusEl);
-        if (success) {
-            successCount += 1;
-        }
-        if (label) {
-            label.textContent = `${index + 1} / ${speakers.length} complete`;
-        }
-        if (fill) {
-            fill.style.width = `${Math.round(((index + 1) / speakers.length) * 100)}%`;
-        }
+    const previewResult = await pollQwenVoiceTask(
+      previewData.job_id,
+      `Generating ${displayName || speaker}...`,
+    );
+    if (!previewResult.audio_base64) {
+      throw new Error("Preview audio missing from response.");
     }
     if (statusEl) {
-        statusEl.textContent = '';
+      statusEl.textContent = `Saving ${displayName || speaker}...`;
     }
-    if (completeSummary) {
-        completeSummary.textContent = `Generated ${successCount} of ${speakers.length} voices.`;
+    const saveResponse = await fetch("/api/qwen3/voice-design/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        audio_base64: previewResult.audio_base64,
+      }),
+    });
+    const saveData = await saveResponse.json();
+    if (!saveData.success) {
+      throw new Error(saveData.error || "Failed to enqueue save");
     }
-    if (completeCard) {
-        completeCard.classList.remove('hidden');
+    await pollQwenVoiceTask(
+      saveData.job_id,
+      `Saving ${displayName || speaker}...`,
+    );
+    await refreshChatterboxVoices();
+    populateReferenceSelects();
+    const targetName = (displayName || speaker).trim().toLowerCase();
+    const latestVoice = availableChatterboxVoices
+      .filter(
+        (entry) => (entry?.name || "").trim().toLowerCase() === targetName,
+      )
+      .sort(
+        (a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0),
+      )[0];
+    const promptValue = (
+      latestVoice?.prompt_path ||
+      latestVoice?.file_name ||
+      ""
+    ).trim();
+    if (promptValue) {
+      turboSelectionState[speaker] = promptValue;
+      document
+        .querySelectorAll(
+          '#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select',
+        )
+        .forEach((select) => {
+          if (select?.dataset?.speaker === speaker) {
+            select.value = promptValue;
+          }
+        });
+      updateInlineSampleButtonState(activeSpeakerRow, { stopPlayback: true });
+    }
+    return true;
+  } catch (error) {
+    console.error("Batch voice generation failed", error);
+    if (statusEl) {
+      statusEl.textContent = `Failed ${speaker}: ${error.message || "Error"}`;
+    }
+    return false;
+  }
+}
+
+async function runBatchVoiceGeneration(
+  prefix,
+  statusEl,
+  progressEls = {},
+  completionEls = {},
+) {
+  const speakers =
+    Array.isArray(currentStats?.speakers) && currentStats.speakers.length
+      ? currentStats.speakers
+      : [];
+  if (!speakers.length) {
+    showNotification("No detected speakers to generate.", "warning");
+    return;
+  }
+  const { container, fill, label } = progressEls;
+  const { completeCard, completeSummary } = completionEls;
+  if (container) {
+    container.style.display = "flex";
+  }
+  if (fill) {
+    fill.style.width = "0%";
+  }
+  if (label) {
+    label.textContent = `0 / ${speakers.length} complete`;
+  }
+  if (completeCard) {
+    completeCard.classList.add("hidden");
+  }
+  let successCount = 0;
+  for (let index = 0; index < speakers.length; index += 1) {
+    const speaker = speakers[index];
+    const displayName = buildBatchVoiceName(prefix, speaker);
+    if (statusEl) {
+      statusEl.textContent = `Processing ${index + 1} of ${speakers.length}: ${displayName}`;
     }
     if (label) {
-        label.textContent = `Done: ${successCount}/${speakers.length} generated.`;
+      label.textContent = `${index} / ${speakers.length} complete`;
     }
     if (fill) {
-        fill.style.width = '100%';
+      fill.style.width = `${Math.round((index / speakers.length) * 100)}%`;
     }
-    if (container) {
-        container.style.display = 'none';
+    const success = await generateSpeakerVoicePromptBatch(
+      speaker,
+      displayName,
+      statusEl,
+    );
+    if (success) {
+      successCount += 1;
     }
-    showNotification('Batch voice generation complete.', 'success');
+    if (label) {
+      label.textContent = `${index + 1} / ${speakers.length} complete`;
+    }
+    if (fill) {
+      fill.style.width = `${Math.round(((index + 1) / speakers.length) * 100)}%`;
+    }
+  }
+  if (statusEl) {
+    statusEl.textContent = "";
+  }
+  if (completeSummary) {
+    completeSummary.textContent = `Generated ${successCount} of ${speakers.length} voices.`;
+  }
+  if (completeCard) {
+    completeCard.classList.remove("hidden");
+  }
+  if (label) {
+    label.textContent = `Done: ${successCount}/${speakers.length} generated.`;
+  }
+  if (fill) {
+    fill.style.width = "100%";
+  }
+  if (container) {
+    container.style.display = "none";
+  }
+  showNotification("Batch voice generation complete.", "success");
 }
 
 function buildBatchVoiceName(prefix, speaker) {
-    const trimmedPrefix = (prefix || '').trim();
-    if (!trimmedPrefix) return speaker;
-    return `${trimmedPrefix} ${speaker}`.trim();
+  const trimmedPrefix = (prefix || "").trim();
+  if (!trimmedPrefix) return speaker;
+  return `${trimmedPrefix} ${speaker}`.trim();
 }
 
 const HELP_SECTIONS = [
-    {
-        id: 'help-generate',
-        title: 'Generate',
-        topicIds: [
-            'input-text',
-            'projects',
-            'prep-text',
-            'paralinguistic-tags',
-            'text-statistics',
-            'assign-voices',
-            'generation-options',
-            'speaker-edit'
-        ]
-    },
-    {
-        id: 'help-audio-library',
-        title: 'Audio Library',
-        topicIds: ['audio-library']
-    },
-    {
-        id: 'help-available-voices',
-        title: 'Available Voices',
-        topicIds: [
-            'available-voices',
-            'kokoro-voices',
-            'custom-kokoro-blends',
-            'qwen-voice-creation',
-            'voice-prompts'
-        ]
-    },
-    {
-        id: 'help-settings',
-        title: 'Settings',
-        topicIds: [
-            'settings',
-            'settings-quick',
-            'settings-engines',
-            'engine-kokoro',
-            'engine-chatterbox-local',
-            'engine-chatterbox-cloud',
-            'engine-voxcpm',
-            'engine-qwen3',
-            'engine-api-keys',
-            'settings-audio',
-            'settings-llm'
-        ]
-    }
+  {
+    id: "help-generate",
+    title: "Generate",
+    topicIds: [
+      "input-text",
+      "projects",
+      "prep-text",
+      "paralinguistic-tags",
+      "text-statistics",
+      "assign-voices",
+      "generation-options",
+      "speaker-edit",
+    ],
+  },
+  {
+    id: "help-audio-library",
+    title: "Audio Library",
+    topicIds: ["audio-library"],
+  },
+  {
+    id: "help-available-voices",
+    title: "Available Voices",
+    topicIds: [
+      "available-voices",
+      "kokoro-voices",
+      "custom-kokoro-blends",
+      "qwen-voice-creation",
+      "voice-prompts",
+    ],
+  },
+  {
+    id: "help-settings",
+    title: "Settings",
+    topicIds: [
+      "settings",
+      "settings-quick",
+      "settings-engines",
+      "engine-kokoro",
+      "engine-chatterbox-local",
+      "engine-chatterbox-cloud",
+      "engine-voxcpm",
+      "engine-qwen3",
+      "engine-api-keys",
+      "settings-audio",
+      "settings-llm",
+    ],
+  },
 ];
 
 // Locale code to human-readable language name mapping
 const LOCALE_NAMES = {
-    'af-ZA': 'Afrikaans', 'am-ET': 'Amharic', 'ar-AE': 'Arabic (UAE)', 'ar-BH': 'Arabic (Bahrain)',
-    'ar-DZ': 'Arabic (Algeria)', 'ar-EG': 'Arabic (Egypt)', 'ar-IQ': 'Arabic (Iraq)', 'ar-JO': 'Arabic (Jordan)',
-    'ar-KW': 'Arabic (Kuwait)', 'ar-LB': 'Arabic (Lebanon)', 'ar-LY': 'Arabic (Libya)', 'ar-MA': 'Arabic (Morocco)',
-    'ar-OM': 'Arabic (Oman)', 'ar-QA': 'Arabic (Qatar)', 'ar-SA': 'Arabic (Saudi)', 'ar-SY': 'Arabic (Syria)',
-    'ar-TN': 'Arabic (Tunisia)', 'ar-YE': 'Arabic (Yemen)', 'az-AZ': 'Azerbaijani', 'bg-BG': 'Bulgarian',
-    'bn-BD': 'Bengali (Bangladesh)', 'bn-IN': 'Bengali (India)', 'bs-BA': 'Bosnian', 'ca-ES': 'Catalan',
-    'cs-CZ': 'Czech', 'cy-GB': 'Welsh', 'da-DK': 'Danish', 'de-AT': 'German (Austria)', 'de-CH': 'German (Swiss)',
-    'de-DE': 'German', 'el-GR': 'Greek', 'en-AU': 'English (AU)', 'en-CA': 'English (CA)', 'en-GB': 'English (UK)',
-    'en-HK': 'English (HK)', 'en-IE': 'English (IE)', 'en-IN': 'English (IN)', 'en-KE': 'English (KE)',
-    'en-NG': 'English (NG)', 'en-NZ': 'English (NZ)', 'en-PH': 'English (PH)', 'en-SG': 'English (SG)',
-    'en-TZ': 'English (TZ)', 'en-US': 'English (US)', 'en-ZA': 'English (ZA)', 'es-AR': 'Spanish (AR)',
-    'es-BO': 'Spanish (BO)', 'es-CL': 'Spanish (CL)', 'es-CO': 'Spanish (CO)', 'es-CR': 'Spanish (CR)',
-    'es-CU': 'Spanish (CU)', 'es-DO': 'Spanish (DO)', 'es-EC': 'Spanish (EC)', 'es-ES': 'Spanish (ES)',
-    'es-GQ': 'Spanish (GQ)', 'es-GT': 'Spanish (GT)', 'es-HN': 'Spanish (HN)', 'es-MX': 'Spanish (MX)',
-    'es-NI': 'Spanish (NI)', 'es-PA': 'Spanish (PA)', 'es-PE': 'Spanish (PE)', 'es-PR': 'Spanish (PR)',
-    'es-PY': 'Spanish (PY)', 'es-SV': 'Spanish (SV)', 'es-US': 'Spanish (US)', 'es-UY': 'Spanish (UY)',
-    'es-VE': 'Spanish (VE)', 'et-EE': 'Estonian', 'eu-ES': 'Basque', 'fa-IR': 'Persian', 'fi-FI': 'Finnish',
-    'fil-PH': 'Filipino', 'fr-BE': 'French (BE)', 'fr-CA': 'French (CA)', 'fr-CH': 'French (CH)', 'fr-FR': 'French',
-    'ga-IE': 'Irish', 'gl-ES': 'Galician', 'gu-IN': 'Gujarati', 'he-IL': 'Hebrew', 'hi-IN': 'Hindi',
-    'hr-HR': 'Croatian', 'hu-HU': 'Hungarian', 'hy-AM': 'Armenian', 'id-ID': 'Indonesian', 'is-IS': 'Icelandic',
-    'it-IT': 'Italian', 'ja-JP': 'Japanese', 'jv-ID': 'Javanese', 'ka-GE': 'Georgian', 'kk-KZ': 'Kazakh',
-    'km-KH': 'Khmer', 'kn-IN': 'Kannada', 'ko-KR': 'Korean', 'lo-LA': 'Lao', 'lt-LT': 'Lithuanian',
-    'lv-LV': 'Latvian', 'mk-MK': 'Macedonian', 'ml-IN': 'Malayalam', 'mn-MN': 'Mongolian', 'mr-IN': 'Marathi',
-    'ms-MY': 'Malay', 'mt-MT': 'Maltese', 'my-MM': 'Burmese', 'nb-NO': 'Norwegian', 'ne-NP': 'Nepali',
-    'nl-BE': 'Dutch (BE)', 'nl-NL': 'Dutch', 'pl-PL': 'Polish', 'ps-AF': 'Pashto', 'pt-BR': 'Portuguese (BR)',
-    'pt-PT': 'Portuguese', 'ro-RO': 'Romanian', 'ru-RU': 'Russian', 'si-LK': 'Sinhala', 'sk-SK': 'Slovak',
-    'sl-SI': 'Slovenian', 'so-SO': 'Somali', 'sq-AL': 'Albanian', 'sr-RS': 'Serbian', 'su-ID': 'Sundanese',
-    'sv-SE': 'Swedish', 'sw-KE': 'Swahili (KE)', 'sw-TZ': 'Swahili (TZ)', 'ta-IN': 'Tamil (IN)',
-    'ta-LK': 'Tamil (LK)', 'ta-MY': 'Tamil (MY)', 'ta-SG': 'Tamil (SG)', 'te-IN': 'Telugu', 'th-TH': 'Thai',
-    'tr-TR': 'Turkish', 'uk-UA': 'Ukrainian', 'ur-IN': 'Urdu (IN)', 'ur-PK': 'Urdu (PK)', 'uz-UZ': 'Uzbek',
-    'vi-VN': 'Vietnamese', 'wuu-CN': 'Wu Chinese', 'yue-CN': 'Cantonese', 'zh-CN': 'Chinese (Mandarin)',
-    'zh-HK': 'Chinese (HK)', 'zh-TW': 'Chinese (TW)', 'zu-ZA': 'Zulu',
+  "af-ZA": "Afrikaans",
+  "am-ET": "Amharic",
+  "ar-AE": "Arabic (UAE)",
+  "ar-BH": "Arabic (Bahrain)",
+  "ar-DZ": "Arabic (Algeria)",
+  "ar-EG": "Arabic (Egypt)",
+  "ar-IQ": "Arabic (Iraq)",
+  "ar-JO": "Arabic (Jordan)",
+  "ar-KW": "Arabic (Kuwait)",
+  "ar-LB": "Arabic (Lebanon)",
+  "ar-LY": "Arabic (Libya)",
+  "ar-MA": "Arabic (Morocco)",
+  "ar-OM": "Arabic (Oman)",
+  "ar-QA": "Arabic (Qatar)",
+  "ar-SA": "Arabic (Saudi)",
+  "ar-SY": "Arabic (Syria)",
+  "ar-TN": "Arabic (Tunisia)",
+  "ar-YE": "Arabic (Yemen)",
+  "az-AZ": "Azerbaijani",
+  "bg-BG": "Bulgarian",
+  "bn-BD": "Bengali (Bangladesh)",
+  "bn-IN": "Bengali (India)",
+  "bs-BA": "Bosnian",
+  "ca-ES": "Catalan",
+  "cs-CZ": "Czech",
+  "cy-GB": "Welsh",
+  "da-DK": "Danish",
+  "de-AT": "German (Austria)",
+  "de-CH": "German (Swiss)",
+  "de-DE": "German",
+  "el-GR": "Greek",
+  "en-AU": "English (AU)",
+  "en-CA": "English (CA)",
+  "en-GB": "English (UK)",
+  "en-HK": "English (HK)",
+  "en-IE": "English (IE)",
+  "en-IN": "English (IN)",
+  "en-KE": "English (KE)",
+  "en-NG": "English (NG)",
+  "en-NZ": "English (NZ)",
+  "en-PH": "English (PH)",
+  "en-SG": "English (SG)",
+  "en-TZ": "English (TZ)",
+  "en-US": "English (US)",
+  "en-ZA": "English (ZA)",
+  "es-AR": "Spanish (AR)",
+  "es-BO": "Spanish (BO)",
+  "es-CL": "Spanish (CL)",
+  "es-CO": "Spanish (CO)",
+  "es-CR": "Spanish (CR)",
+  "es-CU": "Spanish (CU)",
+  "es-DO": "Spanish (DO)",
+  "es-EC": "Spanish (EC)",
+  "es-ES": "Spanish (ES)",
+  "es-GQ": "Spanish (GQ)",
+  "es-GT": "Spanish (GT)",
+  "es-HN": "Spanish (HN)",
+  "es-MX": "Spanish (MX)",
+  "es-NI": "Spanish (NI)",
+  "es-PA": "Spanish (PA)",
+  "es-PE": "Spanish (PE)",
+  "es-PR": "Spanish (PR)",
+  "es-PY": "Spanish (PY)",
+  "es-SV": "Spanish (SV)",
+  "es-US": "Spanish (US)",
+  "es-UY": "Spanish (UY)",
+  "es-VE": "Spanish (VE)",
+  "et-EE": "Estonian",
+  "eu-ES": "Basque",
+  "fa-IR": "Persian",
+  "fi-FI": "Finnish",
+  "fil-PH": "Filipino",
+  "fr-BE": "French (BE)",
+  "fr-CA": "French (CA)",
+  "fr-CH": "French (CH)",
+  "fr-FR": "French",
+  "ga-IE": "Irish",
+  "gl-ES": "Galician",
+  "gu-IN": "Gujarati",
+  "he-IL": "Hebrew",
+  "hi-IN": "Hindi",
+  "hr-HR": "Croatian",
+  "hu-HU": "Hungarian",
+  "hy-AM": "Armenian",
+  "id-ID": "Indonesian",
+  "is-IS": "Icelandic",
+  "it-IT": "Italian",
+  "ja-JP": "Japanese",
+  "jv-ID": "Javanese",
+  "ka-GE": "Georgian",
+  "kk-KZ": "Kazakh",
+  "km-KH": "Khmer",
+  "kn-IN": "Kannada",
+  "ko-KR": "Korean",
+  "lo-LA": "Lao",
+  "lt-LT": "Lithuanian",
+  "lv-LV": "Latvian",
+  "mk-MK": "Macedonian",
+  "ml-IN": "Malayalam",
+  "mn-MN": "Mongolian",
+  "mr-IN": "Marathi",
+  "ms-MY": "Malay",
+  "mt-MT": "Maltese",
+  "my-MM": "Burmese",
+  "nb-NO": "Norwegian",
+  "ne-NP": "Nepali",
+  "nl-BE": "Dutch (BE)",
+  "nl-NL": "Dutch",
+  "pl-PL": "Polish",
+  "ps-AF": "Pashto",
+  "pt-BR": "Portuguese (BR)",
+  "pt-PT": "Portuguese",
+  "ro-RO": "Romanian",
+  "ru-RU": "Russian",
+  "si-LK": "Sinhala",
+  "sk-SK": "Slovak",
+  "sl-SI": "Slovenian",
+  "so-SO": "Somali",
+  "sq-AL": "Albanian",
+  "sr-RS": "Serbian",
+  "su-ID": "Sundanese",
+  "sv-SE": "Swedish",
+  "sw-KE": "Swahili (KE)",
+  "sw-TZ": "Swahili (TZ)",
+  "ta-IN": "Tamil (IN)",
+  "ta-LK": "Tamil (LK)",
+  "ta-MY": "Tamil (MY)",
+  "ta-SG": "Tamil (SG)",
+  "te-IN": "Telugu",
+  "th-TH": "Thai",
+  "tr-TR": "Turkish",
+  "uk-UA": "Ukrainian",
+  "ur-IN": "Urdu (IN)",
+  "ur-PK": "Urdu (PK)",
+  "uz-UZ": "Uzbek",
+  "vi-VN": "Vietnamese",
+  "wuu-CN": "Wu Chinese",
+  "yue-CN": "Cantonese",
+  "zh-CN": "Chinese (Mandarin)",
+  "zh-HK": "Chinese (HK)",
+  "zh-TW": "Chinese (TW)",
+  "zu-ZA": "Zulu",
 };
 
 function getLanguageDisplayName(localeCode) {
-    if (!localeCode) return '';
-    return LOCALE_NAMES[localeCode] || localeCode;
+  if (!localeCode) return "";
+  return LOCALE_NAMES[localeCode] || localeCode;
 }
 
 function openHelpModal(helpId) {
-    const topic = HELP_TOPICS[helpId];
-    if (!topic) return;
-    const overlay = document.getElementById('help-modal-overlay');
-    const modal = document.getElementById('help-modal');
-    const title = document.getElementById('help-modal-title');
-    const body = document.getElementById('help-modal-body');
-    if (!overlay || !modal || !title || !body) return;
-    title.textContent = topic.title;
-    body.innerHTML = topic.body;
-    overlay.classList.remove('hidden');
-    modal.classList.remove('hidden');
+  const topic = HELP_TOPICS[helpId];
+  if (!topic) return;
+  const overlay = document.getElementById("help-modal-overlay");
+  const modal = document.getElementById("help-modal");
+  const title = document.getElementById("help-modal-title");
+  const body = document.getElementById("help-modal-body");
+  if (!overlay || !modal || !title || !body) return;
+  title.textContent = topic.title;
+  body.innerHTML = topic.body;
+  overlay.classList.remove("hidden");
+  modal.classList.remove("hidden");
 }
 
 function stopSpeakerPreviewAudio() {
-    if (currentFxPreviewAudio) {
-        currentFxPreviewAudio.pause();
-        currentFxPreviewAudio.currentTime = 0;
-        currentFxPreviewAudio = null;
-    }
-    if (currentFxPreviewButton) {
-        currentFxPreviewButton.classList.remove('is-playing');
-        currentFxPreviewButton.textContent = currentFxPreviewButton.dataset.labelPlay || 'Quick Test';
-        currentFxPreviewButton.disabled = false;
-        currentFxPreviewButton = null;
-    }
-    if (window.chatterboxPreviewController) {
-        window.chatterboxPreviewController.stop();
-    }
+  if (currentFxPreviewAudio) {
+    currentFxPreviewAudio.pause();
+    currentFxPreviewAudio.currentTime = 0;
+    currentFxPreviewAudio = null;
+  }
+  if (currentFxPreviewButton) {
+    currentFxPreviewButton.classList.remove("is-playing");
+    currentFxPreviewButton.textContent =
+      currentFxPreviewButton.dataset.labelPlay || "Quick Test";
+    currentFxPreviewButton.disabled = false;
+    currentFxPreviewButton = null;
+  }
+  if (window.chatterboxPreviewController) {
+    window.chatterboxPreviewController.stop();
+  }
 }
 
 function closeHelpModal() {
-    const overlay = document.getElementById('help-modal-overlay');
-    const modal = document.getElementById('help-modal');
-    if (overlay) overlay.classList.add('hidden');
-    if (modal) modal.classList.add('hidden');
+  const overlay = document.getElementById("help-modal-overlay");
+  const modal = document.getElementById("help-modal");
+  if (overlay) overlay.classList.add("hidden");
+  if (modal) modal.classList.add("hidden");
 }
 
 function stripHelpHtml(html) {
-    if (!html) return '';
-    return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!html) return "";
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildHelpSectionMap() {
-    return HELP_SECTIONS.reduce((acc, section) => {
-        section.topicIds.forEach(topicId => {
-            acc[topicId] = section.title;
-        });
-        return acc;
-    }, {});
+  return HELP_SECTIONS.reduce((acc, section) => {
+    section.topicIds.forEach((topicId) => {
+      acc[topicId] = section.title;
+    });
+    return acc;
+  }, {});
 }
 
 function openHelpSearchModal() {
-    const overlay = document.getElementById('help-search-modal-overlay');
-    const modal = document.getElementById('help-search-modal');
-    if (!overlay || !modal) return;
-    overlay.classList.remove('hidden');
-    modal.classList.remove('hidden');
-    const input = document.getElementById('help-search-input');
-    if (input) {
-        input.focus();
-        input.select();
-    }
+  const overlay = document.getElementById("help-search-modal-overlay");
+  const modal = document.getElementById("help-search-modal");
+  if (!overlay || !modal) return;
+  overlay.classList.remove("hidden");
+  modal.classList.remove("hidden");
+  const input = document.getElementById("help-search-input");
+  if (input) {
+    input.focus();
+    input.select();
+  }
 }
 
 function closeHelpSearchModal() {
-    const overlay = document.getElementById('help-search-modal-overlay');
-    const modal = document.getElementById('help-search-modal');
-    if (overlay) overlay.classList.add('hidden');
-    if (modal) modal.classList.add('hidden');
+  const overlay = document.getElementById("help-search-modal-overlay");
+  const modal = document.getElementById("help-search-modal");
+  if (overlay) overlay.classList.add("hidden");
+  if (modal) modal.classList.add("hidden");
 }
 
 function renderHelpSearchResults(query, searchIndex, sectionMap) {
-    const resultsContainer = document.getElementById('help-search-results');
-    if (!resultsContainer) return;
-    const trimmed = query.trim().toLowerCase();
-    const matches = searchIndex.filter(item => {
-        if (!trimmed) return true;
-        return item.title.includes(trimmed) || item.body.includes(trimmed) || item.section.includes(trimmed);
-    });
-    resultsContainer.innerHTML = '';
-    if (!matches.length) {
-        const empty = document.createElement('div');
-        empty.className = 'help-search-empty';
-        empty.textContent = 'No results. Try a different keyword.';
-        resultsContainer.appendChild(empty);
-        return;
-    }
-    matches.forEach(match => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'help-search-result';
-        button.innerHTML = `
+  const resultsContainer = document.getElementById("help-search-results");
+  if (!resultsContainer) return;
+  const trimmed = query.trim().toLowerCase();
+  const matches = searchIndex.filter((item) => {
+    if (!trimmed) return true;
+    return (
+      item.title.includes(trimmed) ||
+      item.body.includes(trimmed) ||
+      item.section.includes(trimmed)
+    );
+  });
+  resultsContainer.innerHTML = "";
+  if (!matches.length) {
+    const empty = document.createElement("div");
+    empty.className = "help-search-empty";
+    empty.textContent = "No results. Try a different keyword.";
+    resultsContainer.appendChild(empty);
+    return;
+  }
+  matches.forEach((match) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "help-search-result";
+    button.innerHTML = `
             <span class="help-search-result-title">${HELP_TOPICS[match.id].title}</span>
-            <span class="help-search-result-meta">${sectionMap[match.id] || 'Help'}</span>
+            <span class="help-search-result-meta">${sectionMap[match.id] || "Help"}</span>
         `;
-        button.addEventListener('click', () => {
-            closeHelpSearchModal();
-            openHelpModal(match.id);
-        });
-        resultsContainer.appendChild(button);
+    button.addEventListener("click", () => {
+      closeHelpSearchModal();
+      openHelpModal(match.id);
     });
+    resultsContainer.appendChild(button);
+  });
 }
 
-const KITTEN_TTS_VOICES = ['Bella', 'Jasper', 'Luna', 'Bruno', 'Rosie', 'Hugo', 'Kiki', 'Leo'];
+const KITTEN_TTS_VOICES = [
+  "Bella",
+  "Jasper",
+  "Luna",
+  "Bruno",
+  "Rosie",
+  "Hugo",
+  "Kiki",
+  "Leo",
+];
 
 function appendKittenVoiceOptions(selectElement) {
-    KITTEN_TTS_VOICES.forEach(voiceName => {
-        const option = document.createElement('option');
-        option.value = voiceName;
-        option.textContent = voiceName;
-        selectElement.appendChild(option);
-    });
+  KITTEN_TTS_VOICES.forEach((voiceName) => {
+    const option = document.createElement("option");
+    option.value = voiceName;
+    option.textContent = voiceName;
+    selectElement.appendChild(option);
+  });
 }
 
 function appendPocketPresetVoiceOptions(selectElement) {
-    const voices = Array.isArray(window.availablePocketTtsVoices)
-        ? window.availablePocketTtsVoices
-        : [];
-    voices.forEach(voiceName => {
-        const option = document.createElement('option');
-        option.value = voiceName;
-        option.textContent = voiceName;
-        selectElement.appendChild(option);
-    });
+  const voices = Array.isArray(window.availablePocketTtsVoices)
+    ? window.availablePocketTtsVoices
+    : [];
+  voices.forEach((voiceName) => {
+    const option = document.createElement("option");
+    option.value = voiceName;
+    option.textContent = voiceName;
+    selectElement.appendChild(option);
+  });
 }
 
 function buildHelpTopicsList() {
-    const container = document.getElementById('help-topics-list');
-    if (!container) return;
-    container.innerHTML = '';
-    HELP_SECTIONS.forEach((section, index) => {
-        const topics = section.topicIds
-            .map(topicId => ({ topicId, topic: HELP_TOPICS[topicId] }))
-            .filter(entry => entry.topic);
-        if (!topics.length) return;
-        const sectionEl = document.createElement('div');
-        sectionEl.className = 'help-topics-section';
-        if (index > 0) {
-            sectionEl.classList.add('collapsed');
-        }
-        sectionEl.innerHTML = `
+  const container = document.getElementById("help-topics-list");
+  if (!container) return;
+  container.innerHTML = "";
+  HELP_SECTIONS.forEach((section, index) => {
+    const topics = section.topicIds
+      .map((topicId) => ({ topicId, topic: HELP_TOPICS[topicId] }))
+      .filter((entry) => entry.topic);
+    if (!topics.length) return;
+    const sectionEl = document.createElement("div");
+    sectionEl.className = "help-topics-section";
+    if (index > 0) {
+      sectionEl.classList.add("collapsed");
+    }
+    sectionEl.innerHTML = `
             <button type="button" class="help-topics-section-header">
                 <span class="help-topics-section-title">${section.title}</span>
-                <span class="help-topics-section-toggle">${index > 0 ? '▶' : '▼'}</span>
+                <span class="help-topics-section-toggle">${index > 0 ? "▶" : "▼"}</span>
             </button>
             <div class="help-topics-section-content">
                 <div class="help-topics-grid"></div>
             </div>
         `;
-        const grid = sectionEl.querySelector('.help-topics-grid');
-        topics.forEach(({ topicId, topic }) => {
-            const card = document.createElement('button');
-            card.type = 'button';
-            card.className = 'help-topic-card';
-            card.dataset.helpId = topicId;
-            card.innerHTML = `
+    const grid = sectionEl.querySelector(".help-topics-grid");
+    topics.forEach(({ topicId, topic }) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "help-topic-card";
+      card.dataset.helpId = topicId;
+      card.innerHTML = `
                 <div class="help-topic-title">${topic.title}</div>
                 <div class="help-topic-description">Click to read more.</div>
             `;
-            card.addEventListener('click', () => openHelpModal(topicId));
-            grid.appendChild(card);
-        });
-        const header = sectionEl.querySelector('.help-topics-section-header');
-        const toggle = sectionEl.querySelector('.help-topics-section-toggle');
-        if (header && toggle) {
-            header.addEventListener('click', () => {
-                sectionEl.classList.toggle('collapsed');
-                toggle.textContent = sectionEl.classList.contains('collapsed') ? '▶' : '▼';
-            });
-        }
-        container.appendChild(sectionEl);
+      card.addEventListener("click", () => openHelpModal(topicId));
+      grid.appendChild(card);
     });
+    const header = sectionEl.querySelector(".help-topics-section-header");
+    const toggle = sectionEl.querySelector(".help-topics-section-toggle");
+    if (header && toggle) {
+      header.addEventListener("click", () => {
+        sectionEl.classList.toggle("collapsed");
+        toggle.textContent = sectionEl.classList.contains("collapsed")
+          ? "▶"
+          : "▼";
+      });
+    }
+    container.appendChild(sectionEl);
+  });
 }
 
 function initHelpSystem() {
-    document.querySelectorAll('.help-icon').forEach(icon => {
-        icon.addEventListener('click', event => {
-            event.stopPropagation();
-            event.preventDefault();
-            const target = event.currentTarget;
-            const helpId = target.dataset.helpId;
-            openHelpModal(helpId);
-        });
+  document.querySelectorAll(".help-icon").forEach((icon) => {
+    icon.addEventListener("click", (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      const target = event.currentTarget;
+      const helpId = target.dataset.helpId;
+      openHelpModal(helpId);
     });
-    const overlay = document.getElementById('help-modal-overlay');
-    if (overlay) {
-        overlay.addEventListener('click', event => {
-            if (event.target === overlay) {
-                closeHelpModal();
-            }
-        });
-    }
-    document.getElementById('help-modal-close')?.addEventListener('click', closeHelpModal);
-    document.getElementById('help-modal-close-btn')?.addEventListener('click', closeHelpModal);
-    const searchBtn = document.getElementById('help-search-btn');
-    const searchOverlay = document.getElementById('help-search-modal-overlay');
-    const searchClose = document.getElementById('help-search-modal-close');
-    const searchCloseBtn = document.getElementById('help-search-close-btn');
-    const searchInput = document.getElementById('help-search-input');
-    const sectionMap = buildHelpSectionMap();
-    const searchIndex = Object.entries(HELP_TOPICS).map(([id, topic]) => {
-        return {
-            id,
-            title: (topic.title || '').toLowerCase(),
-            body: stripHelpHtml(topic.body).toLowerCase(),
-            section: (sectionMap[id] || '').toLowerCase()
-        };
+  });
+  const overlay = document.getElementById("help-modal-overlay");
+  if (overlay) {
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        closeHelpModal();
+      }
     });
-    if (searchBtn) {
-        searchBtn.addEventListener('click', () => {
-            openHelpSearchModal();
-            if (searchInput) {
-                searchInput.value = '';
-                renderHelpSearchResults('', searchIndex, sectionMap);
-            }
-        });
-    }
-    if (searchInput) {
-        searchInput.addEventListener('input', event => {
-            renderHelpSearchResults(event.target.value || '', searchIndex, sectionMap);
-        });
-    }
-    if (searchOverlay) {
-        searchOverlay.addEventListener('click', event => {
-            if (event.target === searchOverlay) {
-                closeHelpSearchModal();
-            }
-        });
-    }
-    searchClose?.addEventListener('click', closeHelpSearchModal);
-    searchCloseBtn?.addEventListener('click', closeHelpSearchModal);
-    buildHelpTopicsList();
+  }
+  document
+    .getElementById("help-modal-close")
+    ?.addEventListener("click", closeHelpModal);
+  document
+    .getElementById("help-modal-close-btn")
+    ?.addEventListener("click", closeHelpModal);
+  const searchBtn = document.getElementById("help-search-btn");
+  const searchOverlay = document.getElementById("help-search-modal-overlay");
+  const searchClose = document.getElementById("help-search-modal-close");
+  const searchCloseBtn = document.getElementById("help-search-close-btn");
+  const searchInput = document.getElementById("help-search-input");
+  const sectionMap = buildHelpSectionMap();
+  const searchIndex = Object.entries(HELP_TOPICS).map(([id, topic]) => {
+    return {
+      id,
+      title: (topic.title || "").toLowerCase(),
+      body: stripHelpHtml(topic.body).toLowerCase(),
+      section: (sectionMap[id] || "").toLowerCase(),
+    };
+  });
+  if (searchBtn) {
+    searchBtn.addEventListener("click", () => {
+      openHelpSearchModal();
+      if (searchInput) {
+        searchInput.value = "";
+        renderHelpSearchResults("", searchIndex, sectionMap);
+      }
+    });
+  }
+  if (searchInput) {
+    searchInput.addEventListener("input", (event) => {
+      renderHelpSearchResults(
+        event.target.value || "",
+        searchIndex,
+        sectionMap,
+      );
+    });
+  }
+  if (searchOverlay) {
+    searchOverlay.addEventListener("click", (event) => {
+      if (event.target === searchOverlay) {
+        closeHelpSearchModal();
+      }
+    });
+  }
+  searchClose?.addEventListener("click", closeHelpSearchModal);
+  searchCloseBtn?.addEventListener("click", closeHelpSearchModal);
+  buildHelpTopicsList();
 }
 
 function resolveBookTitleFromSections(sections) {
-    if (!Array.isArray(sections)) return '';
-    for (const section of sections) {
-        const rawTitle = (section?.title || '').trim();
-        if (!rawTitle) continue;
-        const title = rawTitle.split('—')[0].trim();
-        const lower = title.toLowerCase();
-        if (!lower || lower === 'full story' || lower === 'title') continue;
-        if (/^(chapter|section|book|part|letter|prologue|epilogue)\b/i.test(title)) {
-            continue;
-        }
-        return title;
+  if (!Array.isArray(sections)) return "";
+  for (const section of sections) {
+    const rawTitle = (section?.title || "").trim();
+    if (!rawTitle) continue;
+    const title = rawTitle.split("—")[0].trim();
+    const lower = title.toLowerCase();
+    if (!lower || lower === "full story" || lower === "title") continue;
+    if (
+      /^(chapter|section|book|part|letter|prologue|epilogue)\b/i.test(title)
+    ) {
+      continue;
     }
-    return '';
+    return title;
+  }
+  return "";
 }
 
 async function fetchSpeakerProfiles() {
-    if (!currentStats?.speakers?.length) {
-        setSpeakerProfiles({});
-        return;
+  if (!currentStats?.speakers?.length) {
+    setSpeakerProfiles({});
+    return;
+  }
+  const contextParts = [];
+  if (latestGeminiBookTitle) {
+    contextParts.push(`Book title: ${latestGeminiBookTitle}`);
+  }
+  const context = contextParts.join("\n");
+  const promptOverride =
+    document.getElementById("gemini-speaker-profile-prompt")?.value?.trim() ||
+    "";
+  const processedText =
+    document.getElementById("input-text")?.value?.trim() || "";
+  try {
+    const response = await fetch("/api/gemini/speaker-profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        speakers: currentStats.speakers,
+        context,
+        prompt_override: promptOverride || undefined,
+        processed_text: processedText || undefined,
+      }),
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || "Failed to build speaker profiles");
     }
-    const contextParts = [];
-    if (latestGeminiBookTitle) {
-        contextParts.push(`Book title: ${latestGeminiBookTitle}`);
+    setSpeakerProfiles(data.profiles || {});
+    if (activeSpeakerModal) {
+      renderSpeakerProfileSummary(activeSpeakerModal);
     }
-    const context = contextParts.join('\n');
-    const promptOverride = document.getElementById('gemini-speaker-profile-prompt')?.value?.trim() || '';
-    const processedText = document.getElementById('input-text')?.value?.trim() || '';
-    try {
-        const response = await fetch('/api/gemini/speaker-profiles', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                speakers: currentStats.speakers,
-                context,
-                prompt_override: promptOverride || undefined,
-                processed_text: processedText || undefined
-            })
-        });
-        const data = await response.json();
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to build speaker profiles');
-        }
-        setSpeakerProfiles(data.profiles || {});
-        if (activeSpeakerModal) {
-            renderSpeakerProfileSummary(activeSpeakerModal);
-        }
-        showNotification('Speaker profiles generated.', 'success');
-    } catch (error) {
-        console.error('Speaker profile generation failed:', error);
-        showNotification(error.message || 'Failed to generate speaker profiles.', 'warning');
-    }
+    showNotification("Speaker profiles generated.", "success");
+  } catch (error) {
+    console.error("Speaker profile generation failed:", error);
+    showNotification(
+      error.message || "Failed to generate speaker profiles.",
+      "warning",
+    );
+  }
 }
 
 function saveProject(project) {
-    if (!project) return;
-    const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-    const matchIndex = projects.findIndex(item => String(item.id) === String(project.id));
-    if (matchIndex >= 0) {
-        const existingId = projects[matchIndex].id;
-        projects[matchIndex] = {
-            ...projects[matchIndex],
-            ...project,
-            id: existingId
-        };
-    } else {
-        projects.push(project);
-    }
-    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(projects));
-    loadProjectList();
+  if (!project) return;
+  const projects = JSON.parse(
+    localStorage.getItem(PROJECT_STORAGE_KEY) || "[]",
+  );
+  const matchIndex = projects.findIndex(
+    (item) => String(item.id) === String(project.id),
+  );
+  if (matchIndex >= 0) {
+    const existingId = projects[matchIndex].id;
+    projects[matchIndex] = {
+      ...projects[matchIndex],
+      ...project,
+      id: existingId,
+    };
+  } else {
+    projects.push(project);
+  }
+  localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(projects));
+  loadProjectList();
 }
 
 function deleteProject(projectId) {
-    const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-    const updated = projects.filter(item => String(item.id) !== String(projectId));
-    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(updated));
-    loadProjectList();
+  const projects = JSON.parse(
+    localStorage.getItem(PROJECT_STORAGE_KEY) || "[]",
+  );
+  const updated = projects.filter(
+    (item) => String(item.id) !== String(projectId),
+  );
+  localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(updated));
+  loadProjectList();
 }
 
 function formatSpeakerTagName(value) {
-    const raw = (value || '').toString().trim().toLowerCase();
-    if (!raw) return '';
-    const spaced = raw.replace(/\s+/g, '-');
-    const cleaned = spaced.replace(/[^a-z0-9_-]/g, '');
-    return cleaned.replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+  const raw = (value || "").toString().trim().toLowerCase();
+  if (!raw) return "";
+  const spaced = raw.replace(/\s+/g, "-");
+  const cleaned = spaced.replace(/[^a-z0-9_-]/g, "");
+  return cleaned.replace(/-+/g, "-").replace(/^-+|-+$/g, "");
 }
 
 function appendQwen3VoiceOptions(selectElement) {
-    if (!qwen3Metadata || !Array.isArray(qwen3Metadata.speakers)) {
-        return;
-    }
-    qwen3Metadata.speakers.forEach(speaker => {
-        const option = document.createElement('option');
-        option.value = speaker;
-        option.textContent = speaker;
-        selectElement.appendChild(option);
-    });
+  if (!qwen3Metadata || !Array.isArray(qwen3Metadata.speakers)) {
+    return;
+  }
+  qwen3Metadata.speakers.forEach((speaker) => {
+    const option = document.createElement("option");
+    option.value = speaker;
+    option.textContent = speaker;
+    selectElement.appendChild(option);
+  });
 }
 
 async function loadQwen3Metadata(force = false) {
-    if (qwen3Metadata && !force) {
-        populateQwen3Controls();
-        return;
+  if (qwen3Metadata && !force) {
+    populateQwen3Controls();
+    return;
+  }
+  try {
+    const response = await fetch("/api/qwen3/metadata");
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || "Failed to load Qwen3 metadata");
     }
-    try {
-        const response = await fetch('/api/qwen3/metadata');
-        const data = await response.json();
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to load Qwen3 metadata');
-        }
-        qwen3Metadata = {
-            speakers: data.speakers || [],
-            languages: data.languages || []
-        };
-        populateQwen3Controls();
-    } catch (error) {
-        console.error('Failed to load Qwen3 metadata:', error);
-    }
+    qwen3Metadata = {
+      speakers: data.speakers || [],
+      languages: data.languages || [],
+    };
+    populateQwen3Controls();
+  } catch (error) {
+    console.error("Failed to load Qwen3 metadata:", error);
+  }
 }
 
 function populateQwen3Controls() {
-    const speakerSelect = document.getElementById('qwen3-default-speaker');
-    const languageSelect = document.getElementById('qwen3-default-language');
-    if (speakerSelect && qwen3Metadata?.speakers) {
-        const previous = speakerSelect.value;
-        speakerSelect.innerHTML = '<option value="">Select Qwen3 speaker...</option>';
-        qwen3Metadata.speakers.forEach(speaker => {
-            const option = document.createElement('option');
-            option.value = speaker;
-            option.textContent = speaker;
-            speakerSelect.appendChild(option);
-        });
-        if (previous) speakerSelect.value = previous;
-    }
-    if (languageSelect && qwen3Metadata?.languages) {
-        const previous = languageSelect.value;
-        languageSelect.innerHTML = '<option value="Auto">Auto</option>';
-        qwen3Metadata.languages.forEach(language => {
-            const option = document.createElement('option');
-            option.value = language;
-            option.textContent = language;
-            languageSelect.appendChild(option);
-        });
-        if (previous) languageSelect.value = previous;
-    }
-    // Also update multi-voice assignment dropdowns if Qwen3 is selected
-    const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
-    if (isQwenEngine(engineName)) {
-        populateVoiceSelects();
-    }
+  const speakerSelect = document.getElementById("qwen3-default-speaker");
+  const languageSelect = document.getElementById("qwen3-default-language");
+  if (speakerSelect && qwen3Metadata?.speakers) {
+    const previous = speakerSelect.value;
+    speakerSelect.innerHTML =
+      '<option value="">Select Qwen3 speaker...</option>';
+    qwen3Metadata.speakers.forEach((speaker) => {
+      const option = document.createElement("option");
+      option.value = speaker;
+      option.textContent = speaker;
+      speakerSelect.appendChild(option);
+    });
+    if (previous) speakerSelect.value = previous;
+  }
+  if (languageSelect && qwen3Metadata?.languages) {
+    const previous = languageSelect.value;
+    languageSelect.innerHTML = '<option value="Auto">Auto</option>';
+    qwen3Metadata.languages.forEach((language) => {
+      const option = document.createElement("option");
+      option.value = language;
+      option.textContent = language;
+      languageSelect.appendChild(option);
+    });
+    if (previous) languageSelect.value = previous;
+  }
+  // Also update multi-voice assignment dropdowns if Qwen3 is selected
+  const engineName =
+    getSelectedJobEngine() || runtimeSettings?.tts_engine || "kokoro";
+  if (isQwenEngine(engineName)) {
+    populateVoiceSelects();
+  }
 }
 
 // Voice dropdown filter state
 let voiceDropdownFilters = {
-    gender: 'all',
-    language: 'all'
+  gender: "all",
+  language: "all",
 };
 
 function preloadGenerationControls() {
-    fetch('/api/settings')
-        .then(resp => resp.json())
-        .then(data => {
-            if (!data?.success || !data.settings) return;
-            const settings = data.settings;
-            runtimeSettings = settings;
-            setAvailableGeminiPresets(settings.gemini_prompt_presets || []);
-            const formatSelect = document.getElementById('job-output-format');
-            const bitrateSelect = document.getElementById('job-output-bitrate');
-            if (formatSelect && settings.output_format) {
-                formatSelect.value = settings.output_format;
-                handleOutputFormatChange(formatSelect.value);
-                refreshGlobalChatterboxPreviewButton();
-}
-            if (bitrateSelect && settings.output_bitrate_kbps) {
-                bitrateSelect.value = String(settings.output_bitrate_kbps);
-            }
-            applyEngineDefaults(settings);
-        })
-        .catch(err => {
-            console.error('Failed to preload output controls', err);
-        });
+  fetch("/api/settings")
+    .then((resp) => resp.json())
+    .then((data) => {
+      if (!data?.success || !data.settings) return;
+      const settings = data.settings;
+      runtimeSettings = settings;
+      setAvailableGeminiPresets(settings.gemini_prompt_presets || []);
+      const formatSelect = document.getElementById("job-output-format");
+      const bitrateSelect = document.getElementById("job-output-bitrate");
+      if (formatSelect && settings.output_format) {
+        formatSelect.value = settings.output_format;
+        handleOutputFormatChange(formatSelect.value);
+        refreshGlobalChatterboxPreviewButton();
+      }
+      if (bitrateSelect && settings.output_bitrate_kbps) {
+        bitrateSelect.value = String(settings.output_bitrate_kbps);
+      }
+      applyEngineDefaults(settings);
+    })
+    .catch((err) => {
+      console.error("Failed to preload output controls", err);
+    });
 }
 
 function handleChatterboxVoicesUpdated(event) {
-    const voices = Array.isArray(event?.detail?.voices) ? event.detail.voices : [];
-    availableChatterboxVoices = voices;
-    updateVoiceDropdownFilterOptions();
-    populateReferenceSelects();
-    refreshGlobalChatterboxPreviewButton();
+  const voices = Array.isArray(event?.detail?.voices)
+    ? event.detail.voices
+    : [];
+  availableChatterboxVoices = voices;
+  updateVoiceDropdownFilterOptions();
+  populateReferenceSelects();
+  refreshGlobalChatterboxPreviewButton();
 }
 
 function handleOutputFormatChange(value) {
-    const bitrateSelect = document.getElementById('job-output-bitrate');
-    if (!bitrateSelect) return;
-    const isMp3 = value === 'mp3';
-    bitrateSelect.disabled = !isMp3;
-    bitrateSelect.parentElement?.classList.toggle('disabled', !isMp3);
+  const bitrateSelect = document.getElementById("job-output-bitrate");
+  if (!bitrateSelect) return;
+  const isMp3 = value === "mp3";
+  bitrateSelect.disabled = !isMp3;
+  bitrateSelect.parentElement?.classList.toggle("disabled", !isMp3);
 }
 
 function applyEngineDefaults(settings) {
-    const engineSelect = document.getElementById('job-tts-engine');
-    const defaultEngine = (settings.tts_engine || 'kokoro').toLowerCase();
-    if (engineSelect) {
-        engineSelect.value = defaultEngine;
-    }
-    hydrateTurboLocalJobFields(settings);
-    hydrateTurboReplicateJobFields(settings);
-    updateEngineUI(defaultEngine);
+  const engineSelect = document.getElementById("job-tts-engine");
+  const defaultEngine = (settings.tts_engine || "kokoro").toLowerCase();
+  if (engineSelect) {
+    engineSelect.value = defaultEngine;
+  }
+  hydrateTurboLocalJobFields(settings);
+  hydrateTurboReplicateJobFields(settings);
+  updateEngineUI(defaultEngine);
 }
 
 function updateJobEngineOptionVisibility(engineName) {
-    const jobTurboLocal = document.getElementById('job-chatterbox-turbo-local-options');
-    const jobTurboReplicate = document.getElementById('job-chatterbox-turbo-replicate-options');
-    if (jobTurboLocal) {
-        jobTurboLocal.style.display = engineName === 'chatterbox_turbo_local' ? 'grid' : 'none';
-    }
-    if (jobTurboReplicate) {
-        jobTurboReplicate.style.display = engineName === 'chatterbox_turbo_replicate' ? 'grid' : 'none';
-    }
+  const jobTurboLocal = document.getElementById(
+    "job-chatterbox-turbo-local-options",
+  );
+  const jobTurboReplicate = document.getElementById(
+    "job-chatterbox-turbo-replicate-options",
+  );
+  if (jobTurboLocal) {
+    jobTurboLocal.style.display =
+      engineName === "chatterbox_turbo_local" ? "grid" : "none";
+  }
+  if (jobTurboReplicate) {
+    jobTurboReplicate.style.display =
+      engineName === "chatterbox_turbo_replicate" ? "grid" : "none";
+  }
 }
 
 function hydrateTurboLocalJobFields(settings) {
-    const promptInput = document.getElementById('job-turbo-local-prompt');
-    const tempInput = document.getElementById('job-turbo-local-temperature');
-    const topPInput = document.getElementById('job-turbo-local-top-p');
-    const topKInput = document.getElementById('job-turbo-local-top-k');
-    const repPenaltyInput = document.getElementById('job-turbo-local-rep-penalty');
-    const cfgInput = document.getElementById('job-turbo-local-cfg-weight');
-    const exaggerationInput = document.getElementById('job-turbo-local-exaggeration');
-    const normCheck = document.getElementById('job-turbo-local-norm');
-    const promptNormCheck = document.getElementById('job-turbo-local-prompt-norm');
+  const promptInput = document.getElementById("job-turbo-local-prompt");
+  const tempInput = document.getElementById("job-turbo-local-temperature");
+  const topPInput = document.getElementById("job-turbo-local-top-p");
+  const topKInput = document.getElementById("job-turbo-local-top-k");
+  const repPenaltyInput = document.getElementById(
+    "job-turbo-local-rep-penalty",
+  );
+  const cfgInput = document.getElementById("job-turbo-local-cfg-weight");
+  const exaggerationInput = document.getElementById(
+    "job-turbo-local-exaggeration",
+  );
+  const normCheck = document.getElementById("job-turbo-local-norm");
+  const promptNormCheck = document.getElementById(
+    "job-turbo-local-prompt-norm",
+  );
 
-    if (promptInput) {
-        promptInput.placeholder = settings.chatterbox_turbo_local_default_prompt || promptInput.placeholder;
-    }
-    if (tempInput) {
-        tempInput.value = settings.chatterbox_turbo_local_temperature ?? 0.8;
-    }
-    if (topPInput) {
-        topPInput.value = settings.chatterbox_turbo_local_top_p ?? 0.95;
-    }
-    if (topKInput) {
-        topKInput.value = settings.chatterbox_turbo_local_top_k ?? 1000;
-    }
-    if (repPenaltyInput) {
-        repPenaltyInput.value = settings.chatterbox_turbo_local_repetition_penalty ?? 1.2;
-    }
-    if (cfgInput) {
-        cfgInput.value = settings.chatterbox_turbo_local_cfg_weight ?? 0.0;
-    }
-    if (exaggerationInput) {
-        exaggerationInput.value = settings.chatterbox_turbo_local_exaggeration ?? 0.0;
-    }
-    if (normCheck) {
-        normCheck.checked = settings.chatterbox_turbo_local_norm_loudness !== false;
-    }
-    if (promptNormCheck) {
-        promptNormCheck.checked = settings.chatterbox_turbo_local_prompt_norm_loudness !== false;
-    }
+  if (promptInput) {
+    promptInput.placeholder =
+      settings.chatterbox_turbo_local_default_prompt || promptInput.placeholder;
+  }
+  if (tempInput) {
+    tempInput.value = settings.chatterbox_turbo_local_temperature ?? 0.8;
+  }
+  if (topPInput) {
+    topPInput.value = settings.chatterbox_turbo_local_top_p ?? 0.95;
+  }
+  if (topKInput) {
+    topKInput.value = settings.chatterbox_turbo_local_top_k ?? 1000;
+  }
+  if (repPenaltyInput) {
+    repPenaltyInput.value =
+      settings.chatterbox_turbo_local_repetition_penalty ?? 1.2;
+  }
+  if (cfgInput) {
+    cfgInput.value = settings.chatterbox_turbo_local_cfg_weight ?? 0.0;
+  }
+  if (exaggerationInput) {
+    exaggerationInput.value =
+      settings.chatterbox_turbo_local_exaggeration ?? 0.0;
+  }
+  if (normCheck) {
+    normCheck.checked = settings.chatterbox_turbo_local_norm_loudness !== false;
+  }
+  if (promptNormCheck) {
+    promptNormCheck.checked =
+      settings.chatterbox_turbo_local_prompt_norm_loudness !== false;
+  }
 }
 
 function hydrateTurboReplicateJobFields(settings) {
-    const modelInput = document.getElementById('job-turbo-replicate-model');
-    const voiceInput = document.getElementById('job-turbo-replicate-voice');
-    const tempInput = document.getElementById('job-turbo-replicate-temperature');
-    const topPInput = document.getElementById('job-turbo-replicate-top-p');
-    const topKInput = document.getElementById('job-turbo-replicate-top-k');
-    const repPenaltyInput = document.getElementById('job-turbo-replicate-rep-penalty');
-    const seedInput = document.getElementById('job-turbo-replicate-seed');
+  const modelInput = document.getElementById("job-turbo-replicate-model");
+  const voiceInput = document.getElementById("job-turbo-replicate-voice");
+  const tempInput = document.getElementById("job-turbo-replicate-temperature");
+  const topPInput = document.getElementById("job-turbo-replicate-top-p");
+  const topKInput = document.getElementById("job-turbo-replicate-top-k");
+  const repPenaltyInput = document.getElementById(
+    "job-turbo-replicate-rep-penalty",
+  );
+  const seedInput = document.getElementById("job-turbo-replicate-seed");
 
-    if (modelInput) {
-        modelInput.placeholder = settings.chatterbox_turbo_replicate_model || modelInput.placeholder;
-    }
-    if (voiceInput) {
-        voiceInput.placeholder = settings.chatterbox_turbo_replicate_voice || voiceInput.placeholder;
-    }
-    if (tempInput) {
-        tempInput.value = settings.chatterbox_turbo_replicate_temperature ?? 0.8;
-    }
-    if (topPInput) {
-        topPInput.value = settings.chatterbox_turbo_replicate_top_p ?? 0.95;
-    }
-    if (topKInput) {
-        topKInput.value = settings.chatterbox_turbo_replicate_top_k ?? 1000;
-    }
-    if (repPenaltyInput) {
-        repPenaltyInput.value = settings.chatterbox_turbo_replicate_repetition_penalty ?? 1.2;
-    }
-    if (seedInput) {
-        const seed = settings.chatterbox_turbo_replicate_seed;
-        seedInput.value = seed === null || seed === undefined ? '' : seed;
-    }
+  if (modelInput) {
+    modelInput.placeholder =
+      settings.chatterbox_turbo_replicate_model || modelInput.placeholder;
+  }
+  if (voiceInput) {
+    voiceInput.placeholder =
+      settings.chatterbox_turbo_replicate_voice || voiceInput.placeholder;
+  }
+  if (tempInput) {
+    tempInput.value = settings.chatterbox_turbo_replicate_temperature ?? 0.8;
+  }
+  if (topPInput) {
+    topPInput.value = settings.chatterbox_turbo_replicate_top_p ?? 0.95;
+  }
+  if (topKInput) {
+    topKInput.value = settings.chatterbox_turbo_replicate_top_k ?? 1000;
+  }
+  if (repPenaltyInput) {
+    repPenaltyInput.value =
+      settings.chatterbox_turbo_replicate_repetition_penalty ?? 1.2;
+  }
+  if (seedInput) {
+    const seed = settings.chatterbox_turbo_replicate_seed;
+    seedInput.value = seed === null || seed === undefined ? "" : seed;
+  }
 }
 
 function isTurboEngine(engineName) {
-    const value = (engineName || '').toLowerCase();
-    return value === 'chatterbox_turbo_local'
-        || value === 'chatterbox_turbo_replicate'
-        || value === 'voxcpm_local'
-        || value === 'qwen3_clone';
+  const value = (engineName || "").toLowerCase();
+  return (
+    value === "chatterbox_turbo_local" ||
+    value === "chatterbox_turbo_replicate" ||
+    value === "voxcpm_local" ||
+    value === "qwen3_clone"
+  );
 }
 
 function isPromptEngine(engineName) {
-    const value = (engineName || '').toLowerCase();
-    return isTurboEngine(value) || value === 'pocket_tts' || value === 'index_tts';
+  const value = (engineName || "").toLowerCase();
+  return (
+    isTurboEngine(value) || value === "pocket_tts" || value === "index_tts"
+  );
 }
 
 function isPocketPresetEngine(engineName) {
-    return (engineName || '').toLowerCase() === 'pocket_tts_preset';
+  return (engineName || "").toLowerCase() === "pocket_tts_preset";
 }
 
 function isKokoroEngine(engineName) {
-    const value = (engineName || '').toLowerCase();
-    return value === 'kokoro' || value === 'kokoro_replicate';
+  const value = (engineName || "").toLowerCase();
+  return value === "kokoro" || value === "kokoro_replicate";
 }
 
 function isQwenEngine(engineName) {
-    return (engineName || '').toLowerCase() === 'qwen3_custom';
+  return (engineName || "").toLowerCase() === "qwen3_custom";
 }
 
 function isKittenEngine(engineName) {
-    return (engineName || '').toLowerCase() === 'kitten_tts';
+  return (engineName || "").toLowerCase() === "kitten_tts";
 }
 
 function isIndexTTSEngine(engineName) {
-    return (engineName || '').toLowerCase() === 'index_tts';
+  return (engineName || "").toLowerCase() === "index_tts";
 }
 
 function isQwenCloneEngine(engineName) {
-    return (engineName || '').toLowerCase() === 'qwen3_clone';
+  return (engineName || "").toLowerCase() === "qwen3_clone";
 }
 
 function updateEngineUI(engineName) {
-    console.log('[updateEngineUI] engineName:', engineName, 'isTurbo:', isTurboEngine(engineName));
-    updateJobEngineOptionVisibility(engineName);
-    const kokoroCard = document.getElementById('kokoro-default-voice-card');
-    const turboCard = document.getElementById('chatterbox-turbo-voice-card');
-    const qwenCard = document.getElementById('qwen3-voice-card');
-    const paralinguisticTagsBar = document.getElementById('paralinguistic-tags-bar');
-    const isTurbo = isTurboEngine(engineName);
-    const isPrompt = isPromptEngine(engineName);
-    const isQwen = isQwenEngine(engineName);
-    const isPocketPreset = isPocketPresetEngine(engineName);
-    const isQwenClone = isQwenCloneEngine(engineName);
-    const isKokoro = isKokoroEngine(engineName);
-    const isKitten = isKittenEngine(engineName);
-    const isIndexTTS = isIndexTTSEngine(engineName);
-    console.log('[updateEngineUI] kokoroCard:', kokoroCard, 'turboCard:', turboCard, 'isTurbo:', isTurbo);
-    if (kokoroCard) {
-        kokoroCard.style.display = isPrompt || isQwen || isQwenClone ? 'none' : 'block';
-        console.log('[updateEngineUI] set kokoroCard.display to:', kokoroCard.style.display);
-    }
-    if (turboCard) {
-        turboCard.style.display = (isPrompt || isQwenClone) ? 'block' : 'none';
-        console.log('[updateEngineUI] set turboCard.display to:', turboCard.style.display);
-    }
-    if (qwenCard) {
-        qwenCard.style.display = isQwen ? 'block' : 'none';
-    }
-    if (paralinguisticTagsBar) {
-        paralinguisticTagsBar.style.display = isKokoro ? 'flex' : 'none';
-    }
-    updateAssignmentModes(engineName);
-    if (isPrompt || isQwenClone || isIndexTTS) {
-        fetchReferencePrompts();
-    }
-    if (isQwen) {
-        loadQwen3Metadata();
-    }
-    // Repopulate voice selects when engine changes
-    populateVoiceSelects();
+  console.log(
+    "[updateEngineUI] engineName:",
+    engineName,
+    "isTurbo:",
+    isTurboEngine(engineName),
+  );
+  updateJobEngineOptionVisibility(engineName);
+  const kokoroCard = document.getElementById("kokoro-default-voice-card");
+  const turboCard = document.getElementById("chatterbox-turbo-voice-card");
+  const qwenCard = document.getElementById("qwen3-voice-card");
+  const paralinguisticTagsBar = document.getElementById(
+    "paralinguistic-tags-bar",
+  );
+  const isTurbo = isTurboEngine(engineName);
+  const isPrompt = isPromptEngine(engineName);
+  const isQwen = isQwenEngine(engineName);
+  const isPocketPreset = isPocketPresetEngine(engineName);
+  const isQwenClone = isQwenCloneEngine(engineName);
+  const isKokoro = isKokoroEngine(engineName);
+  const isKitten = isKittenEngine(engineName);
+  const isIndexTTS = isIndexTTSEngine(engineName);
+  console.log(
+    "[updateEngineUI] kokoroCard:",
+    kokoroCard,
+    "turboCard:",
+    turboCard,
+    "isTurbo:",
+    isTurbo,
+  );
+  if (kokoroCard) {
+    kokoroCard.style.display =
+      isPrompt || isQwen || isQwenClone ? "none" : "block";
+    console.log(
+      "[updateEngineUI] set kokoroCard.display to:",
+      kokoroCard.style.display,
+    );
+  }
+  if (turboCard) {
+    turboCard.style.display = isPrompt || isQwenClone ? "block" : "none";
+    console.log(
+      "[updateEngineUI] set turboCard.display to:",
+      turboCard.style.display,
+    );
+  }
+  if (qwenCard) {
+    qwenCard.style.display = isQwen ? "block" : "none";
+  }
+  if (paralinguisticTagsBar) {
+    paralinguisticTagsBar.style.display = isKokoro ? "flex" : "none";
+  }
+  updateAssignmentModes(engineName);
+  if (isPrompt || isQwenClone || isIndexTTS) {
+    fetchReferencePrompts();
+  }
+  if (isQwen) {
+    loadQwen3Metadata();
+  }
+  // Repopulate voice selects when engine changes
+  populateVoiceSelects();
 }
 
 function getAssignmentRows() {
-    return Array.from(document.querySelectorAll(
-        '#inline-voice-assignment-list .voice-assignment-row, #speaker-edit-modal-body .voice-assignment-row'
-    ));
+  return Array.from(
+    document.querySelectorAll(
+      "#inline-voice-assignment-list .voice-assignment-row, #speaker-edit-modal-body .voice-assignment-row",
+    ),
+  );
 }
 
 function updateAssignmentModes(engineName) {
-    const isTurbo = isPromptEngine(engineName);
-    const isQwen = isQwenEngine(engineName);
-    const isQwenClone = isQwenCloneEngine(engineName);
-    getAssignmentRows().forEach(row => {
-        const kokoroControl = row.querySelector('[data-role="kokoro-control"]');
-        const turboControl = row.querySelector('[data-role="turbo-control"]');
-        const qwenControl = row.querySelector('[data-role="qwen3-control"]');
-        const kokoroPanel = row.querySelector('[data-role="kokoro-panel"]');
-        if (kokoroControl) {
-            kokoroControl.style.display = (isTurbo || isQwenClone) ? 'none' : 'flex';
-            const label = kokoroControl.querySelector('label');
-            if (label) {
-                label.textContent = isQwen ? 'Qwen3 Speaker' : row.dataset.speaker || 'Voice';
-            }
-        }
-        if (turboControl) {
-            turboControl.style.display = (isTurbo || isQwenClone) ? 'flex' : 'none';
-        }
-        if (qwenControl) {
-            qwenControl.style.display = isQwen ? 'flex' : 'none';
-        }
-        if (kokoroPanel) {
-            kokoroPanel.style.display = 'flex';
-        }
-    });
-    // Populate Qwen3 language dropdowns if Qwen3 is selected
-    if (isQwen && qwen3Metadata?.languages) {
-        document.querySelectorAll('#inline-voice-assignment-list .qwen3-language-select, #speaker-edit-modal-body .qwen3-language-select').forEach(select => {
-            if (select.options.length <= 1) {
-                qwen3Metadata.languages.forEach(lang => {
-                    const option = document.createElement('option');
-                    option.value = lang;
-                    option.textContent = lang;
-                    select.appendChild(option);
-                });
-            }
-        });
+  const isTurbo = isPromptEngine(engineName);
+  const isQwen = isQwenEngine(engineName);
+  const isQwenClone = isQwenCloneEngine(engineName);
+  getAssignmentRows().forEach((row) => {
+    const kokoroControl = row.querySelector('[data-role="kokoro-control"]');
+    const turboControl = row.querySelector('[data-role="turbo-control"]');
+    const qwenControl = row.querySelector('[data-role="qwen3-control"]');
+    const kokoroPanel = row.querySelector('[data-role="kokoro-panel"]');
+    if (kokoroControl) {
+      kokoroControl.style.display = isTurbo || isQwenClone ? "none" : "flex";
+      const label = kokoroControl.querySelector("label");
+      if (label) {
+        label.textContent = isQwen
+          ? "Qwen3 Speaker"
+          : row.dataset.speaker || "Voice";
+      }
     }
+    if (turboControl) {
+      turboControl.style.display = isTurbo || isQwenClone ? "flex" : "none";
+    }
+    if (qwenControl) {
+      qwenControl.style.display = isQwen ? "flex" : "none";
+    }
+    if (kokoroPanel) {
+      kokoroPanel.style.display = "flex";
+    }
+  });
+  // Populate Qwen3 language dropdowns if Qwen3 is selected
+  if (isQwen && qwen3Metadata?.languages) {
+    document
+      .querySelectorAll(
+        "#inline-voice-assignment-list .qwen3-language-select, #speaker-edit-modal-body .qwen3-language-select",
+      )
+      .forEach((select) => {
+        if (select.options.length <= 1) {
+          qwen3Metadata.languages.forEach((lang) => {
+            const option = document.createElement("option");
+            option.value = lang;
+            option.textContent = lang;
+            select.appendChild(option);
+          });
+        }
+      });
+  }
 }
 
 // Minimum duration requirements per engine (in seconds)
 const ENGINE_MIN_DURATION = {
-    'chatterbox_turbo_local': 5.0,
-    'chatterbox_turbo_replicate': 5.0,
-    'chatterbox': 5.0,
-    'voxcpm_local': 0,  // VoxCPM accepts any duration
-    'pocket_tts': 0,
-    'qwen3_custom': 0,
-    'qwen3_clone': 0,
-    'kokoro': 0,
-    'kokoro_replicate': 0,
+  chatterbox_turbo_local: 5.0,
+  chatterbox_turbo_replicate: 5.0,
+  chatterbox: 5.0,
+  voxcpm_local: 0, // VoxCPM accepts any duration
+  pocket_tts: 0,
+  qwen3_custom: 0,
+  qwen3_clone: 0,
+  kokoro: 0,
+  kokoro_replicate: 0,
 };
 
 function getMinDurationForEngine(engineName) {
-    const normalized = (engineName || '').toLowerCase().trim();
-    return ENGINE_MIN_DURATION[normalized] ?? 0;
+  const normalized = (engineName || "").toLowerCase().trim();
+  return ENGINE_MIN_DURATION[normalized] ?? 0;
 }
 
-function populateReferenceDropdown(selectEl, placeholderText = 'Use preset voice', engineName = null, filters = null) {
-    if (!selectEl) return;
-    const previousValue = selectEl.value;
-    selectEl.innerHTML = '';
-    if (placeholderText) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = placeholderText;
-        selectEl.appendChild(option);
-    }
-    
-    // Get current engine if not provided
-    const currentEngine = engineName || getSelectedJobEngine() || window.runtimeSettings?.tts_engine || 'kokoro';
-    const minDuration = getMinDurationForEngine(currentEngine);
-    
-    // Use provided filters or global filters
-    const activeFilters = filters || voiceDropdownFilters;
-    
-    // Filter and sort voices
-    let filteredVoices = [...availableChatterboxVoices];
-    
-    // Apply gender filter
-    if (activeFilters.gender && activeFilters.gender !== 'all') {
-        filteredVoices = filteredVoices.filter(v => 
-            (v.gender || '').toLowerCase() === activeFilters.gender.toLowerCase()
-        );
-    }
-    
-    // Apply language filter
-    if (activeFilters.language && activeFilters.language !== 'all') {
-        filteredVoices = filteredVoices.filter(v => v.language === activeFilters.language);
-    }
-    
-    // Sort voices alphabetically by name
-    const sortedVoices = filteredVoices.sort((a, b) =>
-        (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
+function populateReferenceDropdown(
+  selectEl,
+  placeholderText = "Use preset voice",
+  engineName = null,
+  filters = null,
+) {
+  if (!selectEl) return;
+  const previousValue = selectEl.value;
+  selectEl.innerHTML = "";
+  if (placeholderText) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = placeholderText;
+    selectEl.appendChild(option);
+  }
+
+  // Get current engine if not provided
+  const currentEngine =
+    engineName ||
+    getSelectedJobEngine() ||
+    window.runtimeSettings?.tts_engine ||
+    "kokoro";
+  const minDuration = getMinDurationForEngine(currentEngine);
+
+  // Use provided filters or global filters
+  const activeFilters = filters || voiceDropdownFilters;
+
+  // Filter and sort voices
+  let filteredVoices = [...availableChatterboxVoices];
+
+  // Apply gender filter
+  if (activeFilters.gender && activeFilters.gender !== "all") {
+    filteredVoices = filteredVoices.filter(
+      (v) =>
+        (v.gender || "").toLowerCase() === activeFilters.gender.toLowerCase(),
     );
-    
-    sortedVoices.forEach(entry => {
-        const option = document.createElement('option');
-        const promptPath = (entry?.prompt_path || entry?.file_name || '').trim();
-        option.value = promptPath;
-        const duration = entry?.duration_seconds ?? null;
-        const durationLabel = duration !== null ? ` · ${duration.toFixed(1)}s` : '';
-        
-        // Build label with gender and language
-        const gender = entry?.gender ? ` [${entry.gender.charAt(0).toUpperCase()}]` : '';
-        const lang = entry?.language ? ` ${getLanguageDisplayName(entry.language)}` : '';
-        const metaLabel = (gender || lang) ? ` ·${gender}${lang}` : '';
-        
-        option.textContent = `${entry?.name || promptPath}${metaLabel}${durationLabel}`;
-        option.dataset.durationSeconds = duration ?? '';
-        option.dataset.gender = entry?.gender || '';
-        option.dataset.language = entry?.language || '';
-        
-        // Check if duration meets minimum requirement for current engine
-        if (minDuration > 0 && duration !== null && duration < minDuration) {
-            option.disabled = true;
-            option.style.color = '#ff6b6b';
-            option.textContent = `${entry?.name || promptPath}${metaLabel}${durationLabel} (too short)`;
-        }
-        
-        selectEl.appendChild(option);
-    });
-    
-    if (previousValue) {
-        // Only restore if the option is not disabled
-        const prevOption = selectEl.querySelector(`option[value="${CSS.escape(previousValue)}"]`);
-        if (prevOption && !prevOption.disabled) {
-            selectEl.value = previousValue;
-        }
+  }
+
+  // Apply language filter
+  if (activeFilters.language && activeFilters.language !== "all") {
+    filteredVoices = filteredVoices.filter(
+      (v) => v.language === activeFilters.language,
+    );
+  }
+
+  // Sort voices alphabetically by name
+  const sortedVoices = filteredVoices.sort((a, b) =>
+    (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()),
+  );
+
+  sortedVoices.forEach((entry) => {
+    const option = document.createElement("option");
+    const promptPath = (entry?.prompt_path || entry?.file_name || "").trim();
+    option.value = promptPath;
+    const duration = entry?.duration_seconds ?? null;
+    const durationLabel = duration !== null ? ` · ${duration.toFixed(1)}s` : "";
+
+    // Build label with gender and language
+    const gender = entry?.gender
+      ? ` [${entry.gender.charAt(0).toUpperCase()}]`
+      : "";
+    const lang = entry?.language
+      ? ` ${getLanguageDisplayName(entry.language)}`
+      : "";
+    const metaLabel = gender || lang ? ` ·${gender}${lang}` : "";
+
+    option.textContent = `${entry?.name || promptPath}${metaLabel}${durationLabel}`;
+    option.dataset.durationSeconds = duration ?? "";
+    option.dataset.gender = entry?.gender || "";
+    option.dataset.language = entry?.language || "";
+
+    // Check if duration meets minimum requirement for current engine
+    if (minDuration > 0 && duration !== null && duration < minDuration) {
+      option.disabled = true;
+      option.style.color = "#ff6b6b";
+      option.textContent = `${entry?.name || promptPath}${metaLabel}${durationLabel} (too short)`;
     }
+
+    selectEl.appendChild(option);
+  });
+
+  if (previousValue) {
+    // Only restore if the option is not disabled
+    const prevOption = selectEl.querySelector(
+      `option[value="${CSS.escape(previousValue)}"]`,
+    );
+    if (prevOption && !prevOption.disabled) {
+      selectEl.value = previousValue;
+    }
+  }
 }
 
 function updateVoiceDropdownFilterOptions() {
-    // Collect unique genders and languages from available voices
-    const genders = new Set();
-    const languages = new Set();
-    
-    availableChatterboxVoices.forEach(v => {
-        if (v.gender) genders.add(v.gender);
-        if (v.language) languages.add(v.language);
+  // Collect unique genders and languages from available voices
+  const genders = new Set();
+  const languages = new Set();
+
+  availableChatterboxVoices.forEach((v) => {
+    if (v.gender) genders.add(v.gender);
+    if (v.language) languages.add(v.language);
+  });
+
+  // Update gender filter selects
+  document.querySelectorAll(".voice-filter-gender").forEach((select) => {
+    const currentValue = select.value;
+    select.innerHTML = '<option value="all">All Genders</option>';
+    [...genders].sort().forEach((g) => {
+      const opt = document.createElement("option");
+      opt.value = g.toLowerCase();
+      opt.textContent = g;
+      select.appendChild(opt);
     });
-    
-    // Update gender filter selects
-    document.querySelectorAll('.voice-filter-gender').forEach(select => {
-        const currentValue = select.value;
-        select.innerHTML = '<option value="all">All Genders</option>';
-        [...genders].sort().forEach(g => {
-            const opt = document.createElement('option');
-            opt.value = g.toLowerCase();
-            opt.textContent = g;
-            select.appendChild(opt);
-        });
-        if (currentValue) select.value = currentValue;
-    });
-    
-    // Update language filter selects
-    document.querySelectorAll('.voice-filter-language').forEach(select => {
-        const currentValue = select.value;
-        select.innerHTML = '<option value="all">All Languages</option>';
-        [...languages].sort((a, b) => 
-            getLanguageDisplayName(a).localeCompare(getLanguageDisplayName(b))
-        ).forEach(lang => {
-            const opt = document.createElement('option');
-            opt.value = lang;
-            opt.textContent = getLanguageDisplayName(lang);
-            select.appendChild(opt);
-        });
-        if (currentValue) select.value = currentValue;
-    });
+    if (currentValue) select.value = currentValue;
+  });
+
+  // Update language filter selects
+  document.querySelectorAll(".voice-filter-language").forEach((select) => {
+    const currentValue = select.value;
+    select.innerHTML = '<option value="all">All Languages</option>';
+    [...languages]
+      .sort((a, b) =>
+        getLanguageDisplayName(a).localeCompare(getLanguageDisplayName(b)),
+      )
+      .forEach((lang) => {
+        const opt = document.createElement("option");
+        opt.value = lang;
+        opt.textContent = getLanguageDisplayName(lang);
+        select.appendChild(opt);
+      });
+    if (currentValue) select.value = currentValue;
+  });
 }
 
-function populatePresetSelect(selectEl, selectedValue, placeholderText = 'Select a saved voice') {
-    if (!selectEl) return;
-    const previousValue = selectedValue || selectEl.value;
-    selectEl.innerHTML = '';
-    if (placeholderText) {
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = placeholderText;
-        selectEl.appendChild(placeholder);
+function populatePresetSelect(
+  selectEl,
+  selectedValue,
+  placeholderText = "Select a saved voice",
+) {
+  if (!selectEl) return;
+  const previousValue = selectedValue || selectEl.value;
+  selectEl.innerHTML = "";
+  if (placeholderText) {
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = placeholderText;
+    selectEl.appendChild(placeholder);
+  }
+  // Sort voices alphabetically by name
+  const sortedVoices = [...availableChatterboxVoices].sort((a, b) =>
+    (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()),
+  );
+  sortedVoices.forEach((entry) => {
+    const pathValue = (entry?.prompt_path || entry?.file_name || "").trim();
+    if (!pathValue) {
+      return;
     }
-    // Sort voices alphabetically by name
-    const sortedVoices = [...availableChatterboxVoices].sort((a, b) =>
-        (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
-    );
-    sortedVoices.forEach(entry => {
-        const pathValue = (entry?.prompt_path || entry?.file_name || '').trim();
-        if (!pathValue) {
-            return;
-        }
-        const option = document.createElement('option');
-        option.value = pathValue;
-        option.textContent = entry?.name || pathValue;
-        if (entry.missing_file) {
-            option.disabled = true;
-            option.textContent = `${option.textContent} (missing file)`;
-        }
-        selectEl.appendChild(option);
-    });
-    if (previousValue) {
-        selectEl.value = previousValue;
+    const option = document.createElement("option");
+    option.value = pathValue;
+    option.textContent = entry?.name || pathValue;
+    if (entry.missing_file) {
+      option.disabled = true;
+      option.textContent = `${option.textContent} (missing file)`;
     }
+    selectEl.appendChild(option);
+  });
+  if (previousValue) {
+    selectEl.value = previousValue;
+  }
 }
 
 function populateReferenceSelects() {
-    populateReferenceDropdown(
-        document.getElementById('chatterbox-reference-select'),
-        'Select saved Chatterbox voice'
-    );
-    document.querySelectorAll('#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select')
-        .forEach(select => {
-            populateReferenceDropdown(select, 'Inherit from global selection');
-            const speaker = select.dataset.speaker;
-            const selection = speaker ? turboSelectionState[speaker] : '';
-            if (selection) {
-                select.value = selection;
-            }
+  populateReferenceDropdown(
+    document.getElementById("chatterbox-reference-select"),
+    "Select saved Chatterbox voice",
+  );
+  document
+    .querySelectorAll(
+      '#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select',
+    )
+    .forEach((select) => {
+      populateReferenceDropdown(select, "Inherit from global selection");
+      const speaker = select.dataset.speaker;
+      const selection = speaker ? turboSelectionState[speaker] : "";
+      if (selection) {
+        select.value = selection;
+      }
     });
-    getAssignmentRows().forEach(row => updateInlineSampleButtonState(row));
+  getAssignmentRows().forEach((row) => updateInlineSampleButtonState(row));
 }
 
 async function handleReferenceUpload(event) {
-    const files = event.target.files;
-    if (!files || !files.length) {
-        return;
+  const files = event.target.files;
+  if (!files || !files.length) {
+    return;
+  }
+  const file = files[0];
+  const formData = new FormData();
+  formData.append("file", file);
+  try {
+    const response = await fetch("/api/voice-prompts/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || "Upload failed");
     }
-    const file = files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-        const response = await fetch('/api/voice-prompts/upload', {
-            method: 'POST',
-            body: formData,
-        });
-        const data = await response.json();
-        if (!data.success) {
-            throw new Error(data.error || 'Upload failed');
-        }
-        showNotification('Reference prompt uploaded.', 'success');
-        await fetchReferencePrompts();
-    } catch (error) {
-        console.error('Prompt upload failed', error);
-        showNotification(error.message || 'Failed to upload prompt', 'error');
-    } finally {
-        event.target.value = '';
-    }
+    showNotification("Reference prompt uploaded.", "success");
+    await fetchReferencePrompts();
+  } catch (error) {
+    console.error("Prompt upload failed", error);
+    showNotification(error.message || "Failed to upload prompt", "error");
+  } finally {
+    event.target.value = "";
+  }
 }
 
 function handleReferenceSelectChange(event) {
-    const selected = event.target.value;
-    const promptInput = document.getElementById('job-turbo-local-prompt');
-    if (promptInput !== null) {
-        promptInput.value = selected;
-    }
-    refreshGlobalChatterboxPreviewButton();
+  const selected = event.target.value;
+  const promptInput = document.getElementById("job-turbo-local-prompt");
+  if (promptInput !== null) {
+    promptInput.value = selected;
+  }
+  refreshGlobalChatterboxPreviewButton();
 }
 
 async function fetchReferencePrompts() {
-    try {
-        const response = await fetch('/api/voice-prompts');
-        const data = await response.json();
-        if (!data.success) {
-            throw new Error(data.error || 'Unable to load reference prompts');
-        }
-        window.availableReferencePrompts = data.prompts || [];
-    } catch (error) {
-        console.error('Failed to fetch reference prompts', error);
-        window.availableReferencePrompts = [];
-    } finally {
-        populateReferenceSelects();
-        refreshGlobalChatterboxPreviewButton();
+  try {
+    const response = await fetch("/api/voice-prompts");
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || "Unable to load reference prompts");
     }
+    window.availableReferencePrompts = data.prompts || [];
+  } catch (error) {
+    console.error("Failed to fetch reference prompts", error);
+    window.availableReferencePrompts = [];
+  } finally {
+    populateReferenceSelects();
+    refreshGlobalChatterboxPreviewButton();
+  }
 }
 
 function findChatterboxVoiceByPath(pathValue) {
-    if (!pathValue) return null;
-    const normalized = pathValue.trim();
-    if (!normalized) return null;
-    return availableChatterboxVoices.find(entry => {
-        const promptPath = (entry?.prompt_path || '').trim();
-        const fileName = (entry?.file_name || '').trim();
-        return promptPath === normalized || fileName === normalized;
-    }) || null;
+  if (!pathValue) return null;
+  const normalized = pathValue.trim();
+  if (!normalized) return null;
+  return (
+    availableChatterboxVoices.find((entry) => {
+      const promptPath = (entry?.prompt_path || "").trim();
+      const fileName = (entry?.file_name || "").trim();
+      return promptPath === normalized || fileName === normalized;
+    }) || null
+  );
 }
 
 function refreshGlobalChatterboxPreviewButton() {
-    const select = document.getElementById('chatterbox-reference-select');
-    const button = document.getElementById('global-chatterbox-preview-btn');
-    if (!button) return;
-    const hasSelection = !!(select?.value?.trim());
-    if (!hasSelection) {
-        button.disabled = true;
-        button.classList.remove('is-playing', 'is-loading');
-        button.textContent = button.dataset.labelPlay || 'Play';
-    } else {
-        button.disabled = false;
-    }
+  const select = document.getElementById("chatterbox-reference-select");
+  const button = document.getElementById("global-chatterbox-preview-btn");
+  if (!button) return;
+  const hasSelection = !!select?.value?.trim();
+  if (!hasSelection) {
+    button.disabled = true;
+    button.classList.remove("is-playing", "is-loading");
+    button.textContent = button.dataset.labelPlay || "Play";
+  } else {
+    button.disabled = false;
+  }
 }
-window.refreshGlobalChatterboxPreviewButton = refreshGlobalChatterboxPreviewButton;
+window.refreshGlobalChatterboxPreviewButton =
+  refreshGlobalChatterboxPreviewButton;
 
 function getSelectedJobEngine() {
-    const select = document.getElementById('job-tts-engine');
-    if (!select) return null;
-    const value = (select.value || '').trim().toLowerCase();
-    return value || null;
+  const select = document.getElementById("job-tts-engine");
+  if (!select) return null;
+  const value = (select.value || "").trim().toLowerCase();
+  return value || null;
 }
 
 function getGlobalReferenceSelection() {
-    const select = document.getElementById('chatterbox-reference-select');
-    if (select && select.value) {
-        return select.value.trim();
-    }
-    const promptInput = document.getElementById('job-turbo-local-prompt');
-    return (promptInput?.value || '').trim();
+  const select = document.getElementById("chatterbox-reference-select");
+  if (select && select.value) {
+    return select.value.trim();
+  }
+  const promptInput = document.getElementById("job-turbo-local-prompt");
+  return (promptInput?.value || "").trim();
 }
 
 function collectEngineOverrides(engineName) {
-    if (!engineName) return null;
-    switch (engineName) {
-        case 'chatterbox':
-            return collectChatterboxOverrides();
-        case 'chatterbox_turbo_local':
-            return collectTurboLocalOverrides();
-        case 'chatterbox_turbo_replicate':
-            return collectTurboReplicateOverrides();
-        case 'qwen3_custom':
-            return collectQwen3Overrides();
-        case 'qwen3_clone':
-            return null;
-        default:
-            return null;
-    }
+  if (!engineName) return null;
+  switch (engineName) {
+    case "chatterbox":
+      return collectChatterboxOverrides();
+    case "chatterbox_turbo_local":
+      return collectTurboLocalOverrides();
+    case "chatterbox_turbo_replicate":
+      return collectTurboReplicateOverrides();
+    case "qwen3_custom":
+      return collectQwen3Overrides();
+    case "qwen3_clone":
+      return null;
+    default:
+      return null;
+  }
 }
 
 function collectQwen3Overrides() {
-    const options = {};
-    const instruction = document.getElementById('qwen3-default-instruct')?.value.trim();
-    if (instruction) {
-        options.default_instruct = instruction;
-    }
-    return Object.keys(options).length ? options : null;
+  const options = {};
+  const instruction = document
+    .getElementById("qwen3-default-instruct")
+    ?.value.trim();
+  if (instruction) {
+    options.default_instruct = instruction;
+  }
+  return Object.keys(options).length ? options : null;
 }
 
 function collectTurboLocalOverrides() {
-    const options = {};
-    const prompt = document.getElementById('job-turbo-local-prompt')?.value.trim();
-    if (prompt) {
-        options.default_prompt = prompt;
-    }
-    const temperature = readNumericInput('job-turbo-local-temperature');
-    if (temperature !== null) {
-        options.temperature = temperature;
-    }
-    const topP = readNumericInput('job-turbo-local-top-p');
-    if (topP !== null) {
-        options.top_p = topP;
-    }
-    const topK = readNumericInput('job-turbo-local-top-k', true);
-    if (topK !== null) {
-        options.top_k = topK;
-    }
-    const repPenalty = readNumericInput('job-turbo-local-rep-penalty');
-    if (repPenalty !== null) {
-        options.repetition_penalty = repPenalty;
-    }
-    const cfgWeight = readNumericInput('job-turbo-local-cfg-weight');
-    if (cfgWeight !== null) {
-        options.cfg_weight = cfgWeight;
-    }
-    const exaggeration = readNumericInput('job-turbo-local-exaggeration');
-    if (exaggeration !== null) {
-        options.exaggeration = exaggeration;
-    }
-    const normCheckbox = document.getElementById('job-turbo-local-norm');
-    if (normCheckbox) {
-        options.norm_loudness = normCheckbox.checked;
-    }
-    const promptNormCheckbox = document.getElementById('job-turbo-local-prompt-norm');
-    if (promptNormCheckbox) {
-        options.prompt_norm_loudness = promptNormCheckbox.checked;
-    }
-    return Object.keys(options).length ? options : null;
+  const options = {};
+  const prompt = document
+    .getElementById("job-turbo-local-prompt")
+    ?.value.trim();
+  if (prompt) {
+    options.default_prompt = prompt;
+  }
+  const temperature = readNumericInput("job-turbo-local-temperature");
+  if (temperature !== null) {
+    options.temperature = temperature;
+  }
+  const topP = readNumericInput("job-turbo-local-top-p");
+  if (topP !== null) {
+    options.top_p = topP;
+  }
+  const topK = readNumericInput("job-turbo-local-top-k", true);
+  if (topK !== null) {
+    options.top_k = topK;
+  }
+  const repPenalty = readNumericInput("job-turbo-local-rep-penalty");
+  if (repPenalty !== null) {
+    options.repetition_penalty = repPenalty;
+  }
+  const cfgWeight = readNumericInput("job-turbo-local-cfg-weight");
+  if (cfgWeight !== null) {
+    options.cfg_weight = cfgWeight;
+  }
+  const exaggeration = readNumericInput("job-turbo-local-exaggeration");
+  if (exaggeration !== null) {
+    options.exaggeration = exaggeration;
+  }
+  const normCheckbox = document.getElementById("job-turbo-local-norm");
+  if (normCheckbox) {
+    options.norm_loudness = normCheckbox.checked;
+  }
+  const promptNormCheckbox = document.getElementById(
+    "job-turbo-local-prompt-norm",
+  );
+  if (promptNormCheckbox) {
+    options.prompt_norm_loudness = promptNormCheckbox.checked;
+  }
+  return Object.keys(options).length ? options : null;
 }
 
 function collectTurboReplicateOverrides() {
-    const options = {};
-    const model = document.getElementById('job-turbo-replicate-model')?.value.trim();
-    if (model) {
-        options.model = model;
+  const options = {};
+  const model = document
+    .getElementById("job-turbo-replicate-model")
+    ?.value.trim();
+  if (model) {
+    options.model = model;
+  }
+  const voice = document
+    .getElementById("job-turbo-replicate-voice")
+    ?.value.trim();
+  if (voice) {
+    options.voice = voice;
+  }
+  const temperature = readNumericInput("job-turbo-replicate-temperature");
+  if (temperature !== null) {
+    options.temperature = temperature;
+  }
+  const topP = readNumericInput("job-turbo-replicate-top-p");
+  if (topP !== null) {
+    options.top_p = topP;
+  }
+  const topK = readNumericInput("job-turbo-replicate-top-k", true);
+  if (topK !== null) {
+    options.top_k = topK;
+  }
+  const repPenalty = readNumericInput("job-turbo-replicate-rep-penalty");
+  if (repPenalty !== null) {
+    options.repetition_penalty = repPenalty;
+  }
+  const seedValue = document
+    .getElementById("job-turbo-replicate-seed")
+    ?.value.trim();
+  if (seedValue) {
+    const parsedSeed = parseInt(seedValue, 10);
+    if (Number.isFinite(parsedSeed) && parsedSeed >= 0) {
+      options.seed = parsedSeed;
     }
-    const voice = document.getElementById('job-turbo-replicate-voice')?.value.trim();
-    if (voice) {
-        options.voice = voice;
-    }
-    const temperature = readNumericInput('job-turbo-replicate-temperature');
-    if (temperature !== null) {
-        options.temperature = temperature;
-    }
-    const topP = readNumericInput('job-turbo-replicate-top-p');
-    if (topP !== null) {
-        options.top_p = topP;
-    }
-    const topK = readNumericInput('job-turbo-replicate-top-k', true);
-    if (topK !== null) {
-        options.top_k = topK;
-    }
-    const repPenalty = readNumericInput('job-turbo-replicate-rep-penalty');
-    if (repPenalty !== null) {
-        options.repetition_penalty = repPenalty;
-    }
-    const seedValue = document.getElementById('job-turbo-replicate-seed')?.value.trim();
-    if (seedValue) {
-        const parsedSeed = parseInt(seedValue, 10);
-        if (Number.isFinite(parsedSeed) && parsedSeed >= 0) {
-            options.seed = parsedSeed;
-        }
-    }
-    return Object.keys(options).length ? options : null;
+  }
+  return Object.keys(options).length ? options : null;
 }
 
 function readNumericInput(elementId, integerOnly = false) {
-    const raw = document.getElementById(elementId)?.value;
-    if (raw === undefined || raw === null || raw === '') {
-        return null;
-    }
-    const parsed = integerOnly ? parseInt(raw, 10) : parseFloat(raw);
-    if (!Number.isFinite(parsed)) {
-        return null;
-    }
-    return parsed;
+  const raw = document.getElementById(elementId)?.value;
+  if (raw === undefined || raw === null || raw === "") {
+    return null;
+  }
+  const parsed = integerOnly ? parseInt(raw, 10) : parseFloat(raw);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed;
 }
 
 // Main application logic
@@ -1610,7 +1891,7 @@ function readNumericInput(elementId, integerOnly = false) {
 let currentJobId = null;
 let currentStats = null;
 let analyzeDebounceTimer = null;
-let lastAnalyzedText = '';
+let lastAnalyzedText = "";
 let analyzeInFlight = false;
 let analyzeRerunRequested = false;
 let sectionReviewInFlight = false;
@@ -1625,193 +1906,224 @@ let activeSpeakerModal = null;
 let activeSpeakerRow = null;
 let pendingProjectLoad = null;
 let activeProjectId = null;
-let latestGeminiBookTitle = '';
+let latestGeminiBookTitle = "";
 const ANALYZE_DEBOUNCE_MS = 800;
-const VOICES_EVENT_NAME = window.VOICES_UPDATED_EVENT || 'voices:updated';
+const VOICES_EVENT_NAME = window.VOICES_UPDATED_EVENT || "voices:updated";
 const DEFAULT_FX_STATE = Object.freeze({
-    pitch: 0,
-    speed: 1,
-    sampleText: ''
+  pitch: 0,
+  speed: 1,
+  sampleText: "",
 });
 const voiceFxState = {};
 let currentFxPreviewAudio = null;
 let currentFxPreviewButton = null;
 let queuePollInFlight = false;
-const PROJECT_STORAGE_KEY = 'tts-story-projects';
+const PROJECT_STORAGE_KEY = "tts-story-projects";
 let activeSpeakerRowOrigin = null;
 let runtimeSettings = null;
 let availableChatterboxVoices = [];
 let qwen3Metadata = null;
 let availableGeminiPromptPresets = [];
+const GEMINI_PREP_STORAGE_KEY = "tts-story-active-prep-job";
+const GEMINI_PREP_ACTIVE_STATUSES = new Set([
+  "queued",
+  "processing",
+  "retrying",
+  "waiting_to_retry",
+]);
+const GEMINI_PREP_TERMINAL_STATUSES = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+]);
+const GEMINI_PREP_STATE_LABELS = {
+  queued: "Queued",
+  processing: "Generating",
+  retrying: "Retrying",
+  waiting_to_retry: "Waiting",
+  completed: "Completed",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+const geminiPrepUiState = {
+  jobId: null,
+  pollToken: 0,
+  completionAppliedForJobId: null,
+};
 
 window.customVoiceMap = window.customVoiceMap || {};
 window.addEventListener(VOICES_EVENT_NAME, handleVoicesUpdated);
-const CHATTERBOX_VOICES_EVENT_NAME = window.CHATTERBOX_VOICES_EVENT || 'chatterboxVoices:updated';
+const CHATTERBOX_VOICES_EVENT_NAME =
+  window.CHATTERBOX_VOICES_EVENT || "chatterboxVoices:updated";
 window.CHATTERBOX_VOICES_EVENT = CHATTERBOX_VOICES_EVENT_NAME;
-window.addEventListener(CHATTERBOX_VOICES_EVENT_NAME, handleChatterboxVoicesUpdated);
-window.addEventListener('geminiPresets:changed', event => {
-    setAvailableGeminiPresets(event?.detail?.presets || []);
+window.addEventListener(
+  CHATTERBOX_VOICES_EVENT_NAME,
+  handleChatterboxVoicesUpdated,
+);
+window.addEventListener("geminiPresets:changed", (event) => {
+  setAvailableGeminiPresets(event?.detail?.presets || []);
 });
 
 function setAvailableGeminiPresets(presets = []) {
-    const normalized = [];
-    if (Array.isArray(presets)) {
-        presets.forEach(preset => {
-            const title = (preset?.title || '').trim();
-            const prompt = (preset?.prompt || '').trim();
-            let id = (preset?.id || '').trim();
-            if (!title || !prompt) {
-                return;
-            }
-            if (!id) {
-                id = typeof crypto !== 'undefined' && crypto.randomUUID
-                    ? crypto.randomUUID()
-                    : `preset-${Date.now()}-${normalized.length}`;
-            }
-            normalized.push({ id, title, prompt });
-        });
-    }
-    availableGeminiPromptPresets = normalized;
-    populateGeminiPresetDropdown();
+  const normalized = [];
+  if (Array.isArray(presets)) {
+    presets.forEach((preset) => {
+      const title = (preset?.title || "").trim();
+      const prompt = (preset?.prompt || "").trim();
+      let id = (preset?.id || "").trim();
+      if (!title || !prompt) {
+        return;
+      }
+      if (!id) {
+        id =
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `preset-${Date.now()}-${normalized.length}`;
+      }
+      normalized.push({ id, title, prompt });
+    });
+  }
+  availableGeminiPromptPresets = normalized;
+  populateGeminiPresetDropdown();
 }
 
 function populateGeminiPresetDropdown(selectedId) {
-    const select = document.getElementById('gemini-preset-select');
-    if (!select) return;
-    const previousValue = selectedId !== undefined ? selectedId : select.value;
-    select.innerHTML = '';
-    const defaultOption = document.createElement('option');
-    defaultOption.value = '';
-    defaultOption.textContent = 'Use default prompt';
-    select.appendChild(defaultOption);
-    availableGeminiPromptPresets.forEach(preset => {
-        const option = document.createElement('option');
-        option.value = preset.id;
-        option.textContent = preset.title;
-        option.title = preset.prompt;
-        select.appendChild(option);
-    });
-    if (previousValue) {
-        select.value = previousValue;
-        if (select.value !== previousValue) {
-            select.value = '';
-        }
+  const select = document.getElementById("gemini-preset-select");
+  if (!select) return;
+  const previousValue = selectedId !== undefined ? selectedId : select.value;
+  select.innerHTML = "";
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Use default prompt";
+  select.appendChild(defaultOption);
+  availableGeminiPromptPresets.forEach((preset) => {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = preset.title;
+    option.title = preset.prompt;
+    select.appendChild(option);
+  });
+  if (previousValue) {
+    select.value = previousValue;
+    if (select.value !== previousValue) {
+      select.value = "";
     }
+  }
 }
 
 function handleVoicesUpdated(event) {
-    const detail = event?.detail || {};
-    if (detail.voices) {
-        window.availableVoices = detail.voices;
-    }
-    if (detail.customVoiceMap) {
-        window.customVoiceMap = detail.customVoiceMap;
-    }
-    if (Array.isArray(detail.pocketTtsVoices)) {
-        window.availablePocketTtsVoices = detail.pocketTtsVoices;
-    }
-    populateDefaultVoiceSelect();
-    populateVoiceSelects();
-    initDefaultVoiceFxPanel();
+  const detail = event?.detail || {};
+  if (detail.voices) {
+    window.availableVoices = detail.voices;
+  }
+  if (detail.customVoiceMap) {
+    window.customVoiceMap = detail.customVoiceMap;
+  }
+  if (Array.isArray(detail.pocketTtsVoices)) {
+    window.availablePocketTtsVoices = detail.pocketTtsVoices;
+  }
+  populateDefaultVoiceSelect();
+  populateVoiceSelects();
+  initDefaultVoiceFxPanel();
 }
 
 function getFxStateKey(speaker) {
-    if (!speaker) return 'default';
-    return speaker;
+  if (!speaker) return "default";
+  return speaker;
 }
 
 function getFxState(speaker) {
-    const key = getFxStateKey(speaker);
-    if (!voiceFxState[key]) {
-        voiceFxState[key] = {
-            pitch: DEFAULT_FX_STATE.pitch,
-            speed: DEFAULT_FX_STATE.speed,
-            sampleText: DEFAULT_FX_STATE.sampleText
-        };
-    }
-    return voiceFxState[key];
+  const key = getFxStateKey(speaker);
+  if (!voiceFxState[key]) {
+    voiceFxState[key] = {
+      pitch: DEFAULT_FX_STATE.pitch,
+      speed: DEFAULT_FX_STATE.speed,
+      sampleText: DEFAULT_FX_STATE.sampleText,
+    };
+  }
+  return voiceFxState[key];
 }
 
 function getFxPayload(speaker) {
-    const state = getFxState(speaker);
-    const payload = {};
-    const pitch = Number(state.pitch) || 0;
-    if (Math.abs(pitch) > 0.01) {
-        payload.pitch = pitch;
-    }
-    return Object.keys(payload).length ? payload : null;
+  const state = getFxState(speaker);
+  const payload = {};
+  const pitch = Number(state.pitch) || 0;
+  if (Math.abs(pitch) > 0.01) {
+    payload.pitch = pitch;
+  }
+  return Object.keys(payload).length ? payload : null;
 }
 
 function createAssignment(voiceName, langCode, speakerKey) {
-    const state = getFxState(speakerKey);
-    const assignment = {
-        voice: voiceName,
-        lang_code: langCode
-    };
-    const fxPayload = getFxPayload(speakerKey);
-    if (fxPayload) {
-        assignment.fx = fxPayload;
-    }
-    const speedValue = Number(state.speed) || 1;
-    if (Math.abs(speedValue - 1) > 0.01) {
-        assignment.speed = Number(speedValue.toFixed(2));
-    }
-    return assignment;
+  const state = getFxState(speakerKey);
+  const assignment = {
+    voice: voiceName,
+    lang_code: langCode,
+  };
+  const fxPayload = getFxPayload(speakerKey);
+  if (fxPayload) {
+    assignment.fx = fxPayload;
+  }
+  const speedValue = Number(state.speed) || 1;
+  if (Math.abs(speedValue - 1) > 0.01) {
+    assignment.speed = Number(speedValue.toFixed(2));
+  }
+  return assignment;
 }
 
 function createPresetAssignment(voiceName, speakerKey) {
-    const state = getFxState(speakerKey);
-    const assignment = { voice: voiceName };
-    const fxPayload = getFxPayload(speakerKey);
-    if (fxPayload) {
-        assignment.fx = fxPayload;
-    }
-    const speedValue = Number(state.speed) || 1;
-    if (Math.abs(speedValue - 1) > 0.01) {
-        assignment.speed = Number(speedValue.toFixed(2));
-    }
-    return assignment;
+  const state = getFxState(speakerKey);
+  const assignment = { voice: voiceName };
+  const fxPayload = getFxPayload(speakerKey);
+  if (fxPayload) {
+    assignment.fx = fxPayload;
+  }
+  const speedValue = Number(state.speed) || 1;
+  if (Math.abs(speedValue - 1) > 0.01) {
+    assignment.speed = Number(speedValue.toFixed(2));
+  }
+  return assignment;
 }
 
 function getSharedPreviewText() {
-    const shared = document.getElementById('global-voice-preview-text');
-    const value = shared?.value?.trim();
-    if (value) return value;
-    return 'This is a quick preview line.';
+  const shared = document.getElementById("global-voice-preview-text");
+  const value = shared?.value?.trim();
+  if (value) return value;
+  return "This is a quick preview line.";
 }
 
 function buildDefaultSampleText(speaker) {
-    if (!speaker || speaker === 'default') {
-        return 'This is a quick preview for the default narrator.';
-    }
-    return `This is a quick preview line for ${speaker}.`;
+  if (!speaker || speaker === "default") {
+    return "This is a quick preview for the default narrator.";
+  }
+  return `This is a quick preview line for ${speaker}.`;
 }
 
 function renderFxPanel(container, speaker, options = {}) {
-    if (!container) return;
-    const state = getFxState(speaker);
-    const wrapClass = container.classList.contains('voice-fx-inline')
-        ? 'fx-inline-layout'
-        : 'fx-panel-layout';
-    const previewSlot = options.previewTargetId
-        ? document.getElementById(options.previewTargetId)
-        : null;
-    const useSharedPreview = options.useSharedPreview === true;
-    const showHeaderTitle = options.showHeader !== false;
-    const title = options.title || 'Voice FX';
-    const headerMarkup = showHeaderTitle
-        ? `<div class="fx-header"><h4>${title}</h4></div>`
-        : '';
-    const sharedActionsMarkup = useSharedPreview
-        ? `
+  if (!container) return;
+  const state = getFxState(speaker);
+  const wrapClass = container.classList.contains("voice-fx-inline")
+    ? "fx-inline-layout"
+    : "fx-panel-layout";
+  const previewSlot = options.previewTargetId
+    ? document.getElementById(options.previewTargetId)
+    : null;
+  const useSharedPreview = options.useSharedPreview === true;
+  const showHeaderTitle = options.showHeader !== false;
+  const title = options.title || "Voice FX";
+  const headerMarkup = showHeaderTitle
+    ? `<div class="fx-header"><h4>${title}</h4></div>`
+    : "";
+  const sharedActionsMarkup = useSharedPreview
+    ? `
             <div class="fx-field fx-inline fx-actions">
                 <button type="button" class="btn btn-sm" data-role="fx-preview-btn">Quick Test</button>
                 <span class="fx-status" data-role="fx-status"></span>
             </div>
         `
-        : '';
-    const previewMarkup = !useSharedPreview
-        ? `
+    : "";
+  const previewMarkup = !useSharedPreview
+    ? `
             <div class="fx-field fx-preview">
                 <textarea data-role="fx-sample-text" rows="2" placeholder="Preview text">${state.sampleText || buildDefaultSampleText(speaker)}</textarea>
                 <div class="fx-preview-actions">
@@ -1820,8 +2132,8 @@ function renderFxPanel(container, speaker, options = {}) {
                 </div>
             </div>
         `
-        : '';
-    container.innerHTML = `
+    : "";
+  container.innerHTML = `
         <div class="${wrapClass}">
             ${headerMarkup}
             <div class="fx-fields">
@@ -1843,451 +2155,498 @@ function renderFxPanel(container, speaker, options = {}) {
             </div>
         </div>
     `;
-    if (!useSharedPreview) {
-        if (previewSlot) {
-            previewSlot.innerHTML = previewMarkup;
-        } else if (previewMarkup) {
-            container.insertAdjacentHTML('beforeend', previewMarkup);
-        }
+  if (!useSharedPreview) {
+    if (previewSlot) {
+      previewSlot.innerHTML = previewMarkup;
+    } else if (previewMarkup) {
+      container.insertAdjacentHTML("beforeend", previewMarkup);
     }
-    container.classList.remove('fx-disabled');
+  }
+  container.classList.remove("fx-disabled");
 
-    const pitchInput = container.querySelector('[data-role="fx-pitch"]');
-    const pitchValue = container.querySelector('[data-role="fx-pitch-value"]');
-    const speedInput = container.querySelector('[data-role="fx-speed"]');
-    const speedValue = container.querySelector('[data-role="fx-speed-value"]');
-    const previewRoot = useSharedPreview ? container : (previewSlot || container);
-    const previewBtn = previewRoot.querySelector('[data-role="fx-preview-btn"]');
-    const sampleInput = useSharedPreview
-        ? document.getElementById('global-voice-preview-text')
-        : previewRoot.querySelector('[data-role="fx-sample-text"]');
+  const pitchInput = container.querySelector('[data-role="fx-pitch"]');
+  const pitchValue = container.querySelector('[data-role="fx-pitch-value"]');
+  const speedInput = container.querySelector('[data-role="fx-speed"]');
+  const speedValue = container.querySelector('[data-role="fx-speed-value"]');
+  const previewRoot = useSharedPreview ? container : previewSlot || container;
+  const previewBtn = previewRoot.querySelector('[data-role="fx-preview-btn"]');
+  const sampleInput = useSharedPreview
+    ? document.getElementById("global-voice-preview-text")
+    : previewRoot.querySelector('[data-role="fx-sample-text"]');
 
-    if (pitchInput && pitchValue) {
-        pitchInput.addEventListener('input', event => {
-            state.pitch = parseFloat(event.target.value) || 0;
-            pitchValue.textContent = `${state.pitch.toFixed(1)} st`;
-        });
-    }
-    if (speedInput && speedValue) {
-        speedInput.addEventListener('input', event => {
-            state.speed = parseFloat(event.target.value) || 1;
-            speedValue.textContent = `${state.speed.toFixed(2)}x`;
-        });
-    }
-    if (!useSharedPreview && sampleInput) {
-        sampleInput.addEventListener('input', event => {
-            state.sampleText = event.target.value;
-        });
-    }
-    if (previewBtn) {
-        previewBtn.addEventListener('click', () => handleFxPreview(speaker, container));
-    }
+  if (pitchInput && pitchValue) {
+    pitchInput.addEventListener("input", (event) => {
+      state.pitch = parseFloat(event.target.value) || 0;
+      pitchValue.textContent = `${state.pitch.toFixed(1)} st`;
+    });
+  }
+  if (speedInput && speedValue) {
+    speedInput.addEventListener("input", (event) => {
+      state.speed = parseFloat(event.target.value) || 1;
+      speedValue.textContent = `${state.speed.toFixed(2)}x`;
+    });
+  }
+  if (!useSharedPreview && sampleInput) {
+    sampleInput.addEventListener("input", (event) => {
+      state.sampleText = event.target.value;
+    });
+  }
+  if (previewBtn) {
+    previewBtn.addEventListener("click", () =>
+      handleFxPreview(speaker, container),
+    );
+  }
 }
 
 function resolveVoiceSelection(speaker) {
-    const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
-    if (isQwenEngine(engineName)) {
-        if (speaker === 'default' || !speaker) {
-            return document.getElementById('qwen3-default-speaker')?.value || '';
-        }
-    } else if (speaker === 'default' || !speaker) {
-        return document.getElementById('default-voice-select')?.value || '';
+  const engineName =
+    getSelectedJobEngine() || runtimeSettings?.tts_engine || "kokoro";
+  if (isQwenEngine(engineName)) {
+    if (speaker === "default" || !speaker) {
+      return document.getElementById("qwen3-default-speaker")?.value || "";
     }
-    const selector = document.querySelector(
-        `#speaker-edit-modal-body .voice-assignment-row[data-speaker="${speaker}"] .voice-select`
-    ) || document.querySelector(
-        `#inline-voice-assignment-list .voice-select[data-speaker="${speaker}"]`
+  } else if (speaker === "default" || !speaker) {
+    return document.getElementById("default-voice-select")?.value || "";
+  }
+  const selector =
+    document.querySelector(
+      `#speaker-edit-modal-body .voice-assignment-row[data-speaker="${speaker}"] .voice-select`,
+    ) ||
+    document.querySelector(
+      `#inline-voice-assignment-list .voice-select[data-speaker="${speaker}"]`,
     );
-    return selector?.value || '';
+  return selector?.value || "";
 }
 
 function resolveVoiceSampleSelection(speaker) {
-    if (speaker === 'default' || !speaker) {
-        return getGlobalReferenceSelection();
-    }
-    const selector = document.querySelector(
-        `#speaker-edit-modal-body .voice-assignment-row[data-speaker="${speaker}"] .reference-select`
-    ) || document.querySelector(
-        `#inline-voice-assignment-list .reference-select[data-speaker="${speaker}"]`
+  if (speaker === "default" || !speaker) {
+    return getGlobalReferenceSelection();
+  }
+  const selector =
+    document.querySelector(
+      `#speaker-edit-modal-body .voice-assignment-row[data-speaker="${speaker}"] .reference-select`,
+    ) ||
+    document.querySelector(
+      `#inline-voice-assignment-list .reference-select[data-speaker="${speaker}"]`,
     );
-    return selector?.value?.trim() || '';
+  return selector?.value?.trim() || "";
 }
 
 async function previewVoiceSampleFx({ promptPath, pitch, speed }) {
-    const response = await fetch('/api/voice-prompts/preview-fx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt_path: promptPath, pitch, speed })
-    });
-    const data = await response.json();
-    if (!data.success || !data.audio_base64) {
-        throw new Error(data.error || 'Preview failed');
-    }
-    return data;
+  const response = await fetch("/api/voice-prompts/preview-fx", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt_path: promptPath, pitch, speed }),
+  });
+  const data = await response.json();
+  if (!data.success || !data.audio_base64) {
+    throw new Error(data.error || "Preview failed");
+  }
+  return data;
 }
 
 async function handleFxPreview(speaker, container) {
-    if (!container) return;
-    const statusEl = container.querySelector('[data-role="fx-status"]');
-    const previewBtn = container.querySelector('[data-role="fx-preview-btn"]');
-    if (previewBtn) {
-        if (!previewBtn.dataset.labelPlay) {
-            previewBtn.dataset.labelPlay = previewBtn.textContent.trim() || 'Quick Test';
-        }
-        if (!previewBtn.dataset.labelStop) {
-            previewBtn.dataset.labelStop = 'Stop';
-        }
+  if (!container) return;
+  const statusEl = container.querySelector('[data-role="fx-status"]');
+  const previewBtn = container.querySelector('[data-role="fx-preview-btn"]');
+  if (previewBtn) {
+    if (!previewBtn.dataset.labelPlay) {
+      previewBtn.dataset.labelPlay =
+        previewBtn.textContent.trim() || "Quick Test";
     }
-    if (previewBtn && currentFxPreviewAudio && currentFxPreviewButton === previewBtn) {
-        currentFxPreviewAudio.pause();
-        currentFxPreviewAudio.currentTime = 0;
+    if (!previewBtn.dataset.labelStop) {
+      previewBtn.dataset.labelStop = "Stop";
+    }
+  }
+  if (
+    previewBtn &&
+    currentFxPreviewAudio &&
+    currentFxPreviewButton === previewBtn
+  ) {
+    currentFxPreviewAudio.pause();
+    currentFxPreviewAudio.currentTime = 0;
+    currentFxPreviewAudio = null;
+    previewBtn.classList.remove("is-playing");
+    previewBtn.textContent = previewBtn.dataset.labelPlay || "Quick Test";
+    if (statusEl) statusEl.textContent = "";
+    return;
+  }
+  const engineName =
+    getSelectedJobEngine() || runtimeSettings?.tts_engine || "kokoro";
+  const usesPromptEngine = isPromptEngine(engineName);
+  const samplePrompt = usesPromptEngine
+    ? resolveVoiceSampleSelection(speaker)
+    : "";
+  const usesSamplePreview = usesPromptEngine && !!samplePrompt;
+  const voiceName = usesSamplePreview ? "" : resolveVoiceSelection(speaker);
+  if (!voiceName && !samplePrompt) {
+    if (statusEl) {
+      statusEl.textContent = usesPromptEngine
+        ? "Select a voice sample first."
+        : "Select a voice first.";
+    }
+    return;
+  }
+  const langCode = isQwenEngine(engineName)
+    ? document.getElementById("qwen3-default-language")?.value || "Auto"
+    : getLangCodeForVoice(voiceName);
+  const state = getFxState(speaker);
+  const sampleText =
+    speaker === "default"
+      ? (state.sampleText || "").trim() || buildDefaultSampleText(speaker)
+      : getSharedPreviewText();
+  const panelSpeed = Number(state.speed) || NaN;
+  const globalSpeed =
+    parseFloat(document.getElementById("speed")?.value) || 1.0;
+  let previewSpeed = Number.isFinite(panelSpeed) ? panelSpeed : globalSpeed;
+  previewSpeed = Math.max(0.5, Math.min(previewSpeed, 2.0));
+  const pitchValue = Number(state.pitch) || 0;
+
+  const payload = {
+    voice: usesPromptEngine ? samplePrompt : voiceName,
+    lang_code: langCode,
+    text: sampleText,
+  };
+  const fxPayload = getFxPayload(speaker);
+  if (fxPayload) {
+    payload.fx = fxPayload;
+  }
+  payload.speed = previewSpeed;
+
+  if (!usesSamplePreview) {
+    const selectedEngine = engineName;
+    if (selectedEngine) {
+      payload.tts_engine = selectedEngine;
+      const overrides = collectEngineOverrides(selectedEngine);
+      if (overrides) {
+        payload.engine_options = overrides;
+      }
+    }
+  }
+
+  try {
+    if (previewBtn) previewBtn.disabled = true;
+    if (statusEl) statusEl.textContent = "Rendering preview…";
+
+    const data = usesSamplePreview
+      ? await previewVoiceSampleFx({
+          promptPath: samplePrompt,
+          pitch: pitchValue,
+          speed: previewSpeed,
+        })
+      : await (async () => {
+          const response = await fetch("/api/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const result = await response.json();
+          if (!result.success || !result.audio_base64) {
+            throw new Error(result.error || "Preview failed");
+          }
+          return result;
+        })();
+    if (currentFxPreviewAudio) {
+      currentFxPreviewAudio.pause();
+      currentFxPreviewAudio = null;
+    }
+    const mime = data.mime_type || "audio/wav";
+    currentFxPreviewAudio = new Audio(
+      `data:${mime};base64,${data.audio_base64}`,
+    );
+    currentFxPreviewButton = previewBtn || null;
+    currentFxPreviewAudio
+      .play()
+      .then(() => {
+        if (statusEl) statusEl.textContent = "Playing preview…";
+        if (previewBtn) {
+          previewBtn.disabled = false;
+          previewBtn.classList.add("is-playing");
+          previewBtn.textContent = previewBtn.dataset.labelStop || "Stop";
+        }
+      })
+      .catch((err) => {
+        console.error("Preview playback failed", err);
+        if (statusEl) statusEl.textContent = "Unable to play preview.";
+        if (previewBtn) {
+          previewBtn.classList.remove("is-playing");
+          previewBtn.textContent = previewBtn.dataset.labelPlay || "Quick Test";
+        }
+      });
+    if (currentFxPreviewAudio) {
+      currentFxPreviewAudio.onended = () => {
+        if (statusEl) statusEl.textContent = "";
         currentFxPreviewAudio = null;
-        previewBtn.classList.remove('is-playing');
-        previewBtn.textContent = previewBtn.dataset.labelPlay || 'Quick Test';
-        if (statusEl) statusEl.textContent = '';
-        return;
-    }
-    const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
-    const usesPromptEngine = isPromptEngine(engineName);
-    const samplePrompt = usesPromptEngine ? resolveVoiceSampleSelection(speaker) : '';
-    const usesSamplePreview = usesPromptEngine && !!samplePrompt;
-    const voiceName = usesSamplePreview ? '' : resolveVoiceSelection(speaker);
-    if (!voiceName && !samplePrompt) {
-        if (statusEl) {
-            statusEl.textContent = usesPromptEngine
-                ? 'Select a voice sample first.'
-                : 'Select a voice first.';
+        if (previewBtn) {
+          previewBtn.classList.remove("is-playing");
+          previewBtn.textContent = previewBtn.dataset.labelPlay || "Quick Test";
         }
-        return;
+        currentFxPreviewButton = null;
+      };
     }
-    const langCode = isQwenEngine(engineName)
-        ? (document.getElementById('qwen3-default-language')?.value || 'Auto')
-        : getLangCodeForVoice(voiceName);
-    const state = getFxState(speaker);
-    const sampleText = speaker === 'default'
-        ? (state.sampleText || '').trim() || buildDefaultSampleText(speaker)
-        : getSharedPreviewText();
-    const panelSpeed = Number(state.speed) || NaN;
-    const globalSpeed = parseFloat(document.getElementById('speed')?.value) || 1.0;
-    let previewSpeed = Number.isFinite(panelSpeed) ? panelSpeed : globalSpeed;
-    previewSpeed = Math.max(0.5, Math.min(previewSpeed, 2.0));
-    const pitchValue = Number(state.pitch) || 0;
-
-    const payload = {
-        voice: usesPromptEngine ? samplePrompt : voiceName,
-        lang_code: langCode,
-        text: sampleText,
-    };
-    const fxPayload = getFxPayload(speaker);
-    if (fxPayload) {
-        payload.fx = fxPayload;
+  } catch (error) {
+    console.error("Preview failed:", error);
+    if (statusEl) statusEl.textContent = error.message || "Preview failed";
+  } finally {
+    if (previewBtn && !currentFxPreviewAudio) {
+      previewBtn.disabled = false;
     }
-    payload.speed = previewSpeed;
-
-    if (!usesSamplePreview) {
-        const selectedEngine = engineName;
-        if (selectedEngine) {
-            payload.tts_engine = selectedEngine;
-            const overrides = collectEngineOverrides(selectedEngine);
-            if (overrides) {
-                payload.engine_options = overrides;
-            }
-        }
-    }
-
-    try {
-        if (previewBtn) previewBtn.disabled = true;
-        if (statusEl) statusEl.textContent = 'Rendering preview…';
-
-        const data = usesSamplePreview
-            ? await previewVoiceSampleFx({
-                promptPath: samplePrompt,
-                pitch: pitchValue,
-                speed: previewSpeed
-            })
-            : await (async () => {
-                const response = await fetch('/api/preview', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
-                if (!result.success || !result.audio_base64) {
-                    throw new Error(result.error || 'Preview failed');
-                }
-                return result;
-            })();
-        if (currentFxPreviewAudio) {
-            currentFxPreviewAudio.pause();
-            currentFxPreviewAudio = null;
-        }
-        const mime = data.mime_type || 'audio/wav';
-        currentFxPreviewAudio = new Audio(`data:${mime};base64,${data.audio_base64}`);
-        currentFxPreviewButton = previewBtn || null;
-        currentFxPreviewAudio.play().then(() => {
-            if (statusEl) statusEl.textContent = 'Playing preview…';
-            if (previewBtn) {
-                previewBtn.disabled = false;
-                previewBtn.classList.add('is-playing');
-                previewBtn.textContent = previewBtn.dataset.labelStop || 'Stop';
-            }
-        }).catch(err => {
-            console.error('Preview playback failed', err);
-            if (statusEl) statusEl.textContent = 'Unable to play preview.';
-            if (previewBtn) {
-                previewBtn.classList.remove('is-playing');
-                previewBtn.textContent = previewBtn.dataset.labelPlay || 'Quick Test';
-            }
-        });
-        if (currentFxPreviewAudio) {
-            currentFxPreviewAudio.onended = () => {
-                if (statusEl) statusEl.textContent = '';
-                currentFxPreviewAudio = null;
-                if (previewBtn) {
-                    previewBtn.classList.remove('is-playing');
-                    previewBtn.textContent = previewBtn.dataset.labelPlay || 'Quick Test';
-                }
-                currentFxPreviewButton = null;
-            };
-        }
-    } catch (error) {
-        console.error('Preview failed:', error);
-        if (statusEl) statusEl.textContent = error.message || 'Preview failed';
-    } finally {
-        if (previewBtn && !currentFxPreviewAudio) {
-            previewBtn.disabled = false;
-        }
-    }
+  }
 }
 
 function initDefaultVoiceFxPanel() {
-    const container = document.getElementById('default-voice-fx-panel');
-    if (!container) return;
-    renderFxPanel(container, 'default', {
-        title: 'Default Voice FX',
-        showHeader: false,
-        previewTargetId: 'default-voice-preview-slot',
-    });
+  const container = document.getElementById("default-voice-fx-panel");
+  if (!container) return;
+  renderFxPanel(container, "default", {
+    title: "Default Voice FX",
+    showHeader: false,
+    previewTargetId: "default-voice-preview-slot",
+  });
 }
 
 function refreshChapterHint() {
-    const chapterHint = document.getElementById('chapter-detection-hint');
-    const chapterCheckbox = document.getElementById('split-chapters-checkbox');
-    syncFullStoryOption(chapterCheckbox);
-    if (!chapterHint || !chapterCheckbox) {
-        return;
-    }
+  const chapterHint = document.getElementById("chapter-detection-hint");
+  const chapterCheckbox = document.getElementById("split-chapters-checkbox");
+  syncFullStoryOption(chapterCheckbox);
+  if (!chapterHint || !chapterCheckbox) {
+    return;
+  }
 
-    if (!currentStats || !currentStats.section_detection) {
-        chapterHint.textContent = chapterCheckbox.checked
-            ? 'Section splitting enabled. Awaiting analysis to determine sections.'
-            : 'Sections not analyzed yet.';
-        return;
-    }
+  if (!currentStats || !currentStats.section_detection) {
+    chapterHint.textContent = chapterCheckbox.checked
+      ? "Section splitting enabled. Awaiting analysis to determine sections."
+      : "Sections not analyzed yet.";
+    return;
+  }
 
-    const { detected, count, kind, book_count: bookCount = 0, section_count: sectionCount = 0 } = currentStats.section_detection;
-    const label = kind === 'book' ? 'book' : 'section';
-    const summary = kind === 'book'
-        ? `${bookCount || count} book${(bookCount || count) === 1 ? '' : 's'} · ${sectionCount} section${sectionCount === 1 ? '' : 's'}`
-        : `${count} ${label}${count === 1 ? '' : 's'}`;
-    if (!detected) {
-        chapterHint.textContent = chapterCheckbox.checked
-            ? 'Splitting enabled, but no section headings were detected. The whole story will be one file.'
-            : 'No section headings detected. Add headings like "Chapter 1" to enable split outputs.';
-        return;
-    }
+  const {
+    detected,
+    count,
+    kind,
+    book_count: bookCount = 0,
+    section_count: sectionCount = 0,
+  } = currentStats.section_detection;
+  const label = kind === "book" ? "book" : "section";
+  const summary =
+    kind === "book"
+      ? `${bookCount || count} book${(bookCount || count) === 1 ? "" : "s"} · ${sectionCount} section${sectionCount === 1 ? "" : "s"}`
+      : `${count} ${label}${count === 1 ? "" : "s"}`;
+  if (!detected) {
+    chapterHint.textContent = chapterCheckbox.checked
+      ? "Splitting enabled, but no section headings were detected. The whole story will be one file."
+      : 'No section headings detected. Add headings like "Chapter 1" to enable split outputs.';
+    return;
+  }
 
-    if (chapterCheckbox.checked) {
-        chapterHint.textContent = `Splitting enabled: ${summary} will become individual audio files.`;
-    } else {
-        chapterHint.textContent = `Detected ${summary}. Enable the checkbox to create separate audio files.`;
-    }
+  if (chapterCheckbox.checked) {
+    chapterHint.textContent = `Splitting enabled: ${summary} will become individual audio files.`;
+  } else {
+    chapterHint.textContent = `Detected ${summary}. Enable the checkbox to create separate audio files.`;
+  }
 }
 
 function escapeHtml(value) {
-    const text = String(value ?? '');
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+  const text = String(value ?? "");
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function updateSectionReviewButton(enabled) {
-    const reviewBtn = document.getElementById('review-sections-btn');
-    if (!reviewBtn) return;
-    reviewBtn.disabled = !enabled;
+  const reviewBtn = document.getElementById("review-sections-btn");
+  if (!reviewBtn) return;
+  reviewBtn.disabled = !enabled;
 }
 
 function closeSectionReviewModal() {
-    const overlay = document.getElementById('section-review-modal-overlay');
-    const modal = document.getElementById('section-review-modal');
-    if (overlay) overlay.classList.add('hidden');
-    if (modal) modal.classList.add('hidden');
+  const overlay = document.getElementById("section-review-modal-overlay");
+  const modal = document.getElementById("section-review-modal");
+  if (overlay) overlay.classList.add("hidden");
+  if (modal) modal.classList.add("hidden");
 }
 
 function openSectionReviewModal() {
-    const overlay = document.getElementById('section-review-modal-overlay');
-    const modal = document.getElementById('section-review-modal');
-    if (!overlay || !modal) return;
-    overlay.classList.remove('hidden');
-    modal.classList.remove('hidden');
+  const overlay = document.getElementById("section-review-modal-overlay");
+  const modal = document.getElementById("section-review-modal");
+  if (!overlay || !modal) return;
+  overlay.classList.remove("hidden");
+  modal.classList.remove("hidden");
 }
 
 function closeSectionEditModal() {
-    const overlay = document.getElementById('section-edit-modal-overlay');
-    const modal = document.getElementById('section-edit-modal');
-    if (overlay) overlay.classList.add('hidden');
-    if (modal) modal.classList.add('hidden');
-    sectionEditTarget = null;
+  const overlay = document.getElementById("section-edit-modal-overlay");
+  const modal = document.getElementById("section-edit-modal");
+  if (overlay) overlay.classList.add("hidden");
+  if (modal) modal.classList.add("hidden");
+  sectionEditTarget = null;
 }
 
 function openSectionEditModal(target) {
-    if (!target) return;
-    sectionEditTarget = target;
-    const overlay = document.getElementById('section-edit-modal-overlay');
-    const modal = document.getElementById('section-edit-modal');
-    const input = document.getElementById('section-edit-input');
-    const original = document.getElementById('section-edit-original');
-    if (original) {
-        original.textContent = target.heading
-            ? `Current heading: ${target.heading}`
-            : 'Current heading not available.';
-    }
-    if (input) {
-        input.value = target.heading || target.title || '';
-        input.focus();
-        input.select();
-    }
-    if (overlay) overlay.classList.remove('hidden');
-    if (modal) modal.classList.remove('hidden');
+  if (!target) return;
+  sectionEditTarget = target;
+  const overlay = document.getElementById("section-edit-modal-overlay");
+  const modal = document.getElementById("section-edit-modal");
+  const input = document.getElementById("section-edit-input");
+  const original = document.getElementById("section-edit-original");
+  if (original) {
+    original.textContent = target.heading
+      ? `Current heading: ${target.heading}`
+      : "Current heading not available.";
+  }
+  if (input) {
+    input.value = target.heading || target.title || "";
+    input.focus();
+    input.select();
+  }
+  if (overlay) overlay.classList.remove("hidden");
+  if (modal) modal.classList.remove("hidden");
 }
 
 function cleanHeadingClient(value) {
-    if (!value) return '';
-    return value.replace(/\[[^\]]+\]/g, '').replace(/\s+/g, ' ').trim();
+  if (!value) return "";
+  return value
+    .replace(/\[[^\]]+\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function updateSectionCardTitle(target, newHeading) {
-    const card = document.querySelector(`[data-section-id="${target.sectionId}"]`);
-    if (!card) return;
-    const titleEl = card.querySelector('.section-review-title');
-    if (titleEl) {
-        const cleaned = cleanHeadingClient(newHeading);
-        titleEl.textContent = cleaned || newHeading || 'Untitled section';
-    }
+  const card = document.querySelector(
+    `[data-section-id="${target.sectionId}"]`,
+  );
+  if (!card) return;
+  const titleEl = card.querySelector(".section-review-title");
+  if (titleEl) {
+    const cleaned = cleanHeadingClient(newHeading);
+    titleEl.textContent = cleaned || newHeading || "Untitled section";
+  }
 }
 
 function updateSectionDataHeading(target, newHeading) {
-    if (!sectionReviewData || !target) return;
-    if (target.kind === 'book') {
-        const book = sectionReviewData.books?.[target.bookIndex];
-        const chapter = book?.chapters?.[target.chapterIndex];
-        if (chapter) {
-            chapter.heading = newHeading;
-            chapter.title = cleanHeadingClient(newHeading) || chapter.title;
-        }
-        return;
+  if (!sectionReviewData || !target) return;
+  if (target.kind === "book") {
+    const book = sectionReviewData.books?.[target.bookIndex];
+    const chapter = book?.chapters?.[target.chapterIndex];
+    if (chapter) {
+      chapter.heading = newHeading;
+      chapter.title = cleanHeadingClient(newHeading) || chapter.title;
     }
-    const section = sectionReviewData.sections?.[target.sectionIndex];
-    if (section) {
-        section.heading = newHeading;
-        section.title = cleanHeadingClient(newHeading) || section.title;
-    }
+    return;
+  }
+  const section = sectionReviewData.sections?.[target.sectionIndex];
+  if (section) {
+    section.heading = newHeading;
+    section.title = cleanHeadingClient(newHeading) || section.title;
+  }
 }
 
 function applySectionHeadingEdit(newHeading) {
-    if (!sectionEditTarget) return;
-    const input = document.getElementById('input-text');
-    if (!input) return;
-    const start = sectionEditTarget.headingStart;
-    const end = sectionEditTarget.headingEnd;
-    if (typeof start !== 'number' || typeof end !== 'number') {
-        showNotification('Heading position missing. Re-run section detection first.', 'warning');
-        return;
+  if (!sectionEditTarget) return;
+  const input = document.getElementById("input-text");
+  if (!input) return;
+  const start = sectionEditTarget.headingStart;
+  const end = sectionEditTarget.headingEnd;
+  if (typeof start !== "number" || typeof end !== "number") {
+    showNotification(
+      "Heading position missing. Re-run section detection first.",
+      "warning",
+    );
+    return;
+  }
+  const text = input.value || "";
+  if (start < 0 || end < start || end > text.length) {
+    showNotification(
+      "Heading location is out of date. Re-run section detection first.",
+      "warning",
+    );
+    return;
+  }
+  const updated = `${text.slice(0, start)}${newHeading}${text.slice(end)}`;
+  input.value = updated;
+
+  // Invalidate both caches so the next modal open re-fetches fresh data
+  // with correct offsets, and analysis reflects the updated text.
+  sectionReviewData = null;
+  sectionReviewLastFetchedText = null;
+  lastAnalyzedText = "";
+
+  closeSectionEditModal();
+  showNotification("Heading updated. Refreshing sections…", "success");
+
+  // Re-fetch section preview so the Review modal cards are immediately current,
+  // then re-run text analysis so speaker/chapter info stays in sync.
+  (async () => {
+    try {
+      const customHeading = document
+        .getElementById("custom-heading-input")
+        ?.value?.trim();
+      const payload = { text: updated };
+      if (customHeading) payload.custom_heading = customHeading;
+      const response = await fetch("/api/sections/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (data && data.success) {
+        sectionReviewLastFetchedText = updated;
+      }
+      renderSectionReview(data);
+    } catch (_) {
+      // Non-fatal — user can click Review Sections again to refresh
     }
-    const text = input.value || '';
-    if (start < 0 || end < start || end > text.length) {
-        showNotification('Heading location is out of date. Re-run section detection first.', 'warning');
-        return;
-    }
-    const updated = `${text.slice(0, start)}${newHeading}${text.slice(end)}`;
-    input.value = updated;
+  })();
 
-    // Invalidate both caches so the next modal open re-fetches fresh data
-    // with correct offsets, and analysis reflects the updated text.
-    sectionReviewData = null;
-    sectionReviewLastFetchedText = null;
-    lastAnalyzedText = '';
-
-    closeSectionEditModal();
-    showNotification('Heading updated. Refreshing sections…', 'success');
-
-    // Re-fetch section preview so the Review modal cards are immediately current,
-    // then re-run text analysis so speaker/chapter info stays in sync.
-    (async () => {
-        try {
-            const customHeading = document.getElementById('custom-heading-input')?.value?.trim();
-            const payload = { text: updated };
-            if (customHeading) payload.custom_heading = customHeading;
-            const response = await fetch('/api/sections/preview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            if (data && data.success) {
-                sectionReviewLastFetchedText = updated;
-            }
-            renderSectionReview(data);
-        } catch (_) {
-            // Non-fatal — user can click Review Sections again to refresh
-        }
-    })();
-
-    // Trigger analysis refresh (debounced) so chapter/speaker detection updates
-    input.dispatchEvent(new Event('input', { bubbles: true }));
+  // Trigger analysis refresh (debounced) so chapter/speaker detection updates
+  input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function renderSectionReview(data) {
-    const body = document.getElementById('section-review-modal-body');
-    if (!body) return;
+  const body = document.getElementById("section-review-modal-body");
+  if (!body) return;
 
-    sectionReviewData = data && data.success ? data : null;
+  sectionReviewData = data && data.success ? data : null;
 
-    if (!data || !data.success) {
-        const message = data?.error || 'Unable to load section preview.';
-        body.innerHTML = `<div class="section-review-error">${escapeHtml(message)}</div>`;
-        return;
-    }
+  if (!data || !data.success) {
+    const message = data?.error || "Unable to load section preview.";
+    body.innerHTML = `<div class="section-review-error">${escapeHtml(message)}</div>`;
+    return;
+  }
 
-    if (data.kind === 'none' || (!data.books?.length && !data.sections?.length)) {
-        body.innerHTML = '<div class="section-review-empty">No section headings detected.</div>';
-        return;
-    }
+  if (data.kind === "none" || (!data.books?.length && !data.sections?.length)) {
+    body.innerHTML =
+      '<div class="section-review-empty">No section headings detected.</div>';
+    return;
+  }
 
-    const summary = data.kind === 'book'
-        ? `${data.book_count || 0} book${data.book_count === 1 ? '' : 's'} · ${data.section_count || 0} section${data.section_count === 1 ? '' : 's'}`
-        : `${data.section_count || 0} section${data.section_count === 1 ? '' : 's'}`;
+  const summary =
+    data.kind === "book"
+      ? `${data.book_count || 0} book${data.book_count === 1 ? "" : "s"} · ${data.section_count || 0} section${data.section_count === 1 ? "" : "s"}`
+      : `${data.section_count || 0} section${data.section_count === 1 ? "" : "s"}`;
 
-    const summaryHtml = `<div class="section-review-summary">Detected: <strong>${escapeHtml(summary)}</strong></div>`;
+  const summaryHtml = `<div class="section-review-summary">Detected: <strong>${escapeHtml(summary)}</strong></div>`;
 
-    if (data.kind === 'book') {
-        const bookBlocks = (data.books || []).map((book, bookIdx) => {
-            const chapters = book.chapters || [];
-            const chapterCards = chapters.map((chapter, chapterIdx) => {
-                const title = chapter.title || 'Untitled section';
-                const sectionId = `book-${bookIdx}-chapter-${chapterIdx}`;
-                return `
-                    <div class="section-review-card" data-section-id="${sectionId}" data-section-kind="book" data-book-index="${bookIdx}" data-chapter-index="${chapterIdx}" data-heading-start="${chapter.heading_start ?? ''}" data-heading-end="${chapter.heading_end ?? ''}" data-heading="${escapeHtml(chapter.heading || '')}" data-title="${escapeHtml(title)}">
+  if (data.kind === "book") {
+    const bookBlocks = (data.books || [])
+      .map((book, bookIdx) => {
+        const chapters = book.chapters || [];
+        const chapterCards = chapters
+          .map((chapter, chapterIdx) => {
+            const title = chapter.title || "Untitled section";
+            const sectionId = `book-${bookIdx}-chapter-${chapterIdx}`;
+            return `
+                    <div class="section-review-card" data-section-id="${sectionId}" data-section-kind="book" data-book-index="${bookIdx}" data-chapter-index="${chapterIdx}" data-heading-start="${chapter.heading_start ?? ""}" data-heading-end="${chapter.heading_end ?? ""}" data-heading="${escapeHtml(chapter.heading || "")}" data-title="${escapeHtml(title)}">
                         <div class="section-review-title">${escapeHtml(title)}</div>
-                        <div class="section-review-preview">${escapeHtml(chapter.preview || '')}</div>
+                        <div class="section-review-preview">${escapeHtml(chapter.preview || "")}</div>
                         <button class="btn btn-secondary section-review-edit" type="button" data-section-id="${sectionId}">Edit heading</button>
                     </div>
                 `;
-            }).join('');
-            return `
+          })
+          .join("");
+        return `
                 <div class="section-review-card section-review-book">
                     <div class="section-review-book-title">
                         ${escapeHtml(book.title || `Book ${bookIdx + 1}`)}
@@ -2296,725 +2655,1028 @@ function renderSectionReview(data) {
                     <div class="section-review-list">${chapterCards}</div>
                 </div>
             `;
-        }).join('');
-        body.innerHTML = `${summaryHtml}<div class="section-review-list">${bookBlocks}</div>`;
-        return;
-    }
+      })
+      .join("");
+    body.innerHTML = `${summaryHtml}<div class="section-review-list">${bookBlocks}</div>`;
+    return;
+  }
 
-    const sectionCards = (data.sections || []).map((section, sectionIdx) => {
-        const title = section.title || 'Untitled section';
-        const sectionId = `section-${sectionIdx}`;
-        return `
-            <div class="section-review-card" data-section-id="${sectionId}" data-section-kind="section" data-section-index="${sectionIdx}" data-heading-start="${section.heading_start ?? ''}" data-heading-end="${section.heading_end ?? ''}" data-heading="${escapeHtml(section.heading || '')}" data-title="${escapeHtml(title)}">
+  const sectionCards = (data.sections || [])
+    .map((section, sectionIdx) => {
+      const title = section.title || "Untitled section";
+      const sectionId = `section-${sectionIdx}`;
+      return `
+            <div class="section-review-card" data-section-id="${sectionId}" data-section-kind="section" data-section-index="${sectionIdx}" data-heading-start="${section.heading_start ?? ""}" data-heading-end="${section.heading_end ?? ""}" data-heading="${escapeHtml(section.heading || "")}" data-title="${escapeHtml(title)}">
                 <div class="section-review-title">${escapeHtml(title)}</div>
-                <div class="section-review-preview">${escapeHtml(section.preview || '')}</div>
+                <div class="section-review-preview">${escapeHtml(section.preview || "")}</div>
                 <button class="btn btn-secondary section-review-edit" type="button" data-section-id="${sectionId}">Edit heading</button>
             </div>
         `;
-    }).join('');
+    })
+    .join("");
 
-    body.innerHTML = `${summaryHtml}<div class="section-review-list">${sectionCards}</div>`;
+  body.innerHTML = `${summaryHtml}<div class="section-review-list">${sectionCards}</div>`;
 }
 
 function getSelectedGeminiPromptOverride() {
-    const select = document.getElementById('gemini-preset-select');
-    if (!select) return '';
-    const selectedId = select.value;
-    if (!selectedId) return '';
-    const preset = availableGeminiPromptPresets.find(entry => entry.id === selectedId);
-    return preset?.prompt || '';
+  const select = document.getElementById("gemini-preset-select");
+  if (!select) return "";
+  const selectedId = select.value;
+  if (!selectedId) return "";
+  const preset = availableGeminiPromptPresets.find(
+    (entry) => entry.id === selectedId,
+  );
+  return preset?.prompt || "";
+}
+
+function getStoredGeminiPrepJobId() {
+  try {
+    return localStorage.getItem(GEMINI_PREP_STORAGE_KEY) || "";
+  } catch (error) {
+    console.warn("Unable to read stored Gemini prep job ID", error);
+    return "";
+  }
+}
+
+function setStoredGeminiPrepJobId(jobId) {
+  geminiPrepUiState.jobId = jobId || null;
+  try {
+    if (jobId) {
+      localStorage.setItem(GEMINI_PREP_STORAGE_KEY, jobId);
+    } else {
+      localStorage.removeItem(GEMINI_PREP_STORAGE_KEY);
+    }
+  } catch (error) {
+    console.warn("Unable to persist Gemini prep job ID", error);
+  }
+}
+
+function formatGeminiWaitCountdown(waitingUntil) {
+  if (!waitingUntil) return "";
+  const targetTime = new Date(waitingUntil).getTime();
+  if (!Number.isFinite(targetTime)) return "";
+  const seconds = Math.max(0, Math.ceil((targetTime - Date.now()) / 1000));
+  return `${seconds}s`;
+}
+
+function setGeminiPrepButtonState(isBusy) {
+  const buttonEl = document.getElementById("gemini-process-btn");
+  if (!buttonEl) return;
+  buttonEl.disabled = !!isBusy;
+  buttonEl.textContent = isBusy ? "Prep Running…" : "Prep Text";
+}
+
+function renderGeminiProgressMeta(metaItems = []) {
+  return metaItems
+    .filter((item) => item && String(item).trim())
+    .map((item) => `<span class="meta-pill">${escapeHtml(String(item))}</span>`)
+    .join("");
+}
+
+function updateGeminiProgress({
+  visible,
+  state = "queued",
+  label = "",
+  count = "",
+  fill = 0,
+  meta = [],
+  error = "",
+  resumeVisible = false,
+}) {
+  const container = document.getElementById("gemini-progress");
+  const badgeEl = document.getElementById("gemini-status-badge");
+  const textEl = document.getElementById("gemini-progress-text");
+  const countEl = document.getElementById("gemini-progress-count");
+  const fillEl = document.getElementById("gemini-progress-fill");
+  const metaEl = document.getElementById("gemini-progress-meta");
+  const errorEl = document.getElementById("gemini-progress-error");
+  const resumeBtn = document.getElementById("gemini-resume-btn");
+
+  if (
+    !container ||
+    !badgeEl ||
+    !textEl ||
+    !countEl ||
+    !fillEl ||
+    !metaEl ||
+    !errorEl ||
+    !resumeBtn
+  )
+    return;
+
+  if (visible) {
+    container.classList.remove("is-hidden");
+    container.classList.add("gemini-progress-state", `state-${state}`);
+    Array.from(container.classList)
+      .filter(
+        (className) =>
+          className.startsWith("state-") && className !== `state-${state}`,
+      )
+      .forEach((className) => container.classList.remove(className));
+    badgeEl.textContent = GEMINI_PREP_STATE_LABELS[state] || "Working";
+    textEl.textContent = label || "Preparing Gemini request…";
+    countEl.textContent = count || "";
+    countEl.className = count
+      ? "gemini-progress-count"
+      : "gemini-progress-count hidden";
+    fillEl.style.width = `${Math.min(Math.max(fill, 0), 100)}%`;
+    metaEl.innerHTML = renderGeminiProgressMeta(meta);
+    metaEl.style.display = meta.length ? "flex" : "none";
+    errorEl.textContent = error || "";
+    errorEl.style.display = error ? "block" : "none";
+    resumeBtn.style.display = resumeVisible ? "inline-flex" : "none";
+  } else {
+    container.classList.add("is-hidden");
+    Array.from(container.classList)
+      .filter((className) => className.startsWith("state-"))
+      .forEach((className) => container.classList.remove(className));
+    fillEl.style.width = "0%";
+    countEl.textContent = "";
+    metaEl.innerHTML = "";
+    errorEl.textContent = "";
+    errorEl.style.display = "none";
+    resumeBtn.style.display = "none";
+  }
+}
+
+function renderGeminiPrepJob(job) {
+  if (!job) {
+    updateGeminiProgress({ visible: false });
+    setGeminiPrepButtonState(false);
+    return;
+  }
+
+  geminiPrepUiState.jobId = job.job_id || null;
+  if (job.book_title) {
+    latestGeminiBookTitle = job.book_title;
+  }
+  const processed = Number(job.processed_sections || 0);
+  const total = Number(job.total_sections || 0);
+  const count = total ? `${processed} / ${total}` : "";
+  const meta = [];
+  if (job.current_section_title) {
+    meta.push(`Section: ${job.current_section_title}`);
+  } else if (GEMINI_PREP_ACTIVE_STATUSES.has(job.status) && total) {
+    meta.push(
+      `Next section: ${Math.min(Number(job.current_section_index || 0) + 1, total)} of ${total}`,
+    );
+  }
+  if (job.retry_count) {
+    meta.push(`Retries used: ${job.retry_count}/${job.max_retries || 0}`);
+  }
+  if (job.status === "waiting_to_retry" && job.waiting_until) {
+    meta.push(`Next retry in ${formatGeminiWaitCountdown(job.waiting_until)}`);
+  }
+  if (job.model_name) {
+    meta.push(`Model: ${job.model_name}`);
+  }
+
+  const showError =
+    job.status === "failed" || job.status === "waiting_to_retry";
+  updateGeminiProgress({
+    visible: true,
+    state: job.status || "queued",
+    label: job.status_detail || "Preparing Gemini request…",
+    count,
+    fill: Number(job.progress || 0),
+    meta,
+    error: showError ? job.last_error || "" : "",
+    resumeVisible: !!job.resume_available,
+  });
+  setGeminiPrepButtonState(GEMINI_PREP_ACTIVE_STATUSES.has(job.status));
+}
+
+async function fetchGeminiPrepJob(jobId) {
+  const response = await fetch(
+    `/api/gemini/prep-jobs/${encodeURIComponent(jobId)}`,
+  );
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || "Unable to load prep job status");
+  }
+  return data.job;
+}
+
+async function handleGeminiPrepCompletion(job) {
+  if (
+    !job?.job_id ||
+    geminiPrepUiState.completionAppliedForJobId === job.job_id
+  ) {
+    return;
+  }
+  geminiPrepUiState.completionAppliedForJobId = job.job_id;
+  setStoredGeminiPrepJobId("");
+
+  const inputEl = document.getElementById("input-text");
+  if (inputEl && job.result_text) {
+    inputEl.value = job.result_text.trim();
+  }
+  lastAnalyzedText = "";
+  showNotification(
+    "Prep Text completed. Input updated from persisted job output.",
+    "success",
+  );
+  const analysisSucceeded = await analyzeText({ auto: true });
+  if (analysisSucceeded) {
+    await fetchSpeakerProfiles();
+  }
+}
+
+async function pollGeminiPrepJob(jobId) {
+  if (!jobId) return;
+  const pollToken = ++geminiPrepUiState.pollToken;
+  setStoredGeminiPrepJobId(jobId);
+
+  while (geminiPrepUiState.pollToken === pollToken) {
+    let job;
+    try {
+      job = await fetchGeminiPrepJob(jobId);
+    } catch (error) {
+      console.error("Failed to poll Gemini prep job:", error);
+      updateGeminiProgress({
+        visible: true,
+        state: "failed",
+        label: "Unable to refresh prep job status.",
+        count: "",
+        fill: 0,
+        meta: [],
+        error: error.message || "Status refresh failed",
+        resumeVisible: !!getStoredGeminiPrepJobId(),
+      });
+      setGeminiPrepButtonState(false);
+      return;
+    }
+
+    if (!job) {
+      updateGeminiProgress({ visible: false });
+      setGeminiPrepButtonState(false);
+      setStoredGeminiPrepJobId("");
+      return;
+    }
+
+    renderGeminiPrepJob(job);
+
+    if (job.status === "completed") {
+      await handleGeminiPrepCompletion(job);
+      return;
+    }
+    if (!GEMINI_PREP_ACTIVE_STATUSES.has(job.status)) {
+      return;
+    }
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, job.status === "waiting_to_retry" ? 900 : 1200),
+    );
+  }
 }
 
 async function processWithGemini(buttonEl) {
-    const inputEl = document.getElementById('input-text');
-    if (!inputEl) return;
+  const inputEl = document.getElementById("input-text");
+  if (!inputEl) return;
 
-    const text = inputEl.value;
-    if (!text.trim()) {
-        alert('Please enter some text first');
-        return;
+  const text = inputEl.value;
+  if (!text.trim()) {
+    showNotification("Please enter some text first.", "warning");
+    return;
+  }
+
+  const customHeading =
+    document.getElementById("custom-heading-input")?.value?.trim() || "";
+  const promptOverride = getSelectedGeminiPromptOverride();
+  geminiPrepUiState.completionAppliedForJobId = null;
+  updateGeminiProgress({
+    visible: true,
+    state: "queued",
+    label: "Creating persisted prep job…",
+    count: "",
+    fill: 4,
+    meta: [],
+    error: "",
+    resumeVisible: false,
+  });
+  setGeminiPrepButtonState(true);
+  showNotification("Starting resilient Prep Text job…", "info");
+
+  try {
+    const response = await fetch("/api/gemini/prep-jobs", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        prefer_chapters: true,
+        custom_heading: customHeading || undefined,
+        prompt_override: promptOverride || undefined,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success || !data.job?.job_id) {
+      throw new Error(data.error || "Unable to create prep job");
     }
 
-    const customHeading = document.getElementById('custom-heading-input')?.value?.trim() || '';
-    const promptOverride = getSelectedGeminiPromptOverride();
-    updateGeminiProgress({ visible: true, label: 'Preparing Gemini request…', count: '', fill: 5 });
-
-    const originalLabel = buttonEl ? buttonEl.textContent : '';
-    if (buttonEl) {
-        buttonEl.disabled = true;
-        buttonEl.textContent = 'Processing with Gemini...';
-    }
-
-    showNotification('Preparing text for Gemini...', 'info');
-
-    try {
-        updateGeminiProgress({
-            visible: true,
-            label: 'Building section list for Gemini…',
-            count: '',
-            fill: 15
-        });
-
-        const sectionsResponse = await fetch('/api/gemini/sections', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                text,
-                prefer_chapters: true,
-                custom_heading: customHeading || undefined
-            })
-        });
-
-        const sectionsData = await sectionsResponse.json();
-        if (!sectionsData.success) {
-            throw new Error(sectionsData.error || 'Unable to build Gemini sections');
-        }
-
-        const sections = sectionsData.sections || [];
-        if (!sections.length) {
-            throw new Error('No sections were generated for Gemini processing.');
-        }
-        latestGeminiBookTitle = resolveBookTitleFromSections(sections) || latestGeminiBookTitle;
-
-        const outputs = [];
-        const knownSpeakers = new Set();
-        if (currentStats?.speakers?.length) {
-            currentStats.speakers.forEach(name => {
-                if (typeof name === 'string' && name.trim()) {
-                    knownSpeakers.add(name.trim().toLowerCase());
-                }
-            });
-        }
-
-        for (let i = 0; i < sections.length; i++) {
-            const section = sections[i];
-            const currentIndex = i + 1;
-            updateGeminiProgress({
-                visible: true,
-                label: `Processing section ${currentIndex} of ${sections.length}…`,
-                count: `${currentIndex} / ${sections.length}`,
-                fill: Math.round((currentIndex / sections.length) * 100)
-            });
-
-            const payload = {
-                content: section.content || ''
-            };
-            if (promptOverride) {
-                payload.prompt_override = promptOverride;
-            }
-            if (knownSpeakers.size > 0) {
-                payload.known_speakers = Array.from(knownSpeakers);
-            }
-
-            const sectionResponse = await fetch('/api/gemini/process-section', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            const sectionData = await sectionResponse.json();
-            if (!sectionData.success) {
-                throw new Error(sectionData.error || `Gemini failed on section ${currentIndex}`);
-            }
-
-            if (Array.isArray(sectionData.speakers)) {
-                sectionData.speakers.forEach(speaker => {
-                    if (typeof speaker === 'string' && speaker.trim()) {
-                        knownSpeakers.add(speaker.trim().toLowerCase());
-                    }
-                });
-            }
-            outputs.push(sectionData.result_text || '');
-        }
-
-        updateGeminiProgress({
-            visible: true,
-            label: 'Combining Gemini output…',
-            count: `${sections.length} / ${sections.length}`,
-            fill: 100
-        });
-
-        inputEl.value = outputs.join('\n\n').trim();
-
-        lastAnalyzedText = '';
-        showNotification('Gemini processing complete! Text updated.', 'success');
-        const analysisSucceeded = await analyzeText({ auto: true });
-        if (analysisSucceeded) {
-            await fetchSpeakerProfiles();
-        }
-    } catch (error) {
-        console.error('Gemini processing failed:', error);
-        alert(error.message || 'Failed to process with Gemini');
-    } finally {
-        if (buttonEl) {
-            buttonEl.disabled = false;
-            buttonEl.textContent = originalLabel || 'Prep Text with Gemini';
-        }
-        updateGeminiProgress({ visible: false });
-    }
+    setStoredGeminiPrepJobId(data.job.job_id);
+    renderGeminiPrepJob(data.job);
+    await pollGeminiPrepJob(data.job.job_id);
+  } catch (error) {
+    console.error("Gemini prep job failed to start:", error);
+    updateGeminiProgress({
+      visible: true,
+      state: "failed",
+      label: "Unable to start Prep Text.",
+      count: "",
+      fill: 0,
+      meta: [],
+      error: error.message || "Failed to start prep job",
+      resumeVisible: false,
+    });
+    setGeminiPrepButtonState(false);
+    showNotification(error.message || "Failed to start Prep Text.", "warning");
+  }
 }
 
-function updateGeminiProgress({ visible, label, count, fill }) {
-    const container = document.getElementById('gemini-progress');
-    const textEl = document.getElementById('gemini-progress-text');
-    const countEl = document.getElementById('gemini-progress-count');
-    const fillEl = document.getElementById('gemini-progress-fill');
+async function resumeGeminiPrepJob() {
+  const jobId = geminiPrepUiState.jobId || getStoredGeminiPrepJobId();
+  if (!jobId) {
+    showNotification("No resumable Prep Text job was found.", "warning");
+    return;
+  }
 
-    if (!container || !textEl || !countEl || !fillEl) return;
+  setGeminiPrepButtonState(true);
+  updateGeminiProgress({
+    visible: true,
+    state: "queued",
+    label: "Resuming Prep Text job…",
+    count: "",
+    fill: 0,
+    meta: [],
+    error: "",
+    resumeVisible: false,
+  });
 
-    if (visible) {
-        container.style.display = 'block';
-        if (label) textEl.textContent = label;
-        if (count) countEl.textContent = count;
-        if (typeof fill === 'number') fillEl.style.width = `${Math.min(Math.max(fill, 0), 100)}%`;
-    } else {
-        container.style.display = 'none';
-        fillEl.style.width = '0%';
-        countEl.textContent = '';
+  try {
+    const response = await fetch(
+      `/api/gemini/prep-jobs/${encodeURIComponent(jobId)}/resume`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    const data = await response.json();
+    if (!response.ok || !data.success || !data.job?.job_id) {
+      throw new Error(data.error || "Unable to resume prep job");
     }
+    setStoredGeminiPrepJobId(data.job.job_id);
+    renderGeminiPrepJob(data.job);
+    await pollGeminiPrepJob(data.job.job_id);
+  } catch (error) {
+    console.error("Failed to resume Gemini prep job:", error);
+    setGeminiPrepButtonState(false);
+    showNotification(error.message || "Failed to resume Prep Text.", "warning");
+  }
+}
+
+async function restoreGeminiPrepJobFromStorage() {
+  const jobId = getStoredGeminiPrepJobId();
+  if (!jobId) {
+    return;
+  }
+  try {
+    const job = await fetchGeminiPrepJob(jobId);
+    renderGeminiPrepJob(job);
+    if (
+      GEMINI_PREP_ACTIVE_STATUSES.has(job.status) ||
+      GEMINI_PREP_TERMINAL_STATUSES.has(job.status)
+    ) {
+      await pollGeminiPrepJob(jobId);
+    }
+  } catch (error) {
+    console.warn("Stored Gemini prep job could not be restored:", error);
+    setStoredGeminiPrepJobId("");
+    updateGeminiProgress({ visible: false });
+    setGeminiPrepButtonState(false);
+  }
 }
 
 // Initialize app
-document.addEventListener('DOMContentLoaded', () => {
-    initTabs();
-    loadHealthStatus();
-    setupEventListeners();
-    preloadGenerationControls();
-    initDefaultVoiceFxPanel();
-    if (typeof loadLibraryItems === 'function') {
-        loadLibraryItems();
-    }
-    initAutoAnalyze();
-    const chapterCheckbox = document.getElementById('split-chapters-checkbox');
-    syncFullStoryOption(chapterCheckbox, true);
-    initVoiceDropdownFilters();
-    if (!currentStats) {
-        displayStatistics({
-            speakers: [],
-            speaker_count: 1,
-            total_chunks: 0,
-            word_count: 0,
-            estimated_duration: 0,
-            has_speaker_tags: false
-        });
-    }
-    initHelpSystem();
+document.addEventListener("DOMContentLoaded", () => {
+  initTabs();
+  loadHealthStatus();
+  setupEventListeners();
+  preloadGenerationControls();
+  initDefaultVoiceFxPanel();
+  if (typeof loadLibraryItems === "function") {
+    loadLibraryItems();
+  }
+  initAutoAnalyze();
+  const chapterCheckbox = document.getElementById("split-chapters-checkbox");
+  syncFullStoryOption(chapterCheckbox, true);
+  initVoiceDropdownFilters();
+  if (!currentStats) {
+    displayStatistics({
+      speakers: [],
+      speaker_count: 1,
+      total_chunks: 0,
+      word_count: 0,
+      estimated_duration: 0,
+      has_speaker_tags: false,
+    });
+  }
+  initHelpSystem();
+  restoreGeminiPrepJobFromStorage();
 });
 
 function initVoiceDropdownFilters() {
-    // Set up filter change handlers for main voice dropdown
-    const genderFilter = document.getElementById('main-voice-filter-gender');
-    const languageFilter = document.getElementById('main-voice-filter-language');
-    
-    if (genderFilter) {
-        genderFilter.addEventListener('change', () => {
-            voiceDropdownFilters.gender = genderFilter.value;
-            populateReferenceSelects();
-        });
-    }
-    
-    if (languageFilter) {
-        languageFilter.addEventListener('change', () => {
-            voiceDropdownFilters.language = languageFilter.value;
-            populateReferenceSelects();
-        });
-    }
+  // Set up filter change handlers for main voice dropdown
+  const genderFilter = document.getElementById("main-voice-filter-gender");
+  const languageFilter = document.getElementById("main-voice-filter-language");
+
+  if (genderFilter) {
+    genderFilter.addEventListener("change", () => {
+      voiceDropdownFilters.gender = genderFilter.value;
+      populateReferenceSelects();
+    });
+  }
+
+  if (languageFilter) {
+    languageFilter.addEventListener("change", () => {
+      voiceDropdownFilters.language = languageFilter.value;
+      populateReferenceSelects();
+    });
+  }
 }
 
 function initAutoAnalyze() {
-    const input = document.getElementById('input-text');
-    if (!input) return;
+  const input = document.getElementById("input-text");
+  if (!input) return;
 
-    input.addEventListener('input', () => {
-        if (analyzeDebounceTimer) {
-            clearTimeout(analyzeDebounceTimer);
-        }
+  input.addEventListener("input", () => {
+    if (analyzeDebounceTimer) {
+      clearTimeout(analyzeDebounceTimer);
+    }
 
-        analyzeDebounceTimer = setTimeout(async () => {
-            const text = input.value;
-            if (!text.trim()) {
-                currentStats = null;
-                lastAnalyzedText = '';
-                hideAnalysis();
-                return;
-            }
+    analyzeDebounceTimer = setTimeout(async () => {
+      const text = input.value;
+      if (!text.trim()) {
+        currentStats = null;
+        lastAnalyzedText = "";
+        hideAnalysis();
+        return;
+      }
 
-            if (text.trim() === lastAnalyzedText) {
-                return;
-            }
+      if (text.trim() === lastAnalyzedText) {
+        return;
+      }
 
-            const success = await analyzeText({ auto: true });
-            if (success) {
-                lastAnalyzedText = text.trim();
-            }
-        }, ANALYZE_DEBOUNCE_MS);
-    });
+      const success = await analyzeText({ auto: true });
+      if (success) {
+        lastAnalyzedText = text.trim();
+      }
+    }, ANALYZE_DEBOUNCE_MS);
+  });
 }
 
 function hideAnalysis() {
-    const statsSection = document.getElementById('stats-section');
-    const inlineAssignments = document.getElementById('inline-voice-assignments');
-    const chapterInfo = document.getElementById('chapter-detection-info');
-    if (statsSection) {
-        statsSection.style.display = 'none';
-    }
-    if (inlineAssignments) {
-        inlineAssignments.style.display = 'none';
-    }
-    if (chapterInfo) {
-        chapterInfo.style.display = 'none';
-    }
-    currentStats = null;
-    updateSectionReviewButton(false);
-    refreshChapterHint();
+  const statsSection = document.getElementById("stats-section");
+  const inlineAssignments = document.getElementById("inline-voice-assignments");
+  const chapterInfo = document.getElementById("chapter-detection-info");
+  if (statsSection) {
+    statsSection.style.display = "none";
+  }
+  if (inlineAssignments) {
+    inlineAssignments.style.display = "none";
+  }
+  if (chapterInfo) {
+    chapterInfo.style.display = "none";
+  }
+  currentStats = null;
+  updateSectionReviewButton(false);
+  refreshChapterHint();
 }
 
 // Tab switching
 function initTabs() {
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const tabName = button.dataset.tab;
-            
-            // Update buttons
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            
-            // Update content
-            tabContents.forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`${tabName}-tab`).classList.add('active');
-        });
+  const tabButtons = document.querySelectorAll(".tab-button");
+  const tabContents = document.querySelectorAll(".tab-content");
+
+  tabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const tabName = button.dataset.tab;
+
+      // Update buttons
+      tabButtons.forEach((btn) => btn.classList.remove("active"));
+      button.classList.add("active");
+
+      // Update content
+      tabContents.forEach((content) => {
+        content.classList.remove("active");
+      });
+      document.getElementById(`${tabName}-tab`).classList.add("active");
     });
+  });
 }
 
 // Setup event listeners
 function setupEventListeners() {
-    const analyzeBtn = document.getElementById('analyze-btn');
-    const generateBtn = document.getElementById('generate-btn');
-    const geminiBtn = document.getElementById('gemini-process-btn');
-    const downloadBtn = document.getElementById('download-btn');
-    const newGenerationBtn = document.getElementById('new-generation-btn');
-    const resetAssignmentsBtn = document.getElementById('reset-assignments-btn');
-    const cancelBtn = document.getElementById('cancel-btn');
-    const chapterCheckbox = document.getElementById('split-chapters-checkbox');
-    const fullStoryCheckbox = document.getElementById('full-story-checkbox');
-    const reviewSectionsBtn = document.getElementById('review-sections-btn');
-    const sectionReviewOverlay = document.getElementById('section-review-modal-overlay');
-    const sectionReviewClose = document.getElementById('section-review-modal-close');
-    const sectionReviewFooterClose = document.getElementById('section-review-close-btn');
-    const sectionReviewBody = document.getElementById('section-review-modal-body');
-    const sectionEditOverlay = document.getElementById('section-edit-modal-overlay');
-    const sectionEditClose = document.getElementById('section-edit-modal-close');
-    const sectionEditCancel = document.getElementById('section-edit-cancel-btn');
-    const sectionEditSave = document.getElementById('section-edit-save-btn');
-    const sectionEditInput = document.getElementById('section-edit-input');
-    const speakersList = document.getElementById('speakers-list');
-    const speakerModalOverlay = document.getElementById('speaker-edit-modal-overlay');
-    const speakerModalClose = document.getElementById('speaker-edit-modal-close');
-    const speakerModalFooterClose = document.getElementById('speaker-edit-modal-close-btn');
-    const speakerReadyCheckbox = document.getElementById('speaker-ready-checkbox');
-    const batchGenerateBtn = document.getElementById('generate-voices-btn');
-    const batchModalOverlay = document.getElementById('speaker-batch-modal-overlay');
-    const batchModalClose = document.getElementById('speaker-batch-modal-close');
-    const batchModalCancel = document.getElementById('speaker-batch-cancel-btn');
-    const batchModalConfirm = document.getElementById('speaker-batch-confirm-btn');
-    const batchPrefixInput = document.getElementById('speaker-batch-prefix');
-    const batchStatus = document.getElementById('speaker-batch-status');
-    const batchProgress = document.getElementById('speaker-batch-progress');
-    const batchProgressFill = document.getElementById('speaker-batch-progress-fill');
-    const batchProgressLabel = document.getElementById('speaker-batch-progress-label');
-    const batchComplete = document.getElementById('speaker-batch-complete');
-    const batchCompleteSummary = document.getElementById('speaker-batch-complete-summary');
-    const batchOkBtn = document.getElementById('speaker-batch-ok-btn');
-    let batchGenerationInFlight = false;
-    const projectManageBtn = document.getElementById('project-manage-btn');
-    const projectModalOverlay = document.getElementById('project-modal-overlay');
-    const projectModalClose = document.getElementById('project-modal-close');
-    const projectModalFooterClose = document.getElementById('project-modal-close-btn');
-    const projectSaveConfirm = document.getElementById('project-save-confirm');
-    const projectList = document.getElementById('project-list');
-    const projectNameInput = document.getElementById('project-name-input');
-    const projectStatus = document.getElementById('project-status');
+  const analyzeBtn = document.getElementById("analyze-btn");
+  const generateBtn = document.getElementById("generate-btn");
+  const geminiBtn = document.getElementById("gemini-process-btn");
+  const geminiResumeBtn = document.getElementById("gemini-resume-btn");
+  const downloadBtn = document.getElementById("download-btn");
+  const newGenerationBtn = document.getElementById("new-generation-btn");
+  const resetAssignmentsBtn = document.getElementById("reset-assignments-btn");
+  const cancelBtn = document.getElementById("cancel-btn");
+  const chapterCheckbox = document.getElementById("split-chapters-checkbox");
+  const fullStoryCheckbox = document.getElementById("full-story-checkbox");
+  const reviewSectionsBtn = document.getElementById("review-sections-btn");
+  const sectionReviewOverlay = document.getElementById(
+    "section-review-modal-overlay",
+  );
+  const sectionReviewClose = document.getElementById(
+    "section-review-modal-close",
+  );
+  const sectionReviewFooterClose = document.getElementById(
+    "section-review-close-btn",
+  );
+  const sectionReviewBody = document.getElementById(
+    "section-review-modal-body",
+  );
+  const sectionEditOverlay = document.getElementById(
+    "section-edit-modal-overlay",
+  );
+  const sectionEditClose = document.getElementById("section-edit-modal-close");
+  const sectionEditCancel = document.getElementById("section-edit-cancel-btn");
+  const sectionEditSave = document.getElementById("section-edit-save-btn");
+  const sectionEditInput = document.getElementById("section-edit-input");
+  const speakersList = document.getElementById("speakers-list");
+  const speakerModalOverlay = document.getElementById(
+    "speaker-edit-modal-overlay",
+  );
+  const speakerModalClose = document.getElementById("speaker-edit-modal-close");
+  const speakerModalFooterClose = document.getElementById(
+    "speaker-edit-modal-close-btn",
+  );
+  const speakerReadyCheckbox = document.getElementById(
+    "speaker-ready-checkbox",
+  );
+  const batchGenerateBtn = document.getElementById("generate-voices-btn");
+  const batchModalOverlay = document.getElementById(
+    "speaker-batch-modal-overlay",
+  );
+  const batchModalClose = document.getElementById("speaker-batch-modal-close");
+  const batchModalCancel = document.getElementById("speaker-batch-cancel-btn");
+  const batchModalConfirm = document.getElementById(
+    "speaker-batch-confirm-btn",
+  );
+  const batchPrefixInput = document.getElementById("speaker-batch-prefix");
+  const batchStatus = document.getElementById("speaker-batch-status");
+  const batchProgress = document.getElementById("speaker-batch-progress");
+  const batchProgressFill = document.getElementById(
+    "speaker-batch-progress-fill",
+  );
+  const batchProgressLabel = document.getElementById(
+    "speaker-batch-progress-label",
+  );
+  const batchComplete = document.getElementById("speaker-batch-complete");
+  const batchCompleteSummary = document.getElementById(
+    "speaker-batch-complete-summary",
+  );
+  const batchOkBtn = document.getElementById("speaker-batch-ok-btn");
+  let batchGenerationInFlight = false;
+  const projectManageBtn = document.getElementById("project-manage-btn");
+  const projectModalOverlay = document.getElementById("project-modal-overlay");
+  const projectModalClose = document.getElementById("project-modal-close");
+  const projectModalFooterClose = document.getElementById(
+    "project-modal-close-btn",
+  );
+  const projectSaveConfirm = document.getElementById("project-save-confirm");
+  const projectList = document.getElementById("project-list");
+  const projectNameInput = document.getElementById("project-name-input");
+  const projectStatus = document.getElementById("project-status");
 
-    if (analyzeBtn) {
-        analyzeBtn.addEventListener('click', analyzeText);
-    }
-    if (generateBtn) {
-        generateBtn.addEventListener('click', generateAudio);
-    }
-    if (geminiBtn) {
-        geminiBtn.addEventListener('click', () => processWithGemini(geminiBtn));
-    }
-    if (downloadBtn) {
-        downloadBtn.addEventListener('click', downloadAudio);
-    }
-    if (newGenerationBtn) {
-        newGenerationBtn.addEventListener('click', resetGeneration);
-    }
-    if (resetAssignmentsBtn) {
-        resetAssignmentsBtn.addEventListener('click', resetVoiceAssignments);
-    }
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', cancelGeneration);
-    }
-    if (reviewSectionsBtn) {
-        reviewSectionsBtn.addEventListener('click', async () => {
-            if (sectionReviewInFlight) return;
-            const text = document.getElementById('input-text')?.value || '';
-            if (!text.trim()) {
-                showNotification('Enter text first to review sections.', 'warning');
-                return;
-            }
-            openSectionReviewModal();
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener("click", analyzeText);
+  }
+  if (generateBtn) {
+    generateBtn.addEventListener("click", generateAudio);
+  }
+  if (geminiBtn) {
+    geminiBtn.addEventListener("click", () => processWithGemini(geminiBtn));
+  }
+  if (geminiResumeBtn) {
+    geminiResumeBtn.addEventListener("click", () => resumeGeminiPrepJob());
+  }
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", downloadAudio);
+  }
+  if (newGenerationBtn) {
+    newGenerationBtn.addEventListener("click", resetGeneration);
+  }
+  if (resetAssignmentsBtn) {
+    resetAssignmentsBtn.addEventListener("click", resetVoiceAssignments);
+  }
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", cancelGeneration);
+  }
+  if (reviewSectionsBtn) {
+    reviewSectionsBtn.addEventListener("click", async () => {
+      if (sectionReviewInFlight) return;
+      const text = document.getElementById("input-text")?.value || "";
+      if (!text.trim()) {
+        showNotification("Enter text first to review sections.", "warning");
+        return;
+      }
+      openSectionReviewModal();
 
-            // If the text hasn't changed since the last fetch, re-render from cache
-            // so that any heading edits made during this session are preserved.
-            if (sectionReviewData && sectionReviewLastFetchedText === text) {
-                renderSectionReview(sectionReviewData);
-                return;
-            }
+      // If the text hasn't changed since the last fetch, re-render from cache
+      // so that any heading edits made during this session are preserved.
+      if (sectionReviewData && sectionReviewLastFetchedText === text) {
+        renderSectionReview(sectionReviewData);
+        return;
+      }
 
-            const body = document.getElementById('section-review-modal-body');
-            if (body) {
-                body.innerHTML = '<div class="section-review-loading">Loading sections...</div>';
-            }
-            sectionReviewInFlight = true;
-            try {
-                const customHeading = document.getElementById('custom-heading-input')?.value?.trim();
-                const payload = { text };
-                if (customHeading) {
-                    payload.custom_heading = customHeading;
-                }
-                const response = await fetch('/api/sections/preview', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                if (data && data.success) {
-                    sectionReviewLastFetchedText = text;
-                }
-                renderSectionReview(data);
-            } catch (error) {
-                renderSectionReview({ success: false, error: error.message || 'Unable to load section preview.' });
-            } finally {
-                sectionReviewInFlight = false;
-            }
-        });
-    }
-    if (sectionReviewOverlay) {
-        sectionReviewOverlay.addEventListener('click', event => {
-            if (event.target === sectionReviewOverlay) {
-                closeSectionReviewModal();
-            }
-        });
-    }
-    if (sectionReviewBody) {
-        sectionReviewBody.addEventListener('click', event => {
-            const target = event.target instanceof HTMLElement ? event.target : null;
-            const button = target?.closest('.section-review-edit');
-            if (!button) return;
-            const sectionId = button.dataset.sectionId;
-            const card = sectionReviewBody.querySelector(`[data-section-id="${sectionId}"]`);
-            if (!card) return;
-            const headingStart = Number(card.dataset.headingStart);
-            const headingEnd = Number(card.dataset.headingEnd);
-            openSectionEditModal({
-                sectionId,
-                kind: card.dataset.sectionKind,
-                bookIndex: Number(card.dataset.bookIndex),
-                chapterIndex: Number(card.dataset.chapterIndex),
-                sectionIndex: Number(card.dataset.sectionIndex),
-                heading: card.dataset.heading || '',
-                title: card.dataset.title || '',
-                headingStart: Number.isFinite(headingStart) ? headingStart : null,
-                headingEnd: Number.isFinite(headingEnd) ? headingEnd : null,
-            });
-        });
-    }
-    if (sectionReviewClose) {
-        sectionReviewClose.addEventListener('click', closeSectionReviewModal);
-    }
-    if (sectionReviewFooterClose) {
-        sectionReviewFooterClose.addEventListener('click', closeSectionReviewModal);
-    }
-    if (sectionEditOverlay) {
-        sectionEditOverlay.addEventListener('click', event => {
-            if (event.target === sectionEditOverlay) {
-                closeSectionEditModal();
-            }
-        });
-    }
-    if (sectionEditClose) {
-        sectionEditClose.addEventListener('click', closeSectionEditModal);
-    }
-    if (sectionEditCancel) {
-        sectionEditCancel.addEventListener('click', closeSectionEditModal);
-    }
-    if (sectionEditSave) {
-        sectionEditSave.addEventListener('click', () => {
-            const value = sectionEditInput?.value?.trim();
-            if (!value) {
-                showNotification('Heading text cannot be empty.', 'warning');
-                return;
-            }
-            applySectionHeadingEdit(value);
-        });
-    }
-    if (sectionEditInput) {
-        sectionEditInput.addEventListener('keydown', event => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                const value = sectionEditInput.value.trim();
-                if (!value) {
-                    showNotification('Heading text cannot be empty.', 'warning');
-                    return;
-                }
-                applySectionHeadingEdit(value);
-            }
-        });
-    }
-    if (speakersList) {
-        speakersList.addEventListener('click', event => {
-            const target = event.target instanceof HTMLElement ? event.target : null;
-            const chip = target?.closest('.speaker-tag');
-            if (!chip) return;
-            const speaker = chip.dataset.speaker;
-            if (speaker) {
-                openSpeakerEditModal(speaker);
-                populateReferenceSelects();
-                populateVoiceSelects();
-                updateAssignmentModes(getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro');
-            }
-        });
-    }
-    if (speakerModalOverlay) {
-        speakerModalOverlay.addEventListener('click', event => {
-            if (event.target === speakerModalOverlay) {
-                closeSpeakerEditModal();
-            }
-        });
-    }
-    if (speakerModalClose) {
-        speakerModalClose.addEventListener('click', closeSpeakerEditModal);
-    }
-    if (speakerModalFooterClose) {
-        speakerModalFooterClose.addEventListener('click', closeSpeakerEditModal);
-    }
-    if (speakerReadyCheckbox) {
-        speakerReadyCheckbox.addEventListener('change', event => {
-            const speaker = event.currentTarget.dataset.speaker;
-            if (speaker) {
-                setSpeakerReadyState(speaker, event.currentTarget.checked);
-            }
-        });
-    }
-    if (projectManageBtn) {
-        projectManageBtn.addEventListener('click', () => {
-            openProjectModal();
-            if (projectNameInput && !projectNameInput.value) {
-                const headingValue = document.getElementById('custom-heading-input')?.value?.trim() || '';
-                projectNameInput.value = headingValue || projectNameInput.value;
-            }
-        });
-    }
-    if (projectModalOverlay) {
-        projectModalOverlay.addEventListener('click', event => {
-            if (event.target === projectModalOverlay) {
-                closeProjectModal();
-            }
-        });
-    }
-    if (projectModalClose) {
-        projectModalClose.addEventListener('click', closeProjectModal);
-    }
-    if (projectModalFooterClose) {
-        projectModalFooterClose.addEventListener('click', closeProjectModal);
-    }
-    function resetBatchModal() {
-        if (batchPrefixInput) {
-            batchPrefixInput.value = '';
+      const body = document.getElementById("section-review-modal-body");
+      if (body) {
+        body.innerHTML =
+          '<div class="section-review-loading">Loading sections...</div>';
+      }
+      sectionReviewInFlight = true;
+      try {
+        const customHeading = document
+          .getElementById("custom-heading-input")
+          ?.value?.trim();
+        const payload = { text };
+        if (customHeading) {
+          payload.custom_heading = customHeading;
         }
-        if (batchStatus) {
-            batchStatus.textContent = '';
-        }
-        if (batchProgress) {
-            batchProgress.style.display = 'none';
-        }
-        if (batchComplete) {
-            batchComplete.classList.add('hidden');
-        }
-        if (batchOkBtn) {
-            batchOkBtn.classList.add('hidden');
-        }
-        if (batchModalCancel) {
-            batchModalCancel.classList.remove('hidden');
-        }
-        if (batchModalConfirm) {
-            batchModalConfirm.classList.remove('hidden');
-            batchModalConfirm.disabled = false;
-            batchModalConfirm.textContent = 'Generate';
-        }
-        if (batchProgressFill) {
-            batchProgressFill.style.width = '0%';
-        }
-        if (batchProgressLabel) {
-            batchProgressLabel.textContent = 'Preparing...';
-        }
-    }
-    if (batchGenerateBtn) {
-        batchGenerateBtn.addEventListener('click', () => {
-            if (batchModalOverlay) {
-                batchModalOverlay.classList.remove('hidden');
-            }
-            document.getElementById('speaker-batch-modal')?.classList.remove('hidden');
-            resetBatchModal();
-            batchPrefixInput?.focus();
+        const response = await fetch("/api/sections/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
-    }
-    function closeBatchModal() {
-        batchModalOverlay?.classList.add('hidden');
-        document.getElementById('speaker-batch-modal')?.classList.add('hidden');
-        resetBatchModal();
-    }
-    if (batchModalOverlay) {
-        batchModalOverlay.addEventListener('click', event => {
-            if (event.target === batchModalOverlay) {
-                closeBatchModal();
-            }
+        const data = await response.json();
+        if (data && data.success) {
+          sectionReviewLastFetchedText = text;
+        }
+        renderSectionReview(data);
+      } catch (error) {
+        renderSectionReview({
+          success: false,
+          error: error.message || "Unable to load section preview.",
         });
+      } finally {
+        sectionReviewInFlight = false;
+      }
+    });
+  }
+  if (sectionReviewOverlay) {
+    sectionReviewOverlay.addEventListener("click", (event) => {
+      if (event.target === sectionReviewOverlay) {
+        closeSectionReviewModal();
+      }
+    });
+  }
+  if (sectionReviewBody) {
+    sectionReviewBody.addEventListener("click", (event) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const button = target?.closest(".section-review-edit");
+      if (!button) return;
+      const sectionId = button.dataset.sectionId;
+      const card = sectionReviewBody.querySelector(
+        `[data-section-id="${sectionId}"]`,
+      );
+      if (!card) return;
+      const headingStart = Number(card.dataset.headingStart);
+      const headingEnd = Number(card.dataset.headingEnd);
+      openSectionEditModal({
+        sectionId,
+        kind: card.dataset.sectionKind,
+        bookIndex: Number(card.dataset.bookIndex),
+        chapterIndex: Number(card.dataset.chapterIndex),
+        sectionIndex: Number(card.dataset.sectionIndex),
+        heading: card.dataset.heading || "",
+        title: card.dataset.title || "",
+        headingStart: Number.isFinite(headingStart) ? headingStart : null,
+        headingEnd: Number.isFinite(headingEnd) ? headingEnd : null,
+      });
+    });
+  }
+  if (sectionReviewClose) {
+    sectionReviewClose.addEventListener("click", closeSectionReviewModal);
+  }
+  if (sectionReviewFooterClose) {
+    sectionReviewFooterClose.addEventListener("click", closeSectionReviewModal);
+  }
+  if (sectionEditOverlay) {
+    sectionEditOverlay.addEventListener("click", (event) => {
+      if (event.target === sectionEditOverlay) {
+        closeSectionEditModal();
+      }
+    });
+  }
+  if (sectionEditClose) {
+    sectionEditClose.addEventListener("click", closeSectionEditModal);
+  }
+  if (sectionEditCancel) {
+    sectionEditCancel.addEventListener("click", closeSectionEditModal);
+  }
+  if (sectionEditSave) {
+    sectionEditSave.addEventListener("click", () => {
+      const value = sectionEditInput?.value?.trim();
+      if (!value) {
+        showNotification("Heading text cannot be empty.", "warning");
+        return;
+      }
+      applySectionHeadingEdit(value);
+    });
+  }
+  if (sectionEditInput) {
+    sectionEditInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const value = sectionEditInput.value.trim();
+        if (!value) {
+          showNotification("Heading text cannot be empty.", "warning");
+          return;
+        }
+        applySectionHeadingEdit(value);
+      }
+    });
+  }
+  if (speakersList) {
+    speakersList.addEventListener("click", (event) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const chip = target?.closest(".speaker-tag");
+      if (!chip) return;
+      const speaker = chip.dataset.speaker;
+      if (speaker) {
+        openSpeakerEditModal(speaker);
+        populateReferenceSelects();
+        populateVoiceSelects();
+        updateAssignmentModes(
+          getSelectedJobEngine() || runtimeSettings?.tts_engine || "kokoro",
+        );
+      }
+    });
+  }
+  if (speakerModalOverlay) {
+    speakerModalOverlay.addEventListener("click", (event) => {
+      if (event.target === speakerModalOverlay) {
+        closeSpeakerEditModal();
+      }
+    });
+  }
+  if (speakerModalClose) {
+    speakerModalClose.addEventListener("click", closeSpeakerEditModal);
+  }
+  if (speakerModalFooterClose) {
+    speakerModalFooterClose.addEventListener("click", closeSpeakerEditModal);
+  }
+  if (speakerReadyCheckbox) {
+    speakerReadyCheckbox.addEventListener("change", (event) => {
+      const speaker = event.currentTarget.dataset.speaker;
+      if (speaker) {
+        setSpeakerReadyState(speaker, event.currentTarget.checked);
+      }
+    });
+  }
+  if (projectManageBtn) {
+    projectManageBtn.addEventListener("click", () => {
+      openProjectModal();
+      if (projectNameInput && !projectNameInput.value) {
+        const headingValue =
+          document.getElementById("custom-heading-input")?.value?.trim() || "";
+        projectNameInput.value = headingValue || projectNameInput.value;
+      }
+    });
+  }
+  if (projectModalOverlay) {
+    projectModalOverlay.addEventListener("click", (event) => {
+      if (event.target === projectModalOverlay) {
+        closeProjectModal();
+      }
+    });
+  }
+  if (projectModalClose) {
+    projectModalClose.addEventListener("click", closeProjectModal);
+  }
+  if (projectModalFooterClose) {
+    projectModalFooterClose.addEventListener("click", closeProjectModal);
+  }
+  function resetBatchModal() {
+    if (batchPrefixInput) {
+      batchPrefixInput.value = "";
     }
-    if (batchModalClose) {
-        batchModalClose.addEventListener('click', closeBatchModal);
+    if (batchStatus) {
+      batchStatus.textContent = "";
     }
-    if (batchModalCancel) {
-        batchModalCancel.addEventListener('click', closeBatchModal);
+    if (batchProgress) {
+      batchProgress.style.display = "none";
     }
-    if (batchModalConfirm) {
-        batchModalConfirm.addEventListener('click', async () => {
-            if (batchGenerationInFlight) return;
-            batchGenerationInFlight = true;
-            batchModalConfirm.disabled = true;
-            batchModalConfirm.textContent = 'Generating...';
-            try {
-                await runBatchVoiceGeneration(batchPrefixInput?.value || '', batchStatus, {
-                    container: batchProgress,
-                    fill: batchProgressFill,
-                    label: batchProgressLabel
-                }, {
-                    completeCard: batchComplete,
-                    completeSummary: batchCompleteSummary
-                });
-                if (batchOkBtn) {
-                    batchOkBtn.classList.remove('hidden');
-                }
-                if (batchModalCancel) {
-                    batchModalCancel.classList.add('hidden');
-                }
-                if (batchModalConfirm) {
-                    batchModalConfirm.classList.add('hidden');
-                }
-            } finally {
-                batchGenerationInFlight = false;
-                batchModalConfirm.disabled = false;
-                batchModalConfirm.textContent = 'Generate';
-            }
-        });
+    if (batchComplete) {
+      batchComplete.classList.add("hidden");
     }
     if (batchOkBtn) {
-        batchOkBtn.addEventListener('click', () => {
-            closeBatchModal();
-            document.querySelector('.tab-button[data-tab="generate"]')?.click();
-        });
+      batchOkBtn.classList.add("hidden");
     }
-
-    // ── Auto Assign modal ──────────────────────────────────────────────────
-    const autoAssignBtn = document.getElementById('auto-assign-voices-btn');
-    const autoAssignModalOverlay = document.getElementById('auto-assign-modal-overlay');
-    const autoAssignModal = document.getElementById('auto-assign-modal');
-    const autoAssignModalClose = document.getElementById('auto-assign-modal-close');
-    const autoAssignCancelBtn = document.getElementById('auto-assign-cancel-btn');
-    const autoAssignConfirmBtn = document.getElementById('auto-assign-confirm-btn');
-    const autoAssignTableBody = document.getElementById('auto-assign-table-body');
-    const autoAssignTable = document.getElementById('auto-assign-table');
-    const autoAssignNoVoices = document.getElementById('auto-assign-no-voices');
-    const autoAssignNoSpeakers = document.getElementById('auto-assign-no-speakers');
-    const autoAssignThresholdSlider = document.getElementById('auto-assign-threshold-slider');
-    const autoAssignThresholdLabel = document.getElementById('auto-assign-threshold-label');
-
-    function fuzzyMatchScore(a, b) {
-        const sa = (a || '').toLowerCase().trim();
-        const sb = (b || '').toLowerCase().trim();
-        if (!sa || !sb) return 0;
-        if (sa === sb) return 1;
-        const longer = sa.length > sb.length ? sa : sb;
-        const shorter = sa.length > sb.length ? sb : sa;
-        if (longer.includes(shorter)) return shorter.length / longer.length;
-        let matches = 0;
-        const used = new Array(sb.length).fill(false);
-        for (let i = 0; i < sa.length; i++) {
-            for (let j = 0; j < sb.length; j++) {
-                if (!used[j] && sa[i] === sb[j]) {
-                    matches++;
-                    used[j] = true;
-                    break;
-                }
-            }
+    if (batchModalCancel) {
+      batchModalCancel.classList.remove("hidden");
+    }
+    if (batchModalConfirm) {
+      batchModalConfirm.classList.remove("hidden");
+      batchModalConfirm.disabled = false;
+      batchModalConfirm.textContent = "Generate";
+    }
+    if (batchProgressFill) {
+      batchProgressFill.style.width = "0%";
+    }
+    if (batchProgressLabel) {
+      batchProgressLabel.textContent = "Preparing...";
+    }
+  }
+  if (batchGenerateBtn) {
+    batchGenerateBtn.addEventListener("click", () => {
+      if (batchModalOverlay) {
+        batchModalOverlay.classList.remove("hidden");
+      }
+      document
+        .getElementById("speaker-batch-modal")
+        ?.classList.remove("hidden");
+      resetBatchModal();
+      batchPrefixInput?.focus();
+    });
+  }
+  function closeBatchModal() {
+    batchModalOverlay?.classList.add("hidden");
+    document.getElementById("speaker-batch-modal")?.classList.add("hidden");
+    resetBatchModal();
+  }
+  if (batchModalOverlay) {
+    batchModalOverlay.addEventListener("click", (event) => {
+      if (event.target === batchModalOverlay) {
+        closeBatchModal();
+      }
+    });
+  }
+  if (batchModalClose) {
+    batchModalClose.addEventListener("click", closeBatchModal);
+  }
+  if (batchModalCancel) {
+    batchModalCancel.addEventListener("click", closeBatchModal);
+  }
+  if (batchModalConfirm) {
+    batchModalConfirm.addEventListener("click", async () => {
+      if (batchGenerationInFlight) return;
+      batchGenerationInFlight = true;
+      batchModalConfirm.disabled = true;
+      batchModalConfirm.textContent = "Generating...";
+      try {
+        await runBatchVoiceGeneration(
+          batchPrefixInput?.value || "",
+          batchStatus,
+          {
+            container: batchProgress,
+            fill: batchProgressFill,
+            label: batchProgressLabel,
+          },
+          {
+            completeCard: batchComplete,
+            completeSummary: batchCompleteSummary,
+          },
+        );
+        if (batchOkBtn) {
+          batchOkBtn.classList.remove("hidden");
         }
-        return (2 * matches) / (sa.length + sb.length);
-    }
+        if (batchModalCancel) {
+          batchModalCancel.classList.add("hidden");
+        }
+        if (batchModalConfirm) {
+          batchModalConfirm.classList.add("hidden");
+        }
+      } finally {
+        batchGenerationInFlight = false;
+        batchModalConfirm.disabled = false;
+        batchModalConfirm.textContent = "Generate";
+      }
+    });
+  }
+  if (batchOkBtn) {
+    batchOkBtn.addEventListener("click", () => {
+      closeBatchModal();
+      document.querySelector('.tab-button[data-tab="generate"]')?.click();
+    });
+  }
 
-    function buildAutoAssignProposals() {
-        const speakers = Array.isArray(currentStats?.speakers) ? currentStats.speakers : [];
-        const voices = availableChatterboxVoices || [];
-        return speakers.map(speaker => {
-            let bestScore = 0;
-            let bestVoice = null;
-            voices.forEach(v => {
-                const score = fuzzyMatchScore(speaker, v.name || '');
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestVoice = v;
-                }
-            });
-            return {
-                speaker,
-                bestVoice,
-                score: bestScore,
-                bestPromptValue: (bestVoice?.prompt_path || bestVoice?.file_name || '').trim()
-            };
-        });
-    }
+  // ── Auto Assign modal ──────────────────────────────────────────────────
+  const autoAssignBtn = document.getElementById("auto-assign-voices-btn");
+  const autoAssignModalOverlay = document.getElementById(
+    "auto-assign-modal-overlay",
+  );
+  const autoAssignModal = document.getElementById("auto-assign-modal");
+  const autoAssignModalClose = document.getElementById(
+    "auto-assign-modal-close",
+  );
+  const autoAssignCancelBtn = document.getElementById("auto-assign-cancel-btn");
+  const autoAssignConfirmBtn = document.getElementById(
+    "auto-assign-confirm-btn",
+  );
+  const autoAssignTableBody = document.getElementById("auto-assign-table-body");
+  const autoAssignTable = document.getElementById("auto-assign-table");
+  const autoAssignNoVoices = document.getElementById("auto-assign-no-voices");
+  const autoAssignNoSpeakers = document.getElementById(
+    "auto-assign-no-speakers",
+  );
+  const autoAssignThresholdSlider = document.getElementById(
+    "auto-assign-threshold-slider",
+  );
+  const autoAssignThresholdLabel = document.getElementById(
+    "auto-assign-threshold-label",
+  );
 
-    function renderAutoAssignTable(threshold) {
-        const speakers = Array.isArray(currentStats?.speakers) ? currentStats.speakers : [];
-        const voices = availableChatterboxVoices || [];
-        if (!autoAssignTableBody || speakers.length === 0 || voices.length === 0) return;
-        const proposals = buildAutoAssignProposals();
-        const sortedVoices = voices.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        autoAssignTableBody.innerHTML = '';
-        proposals.forEach(({ speaker, score, bestPromptValue }) => {
-            const meetsThreshold = score >= threshold;
-            const promptValue = meetsThreshold ? bestPromptValue : '';
-            const scoreClass = score >= 0.9 ? 'score-high' : score >= threshold ? 'score-med' : 'score-none';
-            const scoreLabel = score > 0 ? `${Math.round(score * 100)}%` : 'No match';
-            const voiceOptions = sortedVoices
-                .map(v => {
-                    const vPath = (v.prompt_path || v.file_name || '').trim();
-                    const selected = vPath && vPath === promptValue ? ' selected' : '';
-                    return `<option value="${vPath}"${selected}>${v.name || vPath}</option>`;
-                })
-                .join('');
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
+  function fuzzyMatchScore(a, b) {
+    const sa = (a || "").toLowerCase().trim();
+    const sb = (b || "").toLowerCase().trim();
+    if (!sa || !sb) return 0;
+    if (sa === sb) return 1;
+    const longer = sa.length > sb.length ? sa : sb;
+    const shorter = sa.length > sb.length ? sb : sa;
+    if (longer.includes(shorter)) return shorter.length / longer.length;
+    let matches = 0;
+    const used = new Array(sb.length).fill(false);
+    for (let i = 0; i < sa.length; i++) {
+      for (let j = 0; j < sb.length; j++) {
+        if (!used[j] && sa[i] === sb[j]) {
+          matches++;
+          used[j] = true;
+          break;
+        }
+      }
+    }
+    return (2 * matches) / (sa.length + sb.length);
+  }
+
+  function buildAutoAssignProposals() {
+    const speakers = Array.isArray(currentStats?.speakers)
+      ? currentStats.speakers
+      : [];
+    const voices = availableChatterboxVoices || [];
+    return speakers.map((speaker) => {
+      let bestScore = 0;
+      let bestVoice = null;
+      voices.forEach((v) => {
+        const score = fuzzyMatchScore(speaker, v.name || "");
+        if (score > bestScore) {
+          bestScore = score;
+          bestVoice = v;
+        }
+      });
+      return {
+        speaker,
+        bestVoice,
+        score: bestScore,
+        bestPromptValue: (
+          bestVoice?.prompt_path ||
+          bestVoice?.file_name ||
+          ""
+        ).trim(),
+      };
+    });
+  }
+
+  function renderAutoAssignTable(threshold) {
+    const speakers = Array.isArray(currentStats?.speakers)
+      ? currentStats.speakers
+      : [];
+    const voices = availableChatterboxVoices || [];
+    if (!autoAssignTableBody || speakers.length === 0 || voices.length === 0)
+      return;
+    const proposals = buildAutoAssignProposals();
+    const sortedVoices = voices
+      .slice()
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    autoAssignTableBody.innerHTML = "";
+    proposals.forEach(({ speaker, score, bestPromptValue }) => {
+      const meetsThreshold = score >= threshold;
+      const promptValue = meetsThreshold ? bestPromptValue : "";
+      const scoreClass =
+        score >= 0.9
+          ? "score-high"
+          : score >= threshold
+            ? "score-med"
+            : "score-none";
+      const scoreLabel = score > 0 ? `${Math.round(score * 100)}%` : "No match";
+      const voiceOptions = sortedVoices
+        .map((v) => {
+          const vPath = (v.prompt_path || v.file_name || "").trim();
+          const selected = vPath && vPath === promptValue ? " selected" : "";
+          return `<option value="${vPath}"${selected}>${v.name || vPath}</option>`;
+        })
+        .join("");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
                 <td class="speaker-name-cell">${speaker}</td>
                 <td>
                     <select class="auto-assign-voice-select" data-speaker="${speaker}">
@@ -3024,545 +3686,626 @@ function setupEventListeners() {
                 </td>
                 <td><span class="auto-assign-score ${scoreClass}">${scoreLabel}</span></td>
             `;
-            autoAssignTableBody.appendChild(tr);
-        });
-    }
+      autoAssignTableBody.appendChild(tr);
+    });
+  }
 
-    function getAutoAssignThreshold() {
-        return (parseInt(autoAssignThresholdSlider?.value, 10) || 80) / 100;
-    }
+  function getAutoAssignThreshold() {
+    return (parseInt(autoAssignThresholdSlider?.value, 10) || 80) / 100;
+  }
 
-    function openAutoAssignModal() {
-        const speakers = Array.isArray(currentStats?.speakers) ? currentStats.speakers : [];
-        const voices = availableChatterboxVoices || [];
+  function openAutoAssignModal() {
+    const speakers = Array.isArray(currentStats?.speakers)
+      ? currentStats.speakers
+      : [];
+    const voices = availableChatterboxVoices || [];
 
-        autoAssignNoSpeakers?.classList.toggle('hidden', speakers.length > 0);
-        autoAssignNoVoices?.classList.toggle('hidden', voices.length > 0);
-        autoAssignTable?.classList.toggle('hidden', speakers.length === 0 || voices.length === 0);
-
-        if (autoAssignThresholdSlider) {
-            autoAssignThresholdSlider.value = 80;
-        }
-        if (autoAssignThresholdLabel) {
-            autoAssignThresholdLabel.textContent = '80%';
-        }
-
-        if (speakers.length > 0 && voices.length > 0) {
-            renderAutoAssignTable(0.8);
-        }
-
-        autoAssignModalOverlay?.classList.remove('hidden');
-        autoAssignModal?.classList.remove('hidden');
-    }
-
-    function closeAutoAssignModal() {
-        autoAssignModalOverlay?.classList.add('hidden');
-        autoAssignModal?.classList.add('hidden');
-        if (autoAssignTableBody) autoAssignTableBody.innerHTML = '';
-    }
-
-    function applyAutoAssignSelections() {
-        if (!autoAssignTableBody) return;
-        autoAssignTableBody.querySelectorAll('.auto-assign-voice-select').forEach(select => {
-            const speaker = select.dataset.speaker;
-            const promptValue = select.value?.trim();
-            if (!speaker) return;
-            if (promptValue) {
-                turboSelectionState[speaker] = promptValue;
-            } else {
-                delete turboSelectionState[speaker];
-            }
-            document.querySelectorAll(
-                `#inline-voice-assignment-list .reference-select[data-speaker="${speaker}"],` +
-                `#speaker-edit-modal-body .reference-select[data-speaker="${speaker}"]`
-            ).forEach(refSelect => {
-                refSelect.value = promptValue || '';
-                const row = refSelect.closest('.voice-assignment-row');
-                if (row) updateInlineSampleButtonState(row, { stopPlayback: false });
-            });
-        });
-        showNotification('Voice samples assigned.', 'success');
-        closeAutoAssignModal();
-    }
+    autoAssignNoSpeakers?.classList.toggle("hidden", speakers.length > 0);
+    autoAssignNoVoices?.classList.toggle("hidden", voices.length > 0);
+    autoAssignTable?.classList.toggle(
+      "hidden",
+      speakers.length === 0 || voices.length === 0,
+    );
 
     if (autoAssignThresholdSlider) {
-        autoAssignThresholdSlider.addEventListener('input', () => {
-            const pct = parseInt(autoAssignThresholdSlider.value, 10) || 80;
-            if (autoAssignThresholdLabel) autoAssignThresholdLabel.textContent = `${pct}%`;
-            renderAutoAssignTable(pct / 100);
-        });
+      autoAssignThresholdSlider.value = 80;
     }
-    if (autoAssignBtn) {
-        autoAssignBtn.addEventListener('click', openAutoAssignModal);
-    }
-    if (autoAssignModalOverlay) {
-        autoAssignModalOverlay.addEventListener('click', event => {
-            if (event.target === autoAssignModalOverlay) closeAutoAssignModal();
-        });
-    }
-    if (autoAssignModalClose) {
-        autoAssignModalClose.addEventListener('click', closeAutoAssignModal);
-    }
-    if (autoAssignCancelBtn) {
-        autoAssignCancelBtn.addEventListener('click', closeAutoAssignModal);
-    }
-    if (autoAssignConfirmBtn) {
-        autoAssignConfirmBtn.addEventListener('click', applyAutoAssignSelections);
-    }
-    // ── End Auto Assign modal ──────────────────────────────────────────────
-
-    if (projectSaveConfirm) {
-        projectSaveConfirm.addEventListener('click', () => {
-            const project = getProjectState();
-            const name = projectNameInput?.value?.trim() || `Project ${new Date().toLocaleString()}`;
-            project.name = name;
-            const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-            const existingByName = projects.find(item => item.name === name);
-            if (existingByName) {
-                const confirmed = confirm(`"${name}" already exists. Overwrite this project?`);
-                if (!confirmed) {
-                    return;
-                }
-                project.id = existingByName.id;
-            }
-            saveProject(project);
-            activeProjectId = project.id;
-            if (projectStatus) {
-                projectStatus.textContent = `Saved ${name}`;
-            }
-        });
-    }
-    if (projectList) {
-        projectList.addEventListener('click', event => {
-            const target = event.target instanceof HTMLElement ? event.target : null;
-            const button = target?.closest('[data-project-action]');
-            if (!button) return;
-            const action = button.dataset.projectAction;
-            const projectId = button.dataset.projectId;
-            const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-            const project = projects.find(item => String(item.id) === String(projectId));
-            if (action === 'load' && project) {
-                closeProjectModal();
-                applyProjectState(project);
-            }
-            if (action === 'delete' && projectId) {
-                deleteProject(projectId);
-            }
-        });
-    }
-    if (chapterCheckbox) {
-        chapterCheckbox.addEventListener('change', event => {
-            refreshChapterHint();
-            syncFullStoryOption(event.currentTarget);
-        });
+    if (autoAssignThresholdLabel) {
+      autoAssignThresholdLabel.textContent = "80%";
     }
 
-    if (fullStoryCheckbox) {
-        fullStoryCheckbox.addEventListener('change', () => {
-            if (!chapterCheckbox?.checked) {
-                fullStoryCheckbox.checked = false;
-            }
-        });
+    if (speakers.length > 0 && voices.length > 0) {
+      renderAutoAssignTable(0.8);
     }
 
-    const outputFormatSelect = document.getElementById('job-output-format');
-    if (outputFormatSelect) {
-        outputFormatSelect.addEventListener('change', event => {
-            handleOutputFormatChange(event.target.value);
-        });
-        handleOutputFormatChange(outputFormatSelect.value);
-    }
+    autoAssignModalOverlay?.classList.remove("hidden");
+    autoAssignModal?.classList.remove("hidden");
+  }
 
-    const jobEngineSelect = document.getElementById('job-tts-engine');
-    if (jobEngineSelect) {
-        jobEngineSelect.addEventListener('change', event => {
-            const engineName = (event.target.value || '').toLowerCase();
-            updateEngineUI(engineName);
-            updateModeIndicator(engineName);
-            // Refresh voice prompt dropdowns to apply engine-specific duration filtering
-            populateReferenceSelects();
-            const currentText = document.getElementById('input-text')?.value?.trim();
-            if (currentText && lastAnalyzedText && currentText === lastAnalyzedText) {
-                analyzeText({ auto: true });
-            }
-        });
-    }
+  function closeAutoAssignModal() {
+    autoAssignModalOverlay?.classList.add("hidden");
+    autoAssignModal?.classList.add("hidden");
+    if (autoAssignTableBody) autoAssignTableBody.innerHTML = "";
+  }
 
-    const referenceUploadInput = document.getElementById('reference-prompt-upload-input');
-    if (referenceUploadInput) {
-        referenceUploadInput.addEventListener('change', handleReferenceUpload);
-    }
-    const globalReferenceSelect = document.getElementById('chatterbox-reference-select');
-    if (globalReferenceSelect) {
-        globalReferenceSelect.addEventListener('change', handleReferenceSelectChange);
-    }
-    refreshGlobalChatterboxPreviewButton();
-    const globalPreviewBtn = document.getElementById('global-chatterbox-preview-btn');
-    if (globalPreviewBtn) {
-        globalPreviewBtn.addEventListener('click', event => {
-            const select = document.getElementById('chatterbox-reference-select');
-            const selection = select?.value?.trim();
-            if (!selection) {
-                showNotification('Select a reference voice first.', 'warning');
-                return;
-            }
-            const voiceEntry = findChatterboxVoiceByPath(selection);
-            if (!voiceEntry || !voiceEntry.id) {
-                showNotification('Unable to resolve that reference voice.', 'warning');
-                return;
-            }
-            if (!window.chatterboxPreviewController) {
-                showNotification('Preview controls are still loading. Try again shortly.', 'warning');
-                return;
-            }
-            window.chatterboxPreviewController.toggleById(voiceEntry.id, event.currentTarget);
-        });
-    }
+  function applyAutoAssignSelections() {
+    if (!autoAssignTableBody) return;
+    autoAssignTableBody
+      .querySelectorAll(".auto-assign-voice-select")
+      .forEach((select) => {
+        const speaker = select.dataset.speaker;
+        const promptValue = select.value?.trim();
+        if (!speaker) return;
+        if (promptValue) {
+          turboSelectionState[speaker] = promptValue;
+        } else {
+          delete turboSelectionState[speaker];
+        }
+        document
+          .querySelectorAll(
+            `#inline-voice-assignment-list .reference-select[data-speaker="${speaker}"],` +
+              `#speaker-edit-modal-body .reference-select[data-speaker="${speaker}"]`,
+          )
+          .forEach((refSelect) => {
+            refSelect.value = promptValue || "";
+            const row = refSelect.closest(".voice-assignment-row");
+            if (row)
+              updateInlineSampleButtonState(row, { stopPlayback: false });
+          });
+      });
+    showNotification("Voice samples assigned.", "success");
+    closeAutoAssignModal();
+  }
+
+  if (autoAssignThresholdSlider) {
+    autoAssignThresholdSlider.addEventListener("input", () => {
+      const pct = parseInt(autoAssignThresholdSlider.value, 10) || 80;
+      if (autoAssignThresholdLabel)
+        autoAssignThresholdLabel.textContent = `${pct}%`;
+      renderAutoAssignTable(pct / 100);
+    });
+  }
+  if (autoAssignBtn) {
+    autoAssignBtn.addEventListener("click", openAutoAssignModal);
+  }
+  if (autoAssignModalOverlay) {
+    autoAssignModalOverlay.addEventListener("click", (event) => {
+      if (event.target === autoAssignModalOverlay) closeAutoAssignModal();
+    });
+  }
+  if (autoAssignModalClose) {
+    autoAssignModalClose.addEventListener("click", closeAutoAssignModal);
+  }
+  if (autoAssignCancelBtn) {
+    autoAssignCancelBtn.addEventListener("click", closeAutoAssignModal);
+  }
+  if (autoAssignConfirmBtn) {
+    autoAssignConfirmBtn.addEventListener("click", applyAutoAssignSelections);
+  }
+  // ── End Auto Assign modal ──────────────────────────────────────────────
+
+  if (projectSaveConfirm) {
+    projectSaveConfirm.addEventListener("click", () => {
+      const project = getProjectState();
+      const name =
+        projectNameInput?.value?.trim() ||
+        `Project ${new Date().toLocaleString()}`;
+      project.name = name;
+      const projects = JSON.parse(
+        localStorage.getItem(PROJECT_STORAGE_KEY) || "[]",
+      );
+      const existingByName = projects.find((item) => item.name === name);
+      if (existingByName) {
+        const confirmed = confirm(
+          `"${name}" already exists. Overwrite this project?`,
+        );
+        if (!confirmed) {
+          return;
+        }
+        project.id = existingByName.id;
+      }
+      saveProject(project);
+      activeProjectId = project.id;
+      if (projectStatus) {
+        projectStatus.textContent = `Saved ${name}`;
+      }
+    });
+  }
+  if (projectList) {
+    projectList.addEventListener("click", (event) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const button = target?.closest("[data-project-action]");
+      if (!button) return;
+      const action = button.dataset.projectAction;
+      const projectId = button.dataset.projectId;
+      const projects = JSON.parse(
+        localStorage.getItem(PROJECT_STORAGE_KEY) || "[]",
+      );
+      const project = projects.find(
+        (item) => String(item.id) === String(projectId),
+      );
+      if (action === "load" && project) {
+        closeProjectModal();
+        applyProjectState(project);
+      }
+      if (action === "delete" && projectId) {
+        deleteProject(projectId);
+      }
+    });
+  }
+  if (chapterCheckbox) {
+    chapterCheckbox.addEventListener("change", (event) => {
+      refreshChapterHint();
+      syncFullStoryOption(event.currentTarget);
+    });
+  }
+
+  if (fullStoryCheckbox) {
+    fullStoryCheckbox.addEventListener("change", () => {
+      if (!chapterCheckbox?.checked) {
+        fullStoryCheckbox.checked = false;
+      }
+    });
+  }
+
+  const outputFormatSelect = document.getElementById("job-output-format");
+  if (outputFormatSelect) {
+    outputFormatSelect.addEventListener("change", (event) => {
+      handleOutputFormatChange(event.target.value);
+    });
+    handleOutputFormatChange(outputFormatSelect.value);
+  }
+
+  const jobEngineSelect = document.getElementById("job-tts-engine");
+  if (jobEngineSelect) {
+    jobEngineSelect.addEventListener("change", (event) => {
+      const engineName = (event.target.value || "").toLowerCase();
+      updateEngineUI(engineName);
+      updateModeIndicator(engineName);
+      // Refresh voice prompt dropdowns to apply engine-specific duration filtering
+      populateReferenceSelects();
+      const currentText = document.getElementById("input-text")?.value?.trim();
+      if (currentText && lastAnalyzedText && currentText === lastAnalyzedText) {
+        analyzeText({ auto: true });
+      }
+    });
+  }
+
+  const referenceUploadInput = document.getElementById(
+    "reference-prompt-upload-input",
+  );
+  if (referenceUploadInput) {
+    referenceUploadInput.addEventListener("change", handleReferenceUpload);
+  }
+  const globalReferenceSelect = document.getElementById(
+    "chatterbox-reference-select",
+  );
+  if (globalReferenceSelect) {
+    globalReferenceSelect.addEventListener(
+      "change",
+      handleReferenceSelectChange,
+    );
+  }
+  refreshGlobalChatterboxPreviewButton();
+  const globalPreviewBtn = document.getElementById(
+    "global-chatterbox-preview-btn",
+  );
+  if (globalPreviewBtn) {
+    globalPreviewBtn.addEventListener("click", (event) => {
+      const select = document.getElementById("chatterbox-reference-select");
+      const selection = select?.value?.trim();
+      if (!selection) {
+        showNotification("Select a reference voice first.", "warning");
+        return;
+      }
+      const voiceEntry = findChatterboxVoiceByPath(selection);
+      if (!voiceEntry || !voiceEntry.id) {
+        showNotification("Unable to resolve that reference voice.", "warning");
+        return;
+      }
+      if (!window.chatterboxPreviewController) {
+        showNotification(
+          "Preview controls are still loading. Try again shortly.",
+          "warning",
+        );
+        return;
+      }
+      window.chatterboxPreviewController.toggleById(
+        voiceEntry.id,
+        event.currentTarget,
+      );
+    });
+  }
 }
 
 function syncFullStoryOption(chapterCheckbox, force = false) {
-    const optionContainer = document.getElementById('full-story-option');
-    const fullStoryCheckbox = document.getElementById('full-story-checkbox');
-    if (!optionContainer || !chapterCheckbox) {
-        return;
-    }
-    const shouldShow = !!chapterCheckbox.checked;
-    if (!force && optionContainer.dataset.visible === String(shouldShow)) {
-        return;
-    }
-    optionContainer.style.display = shouldShow ? 'block' : 'none';
-    optionContainer.dataset.visible = String(shouldShow);
-    if (!shouldShow && fullStoryCheckbox) {
-        fullStoryCheckbox.checked = false;
-    }
+  const optionContainer = document.getElementById("full-story-option");
+  const fullStoryCheckbox = document.getElementById("full-story-checkbox");
+  if (!optionContainer || !chapterCheckbox) {
+    return;
+  }
+  const shouldShow = !!chapterCheckbox.checked;
+  if (!force && optionContainer.dataset.visible === String(shouldShow)) {
+    return;
+  }
+  optionContainer.style.display = shouldShow ? "block" : "none";
+  optionContainer.dataset.visible = String(shouldShow);
+  if (!shouldShow && fullStoryCheckbox) {
+    fullStoryCheckbox.checked = false;
+  }
 }
 
 // Engine display name mapping
 const engineDisplayNames = {
-    'kokoro': 'Kokoro · Local GPU',
-    'kokoro_replicate': 'Kokoro · Replicate',
-    'chatterbox_turbo_local': 'Chatterbox · Local GPU',
-    'chatterbox_turbo_replicate': 'Chatterbox · Replicate',
-    'voxcpm_local': 'VoxCPM 1.5 · Local GPU',
-    'qwen3_custom': 'Qwen3-TTS · Custom Voice',
-    'qwen3_clone': 'Qwen3-TTS · Voice Clone'
+  kokoro: "Kokoro · Local GPU",
+  kokoro_replicate: "Kokoro · Replicate",
+  chatterbox_turbo_local: "Chatterbox · Local GPU",
+  chatterbox_turbo_replicate: "Chatterbox · Replicate",
+  voxcpm_local: "VoxCPM 1.5 · Local GPU",
+  qwen3_custom: "Qwen3-TTS · Custom Voice",
+  qwen3_clone: "Qwen3-TTS · Voice Clone",
 };
 
 // Update mode indicator based on engine name (called when dropdown changes)
 function updateModeIndicator(engineName) {
-    const modeEl = document.getElementById('current-mode');
-    if (!modeEl) return;
-    
-    const normalizedEngine = (engineName || 'kokoro').toLowerCase();
-    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone']
-        .includes(normalizedEngine);
-    
-    modeEl.textContent = engineDisplayNames[normalizedEngine] || normalizedEngine;
-    modeEl.style.color = isLocal ? '#10b981' : '#f59e0b';
+  const modeEl = document.getElementById("current-mode");
+  if (!modeEl) return;
+
+  const normalizedEngine = (engineName || "kokoro").toLowerCase();
+  const isLocal = [
+    "kokoro",
+    "chatterbox_turbo_local",
+    "voxcpm_local",
+    "qwen3_custom",
+    "qwen3_clone",
+  ].includes(normalizedEngine);
+
+  modeEl.textContent = engineDisplayNames[normalizedEngine] || normalizedEngine;
+  modeEl.style.color = isLocal ? "#10b981" : "#f59e0b";
 }
 
 // Load health status
 async function loadHealthStatus() {
-    try {
-        const response = await fetch('/api/health');
-        const data = await response.json();
-        
-        if (data.success) {
-            const engineName = data.tts_engine || 'kokoro';
-            updateModeIndicator(engineName);
-            document.getElementById('cuda-status').textContent = 
-                data.cuda_available ? 'Available' : 'Not Available';
-        }
-    } catch (error) {
-        console.error('Error loading health status:', error);
+  try {
+    const response = await fetch("/api/health");
+    const data = await response.json();
+
+    if (data.success) {
+      const engineName = data.tts_engine || "kokoro";
+      updateModeIndicator(engineName);
+      document.getElementById("cuda-status").textContent = data.cuda_available
+        ? "Available"
+        : "Not Available";
     }
+  } catch (error) {
+    console.error("Error loading health status:", error);
+  }
 }
 
 // Analyze text
 async function analyzeText(options = {}) {
-    const { auto = false } = options;
-    if (auto && analyzeInFlight) {
-        analyzeRerunRequested = true;
-        return false;
+  const { auto = false } = options;
+  if (auto && analyzeInFlight) {
+    analyzeRerunRequested = true;
+    return false;
+  }
+  const text = document.getElementById("input-text").value;
+
+  if (!text.trim()) {
+    alert("Please enter some text first");
+    return false;
+  }
+
+  if (!auto) {
+    showNotification("Analyzing text...", "info");
+  }
+
+  analyzeInFlight = true;
+  analyzeRerunRequested = false;
+  try {
+    const payload = { text };
+    const customHeading = document
+      .getElementById("custom-heading-input")
+      ?.value?.trim();
+    if (customHeading) {
+      payload.custom_heading = customHeading;
     }
-    const text = document.getElementById('input-text').value;
-    
-    if (!text.trim()) {
-        alert('Please enter some text first');
-        return false;
+    const selectedEngine =
+      getSelectedJobEngine() || runtimeSettings?.tts_engine;
+    if (selectedEngine) {
+      payload.tts_engine = selectedEngine;
     }
-    
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      currentStats = data.statistics;
+      displayStatistics(data.statistics);
+      updateVoiceAssignments(data.statistics.speakers);
+      lastAnalyzedText = text.trim();
+      if (!auto) {
+        showNotification("Analysis complete", "success");
+      }
+      return true;
+    } else {
+      alert("Error: " + data.error);
+      return false;
+    }
+  } catch (error) {
+    console.error("Error analyzing text:", error);
     if (!auto) {
-        showNotification('Analyzing text...', 'info');
+      alert("Failed to analyze text");
     }
-    
-    analyzeInFlight = true;
+    return false;
+  } finally {
+    const shouldRerun = analyzeRerunRequested;
     analyzeRerunRequested = false;
-    try {
-        const payload = { text };
-        const customHeading = document.getElementById('custom-heading-input')?.value?.trim();
-        if (customHeading) {
-            payload.custom_heading = customHeading;
-        }
-        const selectedEngine = getSelectedJobEngine() || runtimeSettings?.tts_engine;
-        if (selectedEngine) {
-            payload.tts_engine = selectedEngine;
-        }
-        const response = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            currentStats = data.statistics;
-            displayStatistics(data.statistics);
-            updateVoiceAssignments(data.statistics.speakers);
-            lastAnalyzedText = text.trim();
-            if (!auto) {
-                showNotification('Analysis complete', 'success');
-            }
-            return true;
-        } else {
-            alert('Error: ' + data.error);
-            return false;
-        }
-    } catch (error) {
-        console.error('Error analyzing text:', error);
-        if (!auto) {
-            alert('Failed to analyze text');
-        }
-        return false;
+    analyzeInFlight = false;
+    if (shouldRerun) {
+      analyzeText({ auto: true });
     }
-    finally {
-        const shouldRerun = analyzeRerunRequested;
-        analyzeRerunRequested = false;
-        analyzeInFlight = false;
-        if (shouldRerun) {
-            analyzeText({ auto: true });
-        }
-    }
+  }
 }
 
 function normalizeSpeakerLabel(label) {
-    return (label || '').toString().trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  return (label || "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function normalizeSpeakerKey(label) {
-    const normalized = normalizeSpeakerLabel(label);
-    return normalized || (label || '').toString().trim().toLowerCase();
+  const normalized = normalizeSpeakerLabel(label);
+  return normalized || (label || "").toString().trim().toLowerCase();
 }
 
 function setSpeakerProfiles(profiles) {
-    Object.keys(speakerProfiles).forEach(key => delete speakerProfiles[key]);
-    if (!profiles) return;
-    Object.entries(profiles).forEach(([key, profile]) => {
-        const normalized = normalizeSpeakerKey(key || profile?.name || '');
-        if (!normalized) return;
-        speakerProfiles[normalized] = {
-            name: profile?.name || key,
-            description: profile?.description || '',
-            voice: profile?.voice || ''
-        };
-    });
+  Object.keys(speakerProfiles).forEach((key) => delete speakerProfiles[key]);
+  if (!profiles) return;
+  Object.entries(profiles).forEach(([key, profile]) => {
+    const normalized = normalizeSpeakerKey(key || profile?.name || "");
+    if (!normalized) return;
+    speakerProfiles[normalized] = {
+      name: profile?.name || key,
+      description: profile?.description || "",
+      voice: profile?.voice || "",
+    };
+  });
 }
 
 function findSpeakerProfile(speaker) {
-    const key = normalizeSpeakerKey(speaker);
-    if (speakerProfiles[key]) {
-        return { profile: speakerProfiles[key], matchKey: key };
-    }
-    const strippedKey = key.replace(/(male|female|man|woman)$/i, '');
-    if (strippedKey && speakerProfiles[strippedKey]) {
-        return { profile: speakerProfiles[strippedKey], matchKey: strippedKey };
-    }
-    const matches = Object.entries(speakerProfiles).filter(([profileKey]) =>
-        key.includes(profileKey) || profileKey.includes(key)
-    );
-    if (matches.length === 1) {
-        return { profile: matches[0][1], matchKey: matches[0][0] };
-    }
-    return { profile: null, matchKey: key };
+  const key = normalizeSpeakerKey(speaker);
+  if (speakerProfiles[key]) {
+    return { profile: speakerProfiles[key], matchKey: key };
+  }
+  const strippedKey = key.replace(/(male|female|man|woman)$/i, "");
+  if (strippedKey && speakerProfiles[strippedKey]) {
+    return { profile: speakerProfiles[strippedKey], matchKey: strippedKey };
+  }
+  const matches = Object.entries(speakerProfiles).filter(
+    ([profileKey]) => key.includes(profileKey) || profileKey.includes(key),
+  );
+  if (matches.length === 1) {
+    return { profile: matches[0][1], matchKey: matches[0][0] };
+  }
+  return { profile: null, matchKey: key };
 }
 
 function updateSpeakerProfileEntry(speaker, updates = {}) {
-    if (!speaker) return;
-    const { profile, matchKey } = findSpeakerProfile(speaker);
-    const targetKey = matchKey || normalizeSpeakerKey(speaker);
-    const nextProfile = {
-        name: profile?.name || speaker,
-        description: profile?.description || '',
-        voice: profile?.voice || '',
-        ...updates
-    };
-    speakerProfiles[targetKey] = nextProfile;
+  if (!speaker) return;
+  const { profile, matchKey } = findSpeakerProfile(speaker);
+  const targetKey = matchKey || normalizeSpeakerKey(speaker);
+  const nextProfile = {
+    name: profile?.name || speaker,
+    description: profile?.description || "",
+    voice: profile?.voice || "",
+    ...updates,
+  };
+  speakerProfiles[targetKey] = nextProfile;
 }
 
 function parseGenderFromSpeakerName(speaker) {
-    const tokens = (speaker || '').toString().toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-    if (tokens.includes('female')) return 'Female';
-    if (tokens.includes('male')) return 'Male';
-    return null;
+  const tokens = (speaker || "")
+    .toString()
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  if (tokens.includes("female")) return "Female";
+  if (tokens.includes("male")) return "Male";
+  return null;
 }
 
 async function pollQwenVoiceTask(taskId, statusLabel) {
-    if (!taskId) {
-        throw new Error('Missing task id for queued request.');
+  if (!taskId) {
+    throw new Error("Missing task id for queued request.");
+  }
+  const start = Date.now();
+  const timeoutMs = 10 * 60 * 1000;
+  while (Date.now() - start < timeoutMs) {
+    if (statusLabel) {
+      showNotification(statusLabel, "info");
     }
-    const start = Date.now();
-    const timeoutMs = 10 * 60 * 1000;
-    while (Date.now() - start < timeoutMs) {
-        if (statusLabel) {
-            showNotification(statusLabel, 'info');
-        }
-        const response = await fetch(`/api/qwen3/voice-design/tasks/${taskId}`);
-        const data = await response.json();
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to fetch task status');
-        }
-        if (data.status === 'completed') {
-            return data.result || {};
-        }
-        if (data.status === 'failed') {
-            throw new Error(data.error || 'Queued task failed');
-        }
-        await new Promise(resolve => setTimeout(resolve, 1500));
+    const response = await fetch(`/api/qwen3/voice-design/tasks/${taskId}`);
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || "Failed to fetch task status");
     }
-    throw new Error('Timed out waiting for voice generation.');
+    if (data.status === "completed") {
+      return data.result || {};
+    }
+    if (data.status === "failed") {
+      throw new Error(data.error || "Queued task failed");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+  throw new Error("Timed out waiting for voice generation.");
 }
 
 async function refreshChatterboxVoices() {
-    try {
-        const response = await fetch('/api/chatterbox-voices');
-        const data = await response.json();
-        if (!data.success) {
-            throw new Error(data.error || 'Unable to load voice prompts');
-        }
-        handleChatterboxVoicesUpdated({ detail: { voices: data.voices } });
-    } catch (error) {
-        console.error('Failed to refresh voice prompts', error);
-        showNotification(error.message || 'Failed to refresh voice prompts.', 'warning');
+  try {
+    const response = await fetch("/api/chatterbox-voices");
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || "Unable to load voice prompts");
     }
+    handleChatterboxVoicesUpdated({ detail: { voices: data.voices } });
+  } catch (error) {
+    console.error("Failed to refresh voice prompts", error);
+    showNotification(
+      error.message || "Failed to refresh voice prompts.",
+      "warning",
+    );
+  }
 }
 
 async function generateSpeakerVoicePrompt(speaker) {
-    if (!speaker) return;
-    const generateBtn = document.querySelector('#speaker-profile-summary [data-role="speaker-generate-voice"]');
-    const { profile } = findSpeakerProfile(speaker);
-    const description = profile?.description || '';
-    const voice = profile?.voice || '';
-    const instruct = description || '';
-    const shortDescription = voice || '';
-    const sampleText = 'With this line of text, you will always know exactly where I stand, and what I sound like. Whether you like it or not. though, it may not be what you think.';
-    if (!shortDescription) {
-        showNotification('Add a voice type before generating a voice.', 'warning');
-        return;
+  if (!speaker) return;
+  const generateBtn = document.querySelector(
+    '#speaker-profile-summary [data-role="speaker-generate-voice"]',
+  );
+  const { profile } = findSpeakerProfile(speaker);
+  const description = profile?.description || "";
+  const voice = profile?.voice || "";
+  const instruct = description || "";
+  const shortDescription = voice || "";
+  const sampleText =
+    "With this line of text, you will always know exactly where I stand, and what I sound like. Whether you like it or not. though, it may not be what you think.";
+  if (!shortDescription) {
+    showNotification("Add a voice type before generating a voice.", "warning");
+    return;
+  }
+  if (!instruct) {
+    showNotification(
+      "Add a speaker profile description before generating a voice.",
+      "warning",
+    );
+    return;
+  }
+  const payload = {
+    name: speaker,
+    gender: parseGenderFromSpeakerName(speaker),
+    language: "Auto",
+    description: shortDescription,
+    text: sampleText,
+    instruct,
+  };
+  try {
+    if (generateBtn) {
+      if (!generateBtn.dataset.labelIdle) {
+        generateBtn.dataset.labelIdle =
+          generateBtn.textContent.trim() || "Generate Voice";
+      }
+      generateBtn.disabled = true;
+      generateBtn.classList.add("is-loading");
+      generateBtn.textContent = "Generating…";
     }
-    if (!instruct) {
-        showNotification('Add a speaker profile description before generating a voice.', 'warning');
-        return;
+    showNotification("Generating voice preview...", "info");
+    const previewResponse = await fetch("/api/qwen3/voice-design/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: payload.text,
+        instruct: payload.instruct,
+        language: payload.language,
+      }),
+    });
+    const previewData = await previewResponse.json();
+    if (!previewData.success) {
+      throw new Error(previewData.error || "Failed to enqueue preview");
     }
-    const payload = {
-        name: speaker,
-        gender: parseGenderFromSpeakerName(speaker),
-        language: 'Auto',
-        description: shortDescription,
-        text: sampleText,
-        instruct
-    };
-    try {
-        if (generateBtn) {
-            if (!generateBtn.dataset.labelIdle) {
-                generateBtn.dataset.labelIdle = generateBtn.textContent.trim() || 'Generate Voice';
-            }
-            generateBtn.disabled = true;
-            generateBtn.classList.add('is-loading');
-            generateBtn.textContent = 'Generating…';
-        }
-        showNotification('Generating voice preview...', 'info');
-        const previewResponse = await fetch('/api/qwen3/voice-design/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: payload.text,
-                instruct: payload.instruct,
-                language: payload.language
-            })
+    const previewResult = await pollQwenVoiceTask(
+      previewData.job_id,
+      "Generating voice preview...",
+    );
+    if (!previewResult.audio_base64) {
+      throw new Error("Preview audio missing from response.");
+    }
+    showNotification("Saving voice prompt...", "info");
+    if (generateBtn) {
+      generateBtn.textContent = "Saving…";
+    }
+    const saveResponse = await fetch("/api/qwen3/voice-design/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        audio_base64: previewResult.audio_base64,
+      }),
+    });
+    const saveData = await saveResponse.json();
+    if (!saveData.success) {
+      throw new Error(saveData.error || "Failed to enqueue save");
+    }
+    await pollQwenVoiceTask(saveData.job_id, "Saving voice prompt...");
+    await refreshChatterboxVoices();
+    populateReferenceSelects();
+    const latestVoice = availableChatterboxVoices
+      .filter(
+        (entry) =>
+          (entry?.name || "").trim().toLowerCase() === speaker.toLowerCase(),
+      )
+      .sort(
+        (a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0),
+      )[0];
+    const promptValue = (
+      latestVoice?.prompt_path ||
+      latestVoice?.file_name ||
+      ""
+    ).trim();
+    if (promptValue) {
+      turboSelectionState[speaker] = promptValue;
+      document
+        .querySelectorAll(
+          '#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select',
+        )
+        .forEach((select) => {
+          if (select?.dataset?.speaker === speaker) {
+            select.value = promptValue;
+          }
         });
-        const previewData = await previewResponse.json();
-        if (!previewData.success) {
-            throw new Error(previewData.error || 'Failed to enqueue preview');
-        }
-        const previewResult = await pollQwenVoiceTask(previewData.job_id, 'Generating voice preview...');
-        if (!previewResult.audio_base64) {
-            throw new Error('Preview audio missing from response.');
-        }
-        showNotification('Saving voice prompt...', 'info');
-        if (generateBtn) {
-            generateBtn.textContent = 'Saving…';
-        }
-        const saveResponse = await fetch('/api/qwen3/voice-design/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...payload,
-                audio_base64: previewResult.audio_base64
-            })
-        });
-        const saveData = await saveResponse.json();
-        if (!saveData.success) {
-            throw new Error(saveData.error || 'Failed to enqueue save');
-        }
-        await pollQwenVoiceTask(saveData.job_id, 'Saving voice prompt...');
-        await refreshChatterboxVoices();
-        populateReferenceSelects();
-        const latestVoice = availableChatterboxVoices
-            .filter(entry => (entry?.name || '').trim().toLowerCase() === speaker.toLowerCase())
-            .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0))[0];
-        const promptValue = (latestVoice?.prompt_path || latestVoice?.file_name || '').trim();
-        if (promptValue) {
-            turboSelectionState[speaker] = promptValue;
-            document.querySelectorAll('#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select')
-                .forEach(select => {
-                    if (select?.dataset?.speaker === speaker) {
-                        select.value = promptValue;
-                    }
-                });
-            updateInlineSampleButtonState(activeSpeakerRow, { stopPlayback: true });
-        }
-        showNotification('Voice prompt generated and added to the library.', 'success');
-    } catch (error) {
-        console.error('Generate voice failed', error);
-        showNotification(error.message || 'Failed to generate voice.', 'warning');
-    } finally {
-        if (generateBtn) {
-            generateBtn.disabled = false;
-            generateBtn.classList.remove('is-loading');
-            generateBtn.textContent = generateBtn.dataset.labelIdle || 'Generate Voice';
-        }
+      updateInlineSampleButtonState(activeSpeakerRow, { stopPlayback: true });
     }
+    showNotification(
+      "Voice prompt generated and added to the library.",
+      "success",
+    );
+  } catch (error) {
+    console.error("Generate voice failed", error);
+    showNotification(error.message || "Failed to generate voice.", "warning");
+  } finally {
+    if (generateBtn) {
+      generateBtn.disabled = false;
+      generateBtn.classList.remove("is-loading");
+      generateBtn.textContent =
+        generateBtn.dataset.labelIdle || "Generate Voice";
+    }
+  }
 }
 
 function renderSpeakerProfileSummary(speaker) {
-    const summary = document.getElementById('speaker-profile-summary');
-    if (!summary) return;
-    if (!speaker) {
-        summary.classList.add('hidden');
-        summary.innerHTML = '';
-        return;
-    }
-    const { profile } = findSpeakerProfile(speaker);
-    const hasProfiles = Object.keys(speakerProfiles).length > 0;
-    const description = profile?.description || '';
-    const voice = profile?.voice || '';
-    const emptyMessage = hasProfiles
-        ? 'No profile matched this speaker yet.'
-        : 'No speaker profile data yet. Run Prep Text with Gemini.';
-    summary.innerHTML = `
+  const summary = document.getElementById("speaker-profile-summary");
+  if (!summary) return;
+  if (!speaker) {
+    summary.classList.add("hidden");
+    summary.innerHTML = "";
+    return;
+  }
+  const { profile } = findSpeakerProfile(speaker);
+  const hasProfiles = Object.keys(speakerProfiles).length > 0;
+  const description = profile?.description || "";
+  const voice = profile?.voice || "";
+  const emptyMessage = hasProfiles
+    ? "No profile matched this speaker yet."
+    : "No speaker profile data yet. Run Prep Text with Gemini.";
+  summary.innerHTML = `
         <div class="speaker-profile-row speaker-profile-editor">
             <div class="speaker-profile-fields">
                 <label>
@@ -3579,325 +4322,361 @@ function renderSpeakerProfileSummary(speaker) {
             </div>
         </div>
     `;
-    const descriptionInput = summary.querySelector('[data-role="speaker-profile-description"]');
-    const voiceInput = summary.querySelector('[data-role="speaker-profile-voice"]');
-    const generateBtn = summary.querySelector('[data-role="speaker-generate-voice"]');
-    if (descriptionInput) {
-        descriptionInput.addEventListener('input', event => {
-            updateSpeakerProfileEntry(speaker, { description: event.currentTarget.value || '' });
-        });
-    }
-    if (voiceInput) {
-        voiceInput.addEventListener('input', event => {
-            updateSpeakerProfileEntry(speaker, { voice: event.currentTarget.value || '' });
-        });
-    }
-    if (generateBtn) {
-        generateBtn.addEventListener('click', () => generateSpeakerVoicePrompt(speaker));
-    }
-    summary.classList.remove('hidden');
+  const descriptionInput = summary.querySelector(
+    '[data-role="speaker-profile-description"]',
+  );
+  const voiceInput = summary.querySelector(
+    '[data-role="speaker-profile-voice"]',
+  );
+  const generateBtn = summary.querySelector(
+    '[data-role="speaker-generate-voice"]',
+  );
+  if (descriptionInput) {
+    descriptionInput.addEventListener("input", (event) => {
+      updateSpeakerProfileEntry(speaker, {
+        description: event.currentTarget.value || "",
+      });
+    });
+  }
+  if (voiceInput) {
+    voiceInput.addEventListener("input", (event) => {
+      updateSpeakerProfileEntry(speaker, {
+        voice: event.currentTarget.value || "",
+      });
+    });
+  }
+  if (generateBtn) {
+    generateBtn.addEventListener("click", () =>
+      generateSpeakerVoicePrompt(speaker),
+    );
+  }
+  summary.classList.remove("hidden");
 }
 
 function levenshteinDistance(a, b) {
-    const source = a || '';
-    const target = b || '';
-    if (source === target) return 0;
-    if (!source.length) return target.length;
-    if (!target.length) return source.length;
+  const source = a || "";
+  const target = b || "";
+  if (source === target) return 0;
+  if (!source.length) return target.length;
+  if (!target.length) return source.length;
 
-    const matrix = Array.from({ length: source.length + 1 }, () => []);
-    for (let i = 0; i <= source.length; i += 1) {
-        matrix[i][0] = i;
+  const matrix = Array.from({ length: source.length + 1 }, () => []);
+  for (let i = 0; i <= source.length; i += 1) {
+    matrix[i][0] = i;
+  }
+  for (let j = 0; j <= target.length; j += 1) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= source.length; i += 1) {
+    for (let j = 1; j <= target.length; j += 1) {
+      const cost = source[i - 1] === target[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost,
+      );
     }
-    for (let j = 0; j <= target.length; j += 1) {
-        matrix[0][j] = j;
-    }
-    for (let i = 1; i <= source.length; i += 1) {
-        for (let j = 1; j <= target.length; j += 1) {
-            const cost = source[i - 1] === target[j - 1] ? 0 : 1;
-            matrix[i][j] = Math.min(
-                matrix[i - 1][j] + 1,
-                matrix[i][j - 1] + 1,
-                matrix[i - 1][j - 1] + cost
-            );
-        }
-    }
-    return matrix[source.length][target.length];
+  }
+  return matrix[source.length][target.length];
 }
 
 function speakerSimilarity(a, b) {
-    const normalizedA = normalizeSpeakerLabel(a);
-    const normalizedB = normalizeSpeakerLabel(b);
-    if (!normalizedA || !normalizedB) return 0;
-    if (normalizedA === normalizedB) return 1;
-    const distance = levenshteinDistance(normalizedA, normalizedB);
-    const maxLength = Math.max(normalizedA.length, normalizedB.length) || 1;
-    return 1 - distance / maxLength;
+  const normalizedA = normalizeSpeakerLabel(a);
+  const normalizedB = normalizeSpeakerLabel(b);
+  if (!normalizedA || !normalizedB) return 0;
+  if (normalizedA === normalizedB) return 1;
+  const distance = levenshteinDistance(normalizedA, normalizedB);
+  const maxLength = Math.max(normalizedA.length, normalizedB.length) || 1;
+  return 1 - distance / maxLength;
 }
 
 function getSpeakerDuplicates(speakers, threshold = 0.82) {
-    if (!Array.isArray(speakers)) return [];
-    const pairs = [];
-    for (let i = 0; i < speakers.length; i += 1) {
-        for (let j = i + 1; j < speakers.length; j += 1) {
-            const score = speakerSimilarity(speakers[i], speakers[j]);
-            if (score >= threshold) {
-                pairs.push({
-                    first: speakers[i],
-                    second: speakers[j],
-                    score
-                });
-            }
-        }
+  if (!Array.isArray(speakers)) return [];
+  const pairs = [];
+  for (let i = 0; i < speakers.length; i += 1) {
+    for (let j = i + 1; j < speakers.length; j += 1) {
+      const score = speakerSimilarity(speakers[i], speakers[j]);
+      if (score >= threshold) {
+        pairs.push({
+          first: speakers[i],
+          second: speakers[j],
+          score,
+        });
+      }
     }
-    return pairs.sort((a, b) => b.score - a.score).slice(0, 6);
+  }
+  return pairs.sort((a, b) => b.score - a.score).slice(0, 6);
 }
 
 function renderSpeakerDuplicates(speakers) {
-    const container = document.getElementById('speakers-duplicates');
-    if (!container) return;
-    const duplicates = getSpeakerDuplicates(speakers);
-    if (!duplicates.length) {
-        container.style.display = 'none';
-        container.innerHTML = '';
-        return;
-    }
-    container.style.display = 'block';
-    container.innerHTML = '<strong>Possible duplicates detected:</strong>';
-    duplicates.forEach(({ first, second, score }) => {
-        const row = document.createElement('div');
-        row.className = 'duplicate-item';
-        const badge = document.createElement('span');
-        badge.className = 'duplicate-badge';
-        badge.textContent = `${Math.round(score * 100)}% match`;
-        const text = document.createElement('span');
-        text.textContent = `${first} ↔ ${second}`;
-        row.appendChild(text);
-        row.appendChild(badge);
-        container.appendChild(row);
-    });
+  const container = document.getElementById("speakers-duplicates");
+  if (!container) return;
+  const duplicates = getSpeakerDuplicates(speakers);
+  if (!duplicates.length) {
+    container.style.display = "none";
+    container.innerHTML = "";
+    return;
+  }
+  container.style.display = "block";
+  container.innerHTML = "<strong>Possible duplicates detected:</strong>";
+  duplicates.forEach(({ first, second, score }) => {
+    const row = document.createElement("div");
+    row.className = "duplicate-item";
+    const badge = document.createElement("span");
+    badge.className = "duplicate-badge";
+    badge.textContent = `${Math.round(score * 100)}% match`;
+    const text = document.createElement("span");
+    text.textContent = `${first} ↔ ${second}`;
+    row.appendChild(text);
+    row.appendChild(badge);
+    container.appendChild(row);
+  });
 }
 
 function applySpeakerRename(stats, oldName, newName) {
-    if (!stats || !Array.isArray(stats.speakers)) return;
-    const updated = stats.speakers.map(name => (name === oldName ? newName : name));
-    const seen = new Set();
-    const deduped = [];
-    updated.forEach(name => {
-        const trimmed = (name || '').toString().trim();
-        if (!trimmed) return;
-        const key = normalizeSpeakerLabel(trimmed) || trimmed.toLowerCase();
-        if (!seen.has(key)) {
-            seen.add(key);
-            deduped.push(trimmed);
-        }
-    });
-    stats.speakers = deduped;
-    stats.speaker_count = deduped.length;
-    if (stats.speaker_emotions && stats.speaker_emotions[oldName]) {
-        stats.speaker_emotions[newName] = stats.speaker_emotions[oldName];
-        delete stats.speaker_emotions[oldName];
+  if (!stats || !Array.isArray(stats.speakers)) return;
+  const updated = stats.speakers.map((name) =>
+    name === oldName ? newName : name,
+  );
+  const seen = new Set();
+  const deduped = [];
+  updated.forEach((name) => {
+    const trimmed = (name || "").toString().trim();
+    if (!trimmed) return;
+    const key = normalizeSpeakerLabel(trimmed) || trimmed.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(trimmed);
     }
-    if (speakerReadyState[oldName]) {
-        speakerReadyState[newName] = speakerReadyState[oldName];
-        delete speakerReadyState[oldName];
-    }
-    if (turboSelectionState[oldName] && !turboSelectionState[newName]) {
-        turboSelectionState[newName] = turboSelectionState[oldName];
-    }
-    delete turboSelectionState[oldName];
-    const oldKey = normalizeSpeakerKey(oldName);
-    const newKey = normalizeSpeakerKey(newName);
-    if (speakerProfiles[oldKey]) {
-        speakerProfiles[newKey] = { ...speakerProfiles[oldKey], name: newName };
-        delete speakerProfiles[oldKey];
-    }
-    renderSpeakerProfileSummary(newName);
+  });
+  stats.speakers = deduped;
+  stats.speaker_count = deduped.length;
+  if (stats.speaker_emotions && stats.speaker_emotions[oldName]) {
+    stats.speaker_emotions[newName] = stats.speaker_emotions[oldName];
+    delete stats.speaker_emotions[oldName];
+  }
+  if (speakerReadyState[oldName]) {
+    speakerReadyState[newName] = speakerReadyState[oldName];
+    delete speakerReadyState[oldName];
+  }
+  if (turboSelectionState[oldName] && !turboSelectionState[newName]) {
+    turboSelectionState[newName] = turboSelectionState[oldName];
+  }
+  delete turboSelectionState[oldName];
+  const oldKey = normalizeSpeakerKey(oldName);
+  const newKey = normalizeSpeakerKey(newName);
+  if (speakerProfiles[oldKey]) {
+    speakerProfiles[newKey] = { ...speakerProfiles[oldKey], name: newName };
+    delete speakerProfiles[oldKey];
+  }
+  renderSpeakerProfileSummary(newName);
 }
 
 function handleSpeakerEdit(originalName, inputEl) {
-    if (!inputEl) return;
-    const rawName = inputEl.value.trim();
-    const newName = formatSpeakerTagName(rawName);
-    if (!newName) {
-        inputEl.value = originalName;
-        return;
-    }
-    if (newName !== rawName) {
-        inputEl.value = newName;
-    }
-    if (!currentStats || newName === originalName) return;
-    applySpeakerRename(currentStats, originalName, newName);
-    displayStatistics(currentStats);
-    updateVoiceAssignments(currentStats.speakers);
+  if (!inputEl) return;
+  const rawName = inputEl.value.trim();
+  const newName = formatSpeakerTagName(rawName);
+  if (!newName) {
+    inputEl.value = originalName;
+    return;
+  }
+  if (newName !== rawName) {
+    inputEl.value = newName;
+  }
+  if (!currentStats || newName === originalName) return;
+  applySpeakerRename(currentStats, originalName, newName);
+  displayStatistics(currentStats);
+  updateVoiceAssignments(currentStats.speakers);
 }
 
 function applySpeakerRenameToText(oldName, newName) {
-    const input = document.getElementById('input-text');
-    if (!input || !oldName || !newName || oldName === newName) return false;
-    const escapedOld = oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const escapedNew = newName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const openTag = new RegExp(`\\[${escapedOld}\\]`, 'g');
-    const closeTag = new RegExp(`\\[\\/${escapedOld}\\]`, 'g');
-    const updated = input.value
-        .replace(openTag, `[${escapedNew}]`)
-        .replace(closeTag, `[/${escapedNew}]`);
-    if (updated === input.value) return false;
-    input.value = updated;
-    return true;
+  const input = document.getElementById("input-text");
+  if (!input || !oldName || !newName || oldName === newName) return false;
+  const escapedOld = oldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedNew = newName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const openTag = new RegExp(`\\[${escapedOld}\\]`, "g");
+  const closeTag = new RegExp(`\\[\\/${escapedOld}\\]`, "g");
+  const updated = input.value
+    .replace(openTag, `[${escapedNew}]`)
+    .replace(closeTag, `[/${escapedNew}]`);
+  if (updated === input.value) return false;
+  input.value = updated;
+  return true;
 }
 
 function handleInlineRename(originalName, inputEl) {
-    if (!inputEl) return;
-    const rawName = inputEl.value.trim();
-    const newName = formatSpeakerTagName(rawName);
-    if (!newName) {
-        inputEl.value = originalName;
-        return;
-    }
-    if (newName !== rawName) {
-        inputEl.value = newName;
-    }
-    if (!currentStats || newName === originalName) return;
-    applySpeakerRename(currentStats, originalName, newName);
-    applySpeakerRenameToText(originalName, newName);
-    displayStatistics(currentStats);
-    updateVoiceAssignments(currentStats.speakers);
-    if (activeSpeakerModal && activeSpeakerModal === originalName) {
-        closeSpeakerEditModal();
-    }
-    analyzeText({ auto: true });
+  if (!inputEl) return;
+  const rawName = inputEl.value.trim();
+  const newName = formatSpeakerTagName(rawName);
+  if (!newName) {
+    inputEl.value = originalName;
+    return;
+  }
+  if (newName !== rawName) {
+    inputEl.value = newName;
+  }
+  if (!currentStats || newName === originalName) return;
+  applySpeakerRename(currentStats, originalName, newName);
+  applySpeakerRenameToText(originalName, newName);
+  displayStatistics(currentStats);
+  updateVoiceAssignments(currentStats.speakers);
+  if (activeSpeakerModal && activeSpeakerModal === originalName) {
+    closeSpeakerEditModal();
+  }
+  analyzeText({ auto: true });
 }
 
 function setSpeakerReadyState(speaker, ready) {
-    if (!speaker) return;
-    speakerReadyState[speaker] = !!ready;
-    const chip = document.querySelector(`#speakers-list .speaker-tag[data-speaker="${speaker}"]`);
-    if (chip) {
-        chip.classList.toggle('ready', !!ready);
-    }
+  if (!speaker) return;
+  speakerReadyState[speaker] = !!ready;
+  const chip = document.querySelector(
+    `#speakers-list .speaker-tag[data-speaker="${speaker}"]`,
+  );
+  if (chip) {
+    chip.classList.toggle("ready", !!ready);
+  }
 }
 
 function openSpeakerEditModal(speaker) {
-    const overlay = document.getElementById('speaker-edit-modal-overlay');
-    const modal = document.getElementById('speaker-edit-modal');
-    const body = document.getElementById('speaker-edit-modal-body');
-    const title = document.getElementById('speaker-edit-modal-title');
-    const readyCheckbox = document.getElementById('speaker-ready-checkbox');
-    const profileSummary = document.getElementById('speaker-profile-summary');
-    const list = document.getElementById('inline-voice-assignment-list');
-    if (!overlay || !modal || !body || !list) return;
+  const overlay = document.getElementById("speaker-edit-modal-overlay");
+  const modal = document.getElementById("speaker-edit-modal");
+  const body = document.getElementById("speaker-edit-modal-body");
+  const title = document.getElementById("speaker-edit-modal-title");
+  const readyCheckbox = document.getElementById("speaker-ready-checkbox");
+  const profileSummary = document.getElementById("speaker-profile-summary");
+  const list = document.getElementById("inline-voice-assignment-list");
+  if (!overlay || !modal || !body || !list) return;
 
-    if (activeSpeakerRow && activeSpeakerRowOrigin) {
-        activeSpeakerRowOrigin.appendChild(activeSpeakerRow);
-    }
+  if (activeSpeakerRow && activeSpeakerRowOrigin) {
+    activeSpeakerRowOrigin.appendChild(activeSpeakerRow);
+  }
 
-    const row = list.querySelector(`.voice-assignment-row[data-speaker="${speaker}"]`);
-    if (!row) return;
+  const row = list.querySelector(
+    `.voice-assignment-row[data-speaker="${speaker}"]`,
+  );
+  if (!row) return;
 
-    body.innerHTML = '';
-    body.appendChild(row);
-    activeSpeakerRow = row;
-    activeSpeakerRowOrigin = list;
-    activeSpeakerModal = speaker;
+  body.innerHTML = "";
+  body.appendChild(row);
+  activeSpeakerRow = row;
+  activeSpeakerRowOrigin = list;
+  activeSpeakerModal = speaker;
 
-    const header = row.querySelector('.assignment-header');
-    if (profileSummary && header) {
-        header.insertAdjacentElement('afterend', profileSummary);
-    }
+  const header = row.querySelector(".assignment-header");
+  if (profileSummary && header) {
+    header.insertAdjacentElement("afterend", profileSummary);
+  }
 
-    if (title) {
-        title.textContent = `Edit Speaker: ${speaker}`;
-    }
-    if (readyCheckbox) {
-        readyCheckbox.checked = !!speakerReadyState[speaker];
-        readyCheckbox.dataset.speaker = speaker;
-    }
-    renderSpeakerProfileSummary(speaker);
+  if (title) {
+    title.textContent = `Edit Speaker: ${speaker}`;
+  }
+  if (readyCheckbox) {
+    readyCheckbox.checked = !!speakerReadyState[speaker];
+    readyCheckbox.dataset.speaker = speaker;
+  }
+  renderSpeakerProfileSummary(speaker);
 
-    overlay.classList.remove('hidden');
-    modal.classList.remove('hidden');
+  overlay.classList.remove("hidden");
+  modal.classList.remove("hidden");
 }
 
 function closeSpeakerEditModal() {
-    const overlay = document.getElementById('speaker-edit-modal-overlay');
-    const modal = document.getElementById('speaker-edit-modal');
-    const body = document.getElementById('speaker-edit-modal-body');
-    const modalBody = document.querySelector('#speaker-edit-modal .modal-body');
-    const profileSummary = document.getElementById('speaker-profile-summary');
-    const modalAnchor = document.getElementById('speaker-edit-modal-body');
-    if (activeSpeakerRow && activeSpeakerRowOrigin) {
-        activeSpeakerRowOrigin.appendChild(activeSpeakerRow);
-    }
-    if (profileSummary && modalBody && modalAnchor) {
-        modalBody.insertBefore(profileSummary, modalAnchor);
-    }
-    stopSpeakerPreviewAudio();
-    if (body) {
-        body.innerHTML = '';
-    }
-    renderSpeakerProfileSummary(null);
-    activeSpeakerRow = null;
-    activeSpeakerRowOrigin = null;
-    activeSpeakerModal = null;
-    if (overlay) overlay.classList.add('hidden');
-    if (modal) modal.classList.add('hidden');
+  const overlay = document.getElementById("speaker-edit-modal-overlay");
+  const modal = document.getElementById("speaker-edit-modal");
+  const body = document.getElementById("speaker-edit-modal-body");
+  const modalBody = document.querySelector("#speaker-edit-modal .modal-body");
+  const profileSummary = document.getElementById("speaker-profile-summary");
+  const modalAnchor = document.getElementById("speaker-edit-modal-body");
+  if (activeSpeakerRow && activeSpeakerRowOrigin) {
+    activeSpeakerRowOrigin.appendChild(activeSpeakerRow);
+  }
+  if (profileSummary && modalBody && modalAnchor) {
+    modalBody.insertBefore(profileSummary, modalAnchor);
+  }
+  stopSpeakerPreviewAudio();
+  if (body) {
+    body.innerHTML = "";
+  }
+  renderSpeakerProfileSummary(null);
+  activeSpeakerRow = null;
+  activeSpeakerRowOrigin = null;
+  activeSpeakerModal = null;
+  if (overlay) overlay.classList.add("hidden");
+  if (modal) modal.classList.add("hidden");
 }
 
 function getProjectState() {
-    return {
-        id: Date.now(),
-        name: '',
-        saved_at: new Date().toISOString(),
-        text: document.getElementById('input-text')?.value || '',
-        engine: document.getElementById('job-tts-engine')?.value || '',
-        default_voice: document.getElementById('default-voice-select')?.value || '',
-        reference_prompt: document.getElementById('chatterbox-reference-select')?.value || '',
-        qwen_default_speaker: document.getElementById('qwen3-default-speaker')?.value || '',
-        qwen_default_language: document.getElementById('qwen3-default-language')?.value || '',
-        qwen_default_instruct: document.getElementById('qwen3-default-instruct')?.value || '',
-        split_chapters: document.getElementById('split-chapters-checkbox')?.checked || false,
-        full_story: document.getElementById('full-story-checkbox')?.checked || false,
-        custom_heading: document.getElementById('custom-heading-input')?.value || '',
-        book_title: latestGeminiBookTitle,
-        output_format: document.getElementById('job-output-format')?.value || 'mp3',
-        output_bitrate: document.getElementById('job-output-bitrate')?.value || '128',
-        gemini_prompt: document.getElementById('gemini-prompt')?.value || '',
-        gemini_preset: document.getElementById('gemini-preset-select')?.value || '',
-        assignments: getVoiceAssignments(),
-        turbo_selections: buildTurboSelectionMap(),
-        qwen_inline_languages: Array.from(document.querySelectorAll('#inline-voice-assignment-list .qwen3-language-select')).reduce((acc, select) => {
-            const speaker = select.dataset.speaker;
-            if (speaker) acc[speaker] = select.value;
-            return acc;
-        }, {}),
-        qwen_inline_instructs: Array.from(document.querySelectorAll('#inline-voice-assignment-list .qwen3-instruct-input')).reduce((acc, input) => {
-            const speaker = input.dataset.speaker;
-            if (speaker) acc[speaker] = input.value;
-            return acc;
-        }, {}),
-        fx_state: JSON.parse(JSON.stringify(voiceFxState || {})),
-        ready_state: JSON.parse(JSON.stringify(speakerReadyState || {})),
-        speaker_profiles: JSON.parse(JSON.stringify(speakerProfiles || {}))
-    };
+  return {
+    id: Date.now(),
+    name: "",
+    saved_at: new Date().toISOString(),
+    text: document.getElementById("input-text")?.value || "",
+    engine: document.getElementById("job-tts-engine")?.value || "",
+    default_voice: document.getElementById("default-voice-select")?.value || "",
+    reference_prompt:
+      document.getElementById("chatterbox-reference-select")?.value || "",
+    qwen_default_speaker:
+      document.getElementById("qwen3-default-speaker")?.value || "",
+    qwen_default_language:
+      document.getElementById("qwen3-default-language")?.value || "",
+    qwen_default_instruct:
+      document.getElementById("qwen3-default-instruct")?.value || "",
+    split_chapters:
+      document.getElementById("split-chapters-checkbox")?.checked || false,
+    full_story:
+      document.getElementById("full-story-checkbox")?.checked || false,
+    custom_heading:
+      document.getElementById("custom-heading-input")?.value || "",
+    book_title: latestGeminiBookTitle,
+    output_format: document.getElementById("job-output-format")?.value || "mp3",
+    output_bitrate:
+      document.getElementById("job-output-bitrate")?.value || "128",
+    gemini_prompt: document.getElementById("gemini-prompt")?.value || "",
+    gemini_preset: document.getElementById("gemini-preset-select")?.value || "",
+    assignments: getVoiceAssignments(),
+    turbo_selections: buildTurboSelectionMap(),
+    qwen_inline_languages: Array.from(
+      document.querySelectorAll(
+        "#inline-voice-assignment-list .qwen3-language-select",
+      ),
+    ).reduce((acc, select) => {
+      const speaker = select.dataset.speaker;
+      if (speaker) acc[speaker] = select.value;
+      return acc;
+    }, {}),
+    qwen_inline_instructs: Array.from(
+      document.querySelectorAll(
+        "#inline-voice-assignment-list .qwen3-instruct-input",
+      ),
+    ).reduce((acc, input) => {
+      const speaker = input.dataset.speaker;
+      if (speaker) acc[speaker] = input.value;
+      return acc;
+    }, {}),
+    fx_state: JSON.parse(JSON.stringify(voiceFxState || {})),
+    ready_state: JSON.parse(JSON.stringify(speakerReadyState || {})),
+    speaker_profiles: JSON.parse(JSON.stringify(speakerProfiles || {})),
+  };
 }
 
 function loadProjectList() {
-    const list = document.getElementById('project-list');
-    if (!list) return;
-    const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-    if (!projects.length) {
-        list.innerHTML = '<p class="help-text">No saved projects yet.</p>';
-        return;
-    }
-    list.innerHTML = '';
-    projects.sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
-    projects.forEach(project => {
-        const row = document.createElement('div');
-        row.className = 'project-row';
-        row.innerHTML = `
+  const list = document.getElementById("project-list");
+  if (!list) return;
+  const projects = JSON.parse(
+    localStorage.getItem(PROJECT_STORAGE_KEY) || "[]",
+  );
+  if (!projects.length) {
+    list.innerHTML = '<p class="help-text">No saved projects yet.</p>';
+    return;
+  }
+  list.innerHTML = "";
+  projects.sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
+  projects.forEach((project) => {
+    const row = document.createElement("div");
+    row.className = "project-row";
+    row.innerHTML = `
             <div class="project-row-info">
-                <strong>${project.name || 'Untitled Project'}</strong>
+                <strong>${project.name || "Untitled Project"}</strong>
                 <span>${new Date(project.saved_at).toLocaleString()}</span>
             </div>
             <div class="project-row-actions">
@@ -3905,261 +4684,298 @@ function loadProjectList() {
                 <button class="btn btn-sm btn-ghost" data-project-action="delete" data-project-id="${project.id}">Delete</button>
             </div>
         `;
-        list.appendChild(row);
-    });
+    list.appendChild(row);
+  });
 }
 
 function openProjectModal() {
-    const overlay = document.getElementById('project-modal-overlay');
-    const modal = document.getElementById('project-modal');
-    if (!overlay || !modal) return;
-    overlay.classList.remove('hidden');
-    modal.classList.remove('hidden');
-    loadProjectList();
+  const overlay = document.getElementById("project-modal-overlay");
+  const modal = document.getElementById("project-modal");
+  if (!overlay || !modal) return;
+  overlay.classList.remove("hidden");
+  modal.classList.remove("hidden");
+  loadProjectList();
 }
 
 function closeProjectModal() {
-    const overlay = document.getElementById('project-modal-overlay');
-    const modal = document.getElementById('project-modal');
-    if (overlay) overlay.classList.add('hidden');
-    if (modal) modal.classList.add('hidden');
+  const overlay = document.getElementById("project-modal-overlay");
+  const modal = document.getElementById("project-modal");
+  if (overlay) overlay.classList.add("hidden");
+  if (modal) modal.classList.add("hidden");
 }
 
 async function applyProjectState(project) {
-    if (!project) return;
-    pendingProjectLoad = project;
-    activeProjectId = project.id || null;
-    const input = document.getElementById('input-text');
-    if (input) {
-        input.value = project.text || '';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    const engineSelect = document.getElementById('job-tts-engine');
-    if (engineSelect && project.engine) {
-        engineSelect.value = project.engine;
-        updateEngineUI(project.engine);
-    }
-    const defaultVoice = document.getElementById('default-voice-select');
-    if (defaultVoice && project.default_voice) defaultVoice.value = project.default_voice;
-    const referenceSelect = document.getElementById('chatterbox-reference-select');
-    if (referenceSelect) referenceSelect.value = project.reference_prompt || '';
-    const qwenDefaultSpeaker = document.getElementById('qwen3-default-speaker');
-    if (qwenDefaultSpeaker) qwenDefaultSpeaker.value = project.qwen_default_speaker || '';
-    const qwenDefaultLang = document.getElementById('qwen3-default-language');
-    if (qwenDefaultLang) qwenDefaultLang.value = project.qwen_default_language || 'Auto';
-    const qwenDefaultInstruct = document.getElementById('qwen3-default-instruct');
-    if (qwenDefaultInstruct) qwenDefaultInstruct.value = project.qwen_default_instruct || '';
-    const splitChapters = document.getElementById('split-chapters-checkbox');
-    if (splitChapters) splitChapters.checked = project.split_chapters != null ? !!project.split_chapters : splitChapters.defaultChecked;
-    const fullStory = document.getElementById('full-story-checkbox');
-    if (fullStory) fullStory.checked = project.full_story != null ? !!project.full_story : fullStory.defaultChecked;
-    const heading = document.getElementById('custom-heading-input');
-    if (heading) heading.value = project.custom_heading || '';
-    const projectNameInput = document.getElementById('project-name-input');
-    if (projectNameInput && project.name) {
-        projectNameInput.value = project.name;
-    }
-    const formatSelect = document.getElementById('job-output-format');
-    if (formatSelect) formatSelect.value = project.output_format || 'mp3';
-    const bitrateSelect = document.getElementById('job-output-bitrate');
-    if (bitrateSelect) bitrateSelect.value = project.output_bitrate || '128';
-    const geminiPrompt = document.getElementById('gemini-prompt');
-    if (geminiPrompt) geminiPrompt.value = project.gemini_prompt || '';
-    const geminiPreset = document.getElementById('gemini-preset-select');
-    if (geminiPreset) geminiPreset.value = project.gemini_preset || '';
-    latestGeminiBookTitle = project.book_title || '';
+  if (!project) return;
+  pendingProjectLoad = project;
+  activeProjectId = project.id || null;
+  const input = document.getElementById("input-text");
+  if (input) {
+    input.value = project.text || "";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  const engineSelect = document.getElementById("job-tts-engine");
+  if (engineSelect && project.engine) {
+    engineSelect.value = project.engine;
+    updateEngineUI(project.engine);
+  }
+  const defaultVoice = document.getElementById("default-voice-select");
+  if (defaultVoice && project.default_voice)
+    defaultVoice.value = project.default_voice;
+  const referenceSelect = document.getElementById(
+    "chatterbox-reference-select",
+  );
+  if (referenceSelect) referenceSelect.value = project.reference_prompt || "";
+  const qwenDefaultSpeaker = document.getElementById("qwen3-default-speaker");
+  if (qwenDefaultSpeaker)
+    qwenDefaultSpeaker.value = project.qwen_default_speaker || "";
+  const qwenDefaultLang = document.getElementById("qwen3-default-language");
+  if (qwenDefaultLang)
+    qwenDefaultLang.value = project.qwen_default_language || "Auto";
+  const qwenDefaultInstruct = document.getElementById("qwen3-default-instruct");
+  if (qwenDefaultInstruct)
+    qwenDefaultInstruct.value = project.qwen_default_instruct || "";
+  const splitChapters = document.getElementById("split-chapters-checkbox");
+  if (splitChapters)
+    splitChapters.checked =
+      project.split_chapters != null
+        ? !!project.split_chapters
+        : splitChapters.defaultChecked;
+  const fullStory = document.getElementById("full-story-checkbox");
+  if (fullStory)
+    fullStory.checked =
+      project.full_story != null
+        ? !!project.full_story
+        : fullStory.defaultChecked;
+  const heading = document.getElementById("custom-heading-input");
+  if (heading) heading.value = project.custom_heading || "";
+  const projectNameInput = document.getElementById("project-name-input");
+  if (projectNameInput && project.name) {
+    projectNameInput.value = project.name;
+  }
+  const formatSelect = document.getElementById("job-output-format");
+  if (formatSelect) formatSelect.value = project.output_format || "mp3";
+  const bitrateSelect = document.getElementById("job-output-bitrate");
+  if (bitrateSelect) bitrateSelect.value = project.output_bitrate || "128";
+  const geminiPrompt = document.getElementById("gemini-prompt");
+  if (geminiPrompt) geminiPrompt.value = project.gemini_prompt || "";
+  const geminiPreset = document.getElementById("gemini-preset-select");
+  if (geminiPreset) geminiPreset.value = project.gemini_preset || "";
+  latestGeminiBookTitle = project.book_title || "";
 
-    Object.keys(voiceFxState).forEach(key => delete voiceFxState[key]);
-    Object.assign(voiceFxState, project.fx_state || {});
-    Object.keys(speakerReadyState).forEach(key => delete speakerReadyState[key]);
-    Object.assign(speakerReadyState, project.ready_state || {});
-    setSpeakerProfiles(project.speaker_profiles || {});
+  Object.keys(voiceFxState).forEach((key) => delete voiceFxState[key]);
+  Object.assign(voiceFxState, project.fx_state || {});
+  Object.keys(speakerReadyState).forEach(
+    (key) => delete speakerReadyState[key],
+  );
+  Object.assign(speakerReadyState, project.ready_state || {});
+  setSpeakerProfiles(project.speaker_profiles || {});
 
-    await analyzeText({ auto: true });
-    pendingProjectLoad = project;
-    applyProjectAssignments(project);
-    pendingProjectLoad = null;
-    showNotification('Project loaded.', 'success');
+  await analyzeText({ auto: true });
+  pendingProjectLoad = project;
+  applyProjectAssignments(project);
+  pendingProjectLoad = null;
+  showNotification("Project loaded.", "success");
 }
 
 function applyProjectAssignments(project) {
-    if (!project) return;
-    const assignments = project.assignments || {};
-    const turboSelections = project.turbo_selections || {};
-    const qwenLangs = project.qwen_inline_languages || {};
-    const qwenInstructs = project.qwen_inline_instructs || {};
-    Object.keys(turboSelectionState).forEach(key => delete turboSelectionState[key]);
-    Object.entries(turboSelections).forEach(([speakerKey, selection]) => {
-        const reference = selection?.reference || '';
-        if (reference) {
-            turboSelectionState[speakerKey] = reference;
-        }
-    });
+  if (!project) return;
+  const assignments = project.assignments || {};
+  const turboSelections = project.turbo_selections || {};
+  const qwenLangs = project.qwen_inline_languages || {};
+  const qwenInstructs = project.qwen_inline_instructs || {};
+  Object.keys(turboSelectionState).forEach(
+    (key) => delete turboSelectionState[key],
+  );
+  Object.entries(turboSelections).forEach(([speakerKey, selection]) => {
+    const reference = selection?.reference || "";
+    if (reference) {
+      turboSelectionState[speakerKey] = reference;
+    }
+  });
 
-    displayStatistics(currentStats || { speakers: [], speaker_count: 0, total_chunks: 0, word_count: 0, estimated_duration: 0, has_speaker_tags: false });
+  displayStatistics(
+    currentStats || {
+      speakers: [],
+      speaker_count: 0,
+      total_chunks: 0,
+      word_count: 0,
+      estimated_duration: 0,
+      has_speaker_tags: false,
+    },
+  );
 
-    getAssignmentRows().forEach(row => {
-        const speaker = row.dataset.speaker;
-        if (!speaker) return;
-        const voiceSelect = row.querySelector('.voice-select');
-        const refSelect = row.querySelector('.reference-select');
-        const qwenLang = row.querySelector('.qwen3-language-select');
-        const qwenInstruct = row.querySelector('.qwen3-instruct-input');
-        if (voiceSelect && assignments[speaker]?.voice) {
-            voiceSelect.value = assignments[speaker].voice;
-        }
-        if (refSelect) {
-            const selection = turboSelectionState[speaker] || turboSelections[speaker]?.reference || '';
-            if (selection) {
-                refSelect.value = selection;
-            }
-        }
-        if (qwenLang && qwenLangs[speaker]) {
-            qwenLang.value = qwenLangs[speaker];
-        }
-        if (qwenInstruct && typeof qwenInstructs[speaker] === 'string') {
-            qwenInstruct.value = qwenInstructs[speaker];
-        }
-        updateInlineSampleButtonState(row, { stopPlayback: true });
-    });
+  getAssignmentRows().forEach((row) => {
+    const speaker = row.dataset.speaker;
+    if (!speaker) return;
+    const voiceSelect = row.querySelector(".voice-select");
+    const refSelect = row.querySelector(".reference-select");
+    const qwenLang = row.querySelector(".qwen3-language-select");
+    const qwenInstruct = row.querySelector(".qwen3-instruct-input");
+    if (voiceSelect && assignments[speaker]?.voice) {
+      voiceSelect.value = assignments[speaker].voice;
+    }
+    if (refSelect) {
+      const selection =
+        turboSelectionState[speaker] ||
+        turboSelections[speaker]?.reference ||
+        "";
+      if (selection) {
+        refSelect.value = selection;
+      }
+    }
+    if (qwenLang && qwenLangs[speaker]) {
+      qwenLang.value = qwenLangs[speaker];
+    }
+    if (qwenInstruct && typeof qwenInstructs[speaker] === "string") {
+      qwenInstruct.value = qwenInstructs[speaker];
+    }
+    updateInlineSampleButtonState(row, { stopPlayback: true });
+  });
 }
 
 // Display statistics
 function displayStatistics(stats) {
-    const detectedSpeakers = Array.isArray(stats.speakers) ? stats.speakers : [];
-    const hasDetectedSpeakers = stats.has_speaker_tags && detectedSpeakers.length > 0;
-    const activeSpeakers = hasDetectedSpeakers ? detectedSpeakers : ['Speaker 1'];
-    const speakerCount = hasDetectedSpeakers
-        ? (stats.speaker_count || detectedSpeakers.length)
-        : 1;
-    document.getElementById('stat-speakers').textContent = speakerCount;
-    document.getElementById('stat-chunks').textContent = stats.total_chunks;
-    document.getElementById('stat-words').textContent = stats.word_count;
-    
-    const duration = Math.floor(stats.estimated_duration);
-    const minutes = Math.floor(duration / 60);
-    const seconds = duration % 60;
-    document.getElementById('stat-duration').textContent = 
-        `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    
-    // Display speakers
-    const speakersList = document.getElementById('speakers-list');
-    const chapterInfo = document.getElementById('chapter-detection-info');
-    const chapterHint = document.getElementById('chapter-detection-hint');
-    const chapterCheckbox = document.getElementById('split-chapters-checkbox');
-    if (chapterInfo && stats.section_detection) {
-        const {
-            detected,
-            count,
-            titles,
-            kind,
-            book_count: bookCount = 0,
-            section_count: sectionCount = 0
-        } = stats.section_detection;
-        if (detected) {
-            chapterInfo.style.display = 'block';
-            const titleList = titles && titles.length ? ` (<em>${titles.slice(0, 5).join(', ')}${titles.length > 5 ? ', …' : ''}</em>)` : '';
-            if (kind === 'book') {
-                const booksLabel = bookCount || count;
-                chapterInfo.innerHTML = `📚 Books detected: <strong>${booksLabel}</strong> · Sections detected: <strong>${sectionCount}</strong>${titleList}`;
-            } else {
-                chapterInfo.innerHTML = `📚 Sections detected: <strong>${count}</strong>${titleList}`;
-            }
-            if (chapterCheckbox && !chapterCheckbox.dataset.userToggled) {
-                chapterCheckbox.disabled = false;
-                chapterCheckbox.classList.remove('disabled');
-            }
-            updateSectionReviewButton(true);
-        } else {
-            chapterInfo.style.display = 'block';
-            chapterInfo.innerHTML = '📚 No section headings detected.';
-            updateSectionReviewButton(false);
-        }
-    }
-    refreshChapterHint();
+  const detectedSpeakers = Array.isArray(stats.speakers) ? stats.speakers : [];
+  const hasDetectedSpeakers =
+    stats.has_speaker_tags && detectedSpeakers.length > 0;
+  const activeSpeakers = hasDetectedSpeakers ? detectedSpeakers : ["Speaker 1"];
+  const speakerCount = hasDetectedSpeakers
+    ? stats.speaker_count || detectedSpeakers.length
+    : 1;
+  document.getElementById("stat-speakers").textContent = speakerCount;
+  document.getElementById("stat-chunks").textContent = stats.total_chunks;
+  document.getElementById("stat-words").textContent = stats.word_count;
 
-    const batchBtn = document.getElementById('generate-voices-btn');
-    if (batchBtn) {
-        batchBtn.disabled = !hasDetectedSpeakers;
-    }
-    const autoAssignVoicesBtn = document.getElementById('auto-assign-voices-btn');
-    if (autoAssignVoicesBtn) {
-        autoAssignVoicesBtn.disabled = !hasDetectedSpeakers;
-    }
+  const duration = Math.floor(stats.estimated_duration);
+  const minutes = Math.floor(duration / 60);
+  const seconds = duration % 60;
+  document.getElementById("stat-duration").textContent =
+    `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-    if (hasDetectedSpeakers) {
-        speakersList.innerHTML = '<p><strong>Detected Speakers:</strong></p>';
-        const tagsWrap = document.createElement('div');
-        tagsWrap.className = 'speaker-tags-wrap';
-        detectedSpeakers.forEach(speaker => {
-            const tag = document.createElement('button');
-            tag.type = 'button';
-            tag.className = `speaker-tag${speakerReadyState[speaker] ? ' ready' : ''}`;
-            tag.dataset.speaker = speaker;
-            tag.textContent = speaker;
-            tagsWrap.appendChild(tag);
-        });
-        speakersList.appendChild(tagsWrap);
-        const hint = document.createElement('p');
-        hint.className = 'speaker-modal-hint';
-        hint.textContent = 'Click any speaker chip to open assignments.';
-        speakersList.appendChild(hint);
-        renderSpeakerDuplicates(detectedSpeakers);
-        
-        // Show emotion tag detection info
-        if (stats.has_emotion_tags) {
-            const emotionInfo = document.createElement('p');
-            emotionInfo.className = 'emotion-detection-info';
-            emotionInfo.innerHTML = `🎭 <strong>Emotion tags detected:</strong> ${stats.segments_with_emotion} segment(s) with emotions (will be used as Qwen3 instructions)`;
-            speakersList.appendChild(emotionInfo);
-        }
-        
-        // Show inline voice assignments with emotion data
-        displayInlineVoiceAssignments(detectedSpeakers, stats.speaker_emotions || {});
+  // Display speakers
+  const speakersList = document.getElementById("speakers-list");
+  const chapterInfo = document.getElementById("chapter-detection-info");
+  const chapterHint = document.getElementById("chapter-detection-hint");
+  const chapterCheckbox = document.getElementById("split-chapters-checkbox");
+  if (chapterInfo && stats.section_detection) {
+    const {
+      detected,
+      count,
+      titles,
+      kind,
+      book_count: bookCount = 0,
+      section_count: sectionCount = 0,
+    } = stats.section_detection;
+    if (detected) {
+      chapterInfo.style.display = "block";
+      const titleList =
+        titles && titles.length
+          ? ` (<em>${titles.slice(0, 5).join(", ")}${titles.length > 5 ? ", …" : ""}</em>)`
+          : "";
+      if (kind === "book") {
+        const booksLabel = bookCount || count;
+        chapterInfo.innerHTML = `📚 Books detected: <strong>${booksLabel}</strong> · Sections detected: <strong>${sectionCount}</strong>${titleList}`;
+      } else {
+        chapterInfo.innerHTML = `📚 Sections detected: <strong>${count}</strong>${titleList}`;
+      }
+      if (chapterCheckbox && !chapterCheckbox.dataset.userToggled) {
+        chapterCheckbox.disabled = false;
+        chapterCheckbox.classList.remove("disabled");
+      }
+      updateSectionReviewButton(true);
     } else {
-        speakersList.innerHTML = '<p><strong>Detected Speakers:</strong></p>';
-        const tagsWrap = document.createElement('div');
-        tagsWrap.className = 'speaker-tags-wrap';
-        const tag = document.createElement('button');
-        tag.type = 'button';
-        tag.className = `speaker-tag${speakerReadyState['Speaker 1'] ? ' ready' : ''}`;
-        tag.dataset.speaker = 'Speaker 1';
-        tag.textContent = 'Speaker 1';
-        tagsWrap.appendChild(tag);
-        speakersList.appendChild(tagsWrap);
-        const hint = document.createElement('p');
-        hint.className = 'speaker-modal-hint';
-        hint.textContent = 'Click the speaker chip to open assignments.';
-        speakersList.appendChild(hint);
-        displayInlineVoiceAssignments(activeSpeakers, {});
-        renderSpeakerDuplicates([]);
+      chapterInfo.style.display = "block";
+      chapterInfo.innerHTML = "📚 No section headings detected.";
+      updateSectionReviewButton(false);
     }
-    
-    document.getElementById('stats-section').style.display = 'block';
+  }
+  refreshChapterHint();
+
+  const batchBtn = document.getElementById("generate-voices-btn");
+  if (batchBtn) {
+    batchBtn.disabled = !hasDetectedSpeakers;
+  }
+  const autoAssignVoicesBtn = document.getElementById("auto-assign-voices-btn");
+  if (autoAssignVoicesBtn) {
+    autoAssignVoicesBtn.disabled = !hasDetectedSpeakers;
+  }
+
+  if (hasDetectedSpeakers) {
+    speakersList.innerHTML = "<p><strong>Detected Speakers:</strong></p>";
+    const tagsWrap = document.createElement("div");
+    tagsWrap.className = "speaker-tags-wrap";
+    detectedSpeakers.forEach((speaker) => {
+      const tag = document.createElement("button");
+      tag.type = "button";
+      tag.className = `speaker-tag${speakerReadyState[speaker] ? " ready" : ""}`;
+      tag.dataset.speaker = speaker;
+      tag.textContent = speaker;
+      tagsWrap.appendChild(tag);
+    });
+    speakersList.appendChild(tagsWrap);
+    const hint = document.createElement("p");
+    hint.className = "speaker-modal-hint";
+    hint.textContent = "Click any speaker chip to open assignments.";
+    speakersList.appendChild(hint);
+    renderSpeakerDuplicates(detectedSpeakers);
+
+    // Show emotion tag detection info
+    if (stats.has_emotion_tags) {
+      const emotionInfo = document.createElement("p");
+      emotionInfo.className = "emotion-detection-info";
+      emotionInfo.innerHTML = `🎭 <strong>Emotion tags detected:</strong> ${stats.segments_with_emotion} segment(s) with emotions (will be used as Qwen3 instructions)`;
+      speakersList.appendChild(emotionInfo);
+    }
+
+    // Show inline voice assignments with emotion data
+    displayInlineVoiceAssignments(
+      detectedSpeakers,
+      stats.speaker_emotions || {},
+    );
+  } else {
+    speakersList.innerHTML = "<p><strong>Detected Speakers:</strong></p>";
+    const tagsWrap = document.createElement("div");
+    tagsWrap.className = "speaker-tags-wrap";
+    const tag = document.createElement("button");
+    tag.type = "button";
+    tag.className = `speaker-tag${speakerReadyState["Speaker 1"] ? " ready" : ""}`;
+    tag.dataset.speaker = "Speaker 1";
+    tag.textContent = "Speaker 1";
+    tagsWrap.appendChild(tag);
+    speakersList.appendChild(tagsWrap);
+    const hint = document.createElement("p");
+    hint.className = "speaker-modal-hint";
+    hint.textContent = "Click the speaker chip to open assignments.";
+    speakersList.appendChild(hint);
+    displayInlineVoiceAssignments(activeSpeakers, {});
+    renderSpeakerDuplicates([]);
+  }
+
+  document.getElementById("stats-section").style.display = "block";
 }
 
 // Display inline voice assignments in Generate tab
 function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
-    const container = document.getElementById('inline-voice-assignment-list');
-    const voiceSelectSnapshot = {};
-    container.querySelectorAll('.voice-assignment-row').forEach(row => {
-        const spk = row.dataset.speaker;
-        if (!spk) return;
-        const vs = row.querySelector('.voice-select');
-        if (vs && vs.value) voiceSelectSnapshot[spk] = vs.value;
-        const rs = row.querySelector('.reference-select');
-        if (rs && rs.value) {
-            turboSelectionState[spk] = rs.value;
-        }
-    });
-    container.innerHTML = '';
-    
-    speakers.forEach(speaker => {
-        const emotion = speakerEmotions[speaker] || '';
-        const row = document.createElement('div');
-        row.className = 'voice-assignment-row';
-        row.dataset.speaker = speaker;
-        row.innerHTML = `
+  const container = document.getElementById("inline-voice-assignment-list");
+  const voiceSelectSnapshot = {};
+  container.querySelectorAll(".voice-assignment-row").forEach((row) => {
+    const spk = row.dataset.speaker;
+    if (!spk) return;
+    const vs = row.querySelector(".voice-select");
+    if (vs && vs.value) voiceSelectSnapshot[spk] = vs.value;
+    const rs = row.querySelector(".reference-select");
+    if (rs && rs.value) {
+      turboSelectionState[spk] = rs.value;
+    }
+  });
+  container.innerHTML = "";
+
+  speakers.forEach((speaker) => {
+    const emotion = speakerEmotions[speaker] || "";
+    const row = document.createElement("div");
+    row.className = "voice-assignment-row";
+    row.dataset.speaker = speaker;
+    row.innerHTML = `
             <div class="assignment-header">
                 <span class="speaker-label">${speaker}</span>
                 <div class="speaker-rename">
@@ -4196,9 +5012,9 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
                             </select>
                         </div>
                         <div class="assignment-select qwen3-instruct-field">
-                            <label>Custom Instruction${emotion ? ' (from emotion tag)' : ' (optional)'}</label>
+                            <label>Custom Instruction${emotion ? " (from emotion tag)" : " (optional)"}</label>
                             <input type="text" class="qwen3-instruct-input" data-speaker="${speaker}" 
-                                   value="${emotion.replace(/"/g, '&quot;')}"
+                                   value="${emotion.replace(/"/g, "&quot;")}"
                                    placeholder="e.g., Speak with excitement" />
                         </div>
                     </div>
@@ -4206,267 +5022,301 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
                 <div class="voice-fx-inline voice-inline-card" data-speaker="${speaker}" data-role="kokoro-panel"></div>
             </div>
         `;
-        container.appendChild(row);
-        const renameInput = row.querySelector('[data-role="speaker-rename-input"]');
-        if (renameInput) {
-            renameInput.value = speaker;
-            renameInput.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    event.preventDefault();
-                    const applyButton = row.querySelector('[data-role="speaker-rename-btn"]');
-                    applyButton?.click();
-                }
-            });
+    container.appendChild(row);
+    const renameInput = row.querySelector('[data-role="speaker-rename-input"]');
+    if (renameInput) {
+      renameInput.value = speaker;
+      renameInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          const applyButton = row.querySelector(
+            '[data-role="speaker-rename-btn"]',
+          );
+          applyButton?.click();
         }
-        const renameButton = row.querySelector('[data-role="speaker-rename-btn"]');
-        if (renameButton && renameInput) {
-            renameButton.addEventListener('click', () => handleInlineRename(speaker, renameInput));
-        }
-        const fxContainer = row.querySelector('.voice-fx-inline');
-        if (fxContainer) {
-            renderFxPanel(fxContainer, speaker, {
-                title: `${speaker} FX`,
-                showHeader: false,
-                useSharedPreview: true
-            });
-        }
+      });
+    }
+    const renameButton = row.querySelector('[data-role="speaker-rename-btn"]');
+    if (renameButton && renameInput) {
+      renameButton.addEventListener("click", () =>
+        handleInlineRename(speaker, renameInput),
+      );
+    }
+    const fxContainer = row.querySelector(".voice-fx-inline");
+    if (fxContainer) {
+      renderFxPanel(fxContainer, speaker, {
+        title: `${speaker} FX`,
+        showHeader: false,
+        useSharedPreview: true,
+      });
+    }
+  });
+
+  initInlineSampleHandlers();
+  const restoreVoiceSelects = () => {
+    container.querySelectorAll(".voice-assignment-row").forEach((row) => {
+      const spk = row.dataset.speaker;
+      if (!spk) return;
+      const vs = row.querySelector(".voice-select");
+      if (vs && voiceSelectSnapshot[spk]) {
+        vs.value = voiceSelectSnapshot[spk];
+      }
     });
-    
-    initInlineSampleHandlers();
-    const restoreVoiceSelects = () => {
-        container.querySelectorAll('.voice-assignment-row').forEach(row => {
-            const spk = row.dataset.speaker;
-            if (!spk) return;
-            const vs = row.querySelector('.voice-select');
-            if (vs && voiceSelectSnapshot[spk]) {
-                vs.value = voiceSelectSnapshot[spk];
-            }
-        });
-    };
-    if (window.availableVoices) {
+  };
+  if (window.availableVoices) {
+    populateVoiceSelects();
+    restoreVoiceSelects();
+  } else {
+    const checkVoices = setInterval(() => {
+      if (window.availableVoices) {
+        clearInterval(checkVoices);
         populateVoiceSelects();
         restoreVoiceSelects();
-    } else {
-        const checkVoices = setInterval(() => {
-            if (window.availableVoices) {
-                clearInterval(checkVoices);
-                populateVoiceSelects();
-                restoreVoiceSelects();
-            }
-        }, 100);
-    }
-    
-    const inlineAssignments = document.getElementById('inline-voice-assignments');
-    if (inlineAssignments) {
-        inlineAssignments.style.display = 'none';
-    }
-    populateReferenceSelects();
-    updateAssignmentModes(getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro');
+      }
+    }, 100);
+  }
+
+  const inlineAssignments = document.getElementById("inline-voice-assignments");
+  if (inlineAssignments) {
+    inlineAssignments.style.display = "none";
+  }
+  populateReferenceSelects();
+  updateAssignmentModes(
+    getSelectedJobEngine() || runtimeSettings?.tts_engine || "kokoro",
+  );
 }
 
 function updateInlineSampleButtonState(row, options = {}) {
-    if (!row) return;
-    const button = row.querySelector('[data-role="voice-sample-preview-btn"]');
-    if (!button) return;
-    const selection = row.querySelector('.reference-select')?.value?.trim() || '';
-    if (!selection) {
-        button.disabled = true;
-        button.classList.remove('is-playing', 'is-loading');
-        button.textContent = button.dataset.labelPlay || 'Play';
-        if (options.stopPlayback && window.chatterboxPreviewController) {
-            window.chatterboxPreviewController.stop();
-        }
-        return;
-    }
-    button.disabled = false;
+  if (!row) return;
+  const button = row.querySelector('[data-role="voice-sample-preview-btn"]');
+  if (!button) return;
+  const selection = row.querySelector(".reference-select")?.value?.trim() || "";
+  if (!selection) {
+    button.disabled = true;
+    button.classList.remove("is-playing", "is-loading");
+    button.textContent = button.dataset.labelPlay || "Play";
     if (options.stopPlayback && window.chatterboxPreviewController) {
-        window.chatterboxPreviewController.stop();
+      window.chatterboxPreviewController.stop();
     }
+    return;
+  }
+  button.disabled = false;
+  if (options.stopPlayback && window.chatterboxPreviewController) {
+    window.chatterboxPreviewController.stop();
+  }
 }
 
 function initInlineSampleHandlers() {
-    const containers = [
-        document.getElementById('inline-voice-assignment-list'),
-        document.getElementById('speaker-edit-modal-body')
-    ].filter(Boolean);
-    if (!containers.length) return;
-    containers.forEach(container => {
-        if (container.dataset.handlersReady === 'true') return;
-        container.addEventListener('change', event => {
-            if (!(event.target instanceof HTMLElement)) return;
-            if (!event.target.classList.contains('reference-select')) return;
-            const row = event.target.closest('.voice-assignment-row');
-            const speaker = row?.dataset?.speaker;
-            if (speaker) {
-                const selection = event.target.value?.trim() || '';
-                if (selection) {
-                    turboSelectionState[speaker] = selection;
-                } else {
-                    delete turboSelectionState[speaker];
-                }
-            }
-            updateInlineSampleButtonState(row, { stopPlayback: true });
-        });
-        container.addEventListener('click', event => {
-            const target = event.target instanceof HTMLElement ? event.target : null;
-            const button = target?.closest('[data-role="voice-sample-preview-btn"]');
-            if (!button) return;
-            const row = button.closest('.voice-assignment-row');
-            const selection = row?.querySelector('.reference-select')?.value?.trim();
-            if (!selection) {
-                showNotification('Select a voice sample first.', 'warning');
-                return;
-            }
-            const voiceEntry = findChatterboxVoiceByPath(selection);
-            if (!voiceEntry?.id) {
-                showNotification('Unable to resolve that voice sample.', 'warning');
-                return;
-            }
-            if (!window.chatterboxPreviewController) {
-                showNotification('Preview controls are still loading. Try again shortly.', 'warning');
-                return;
-            }
-            window.chatterboxPreviewController.toggleById(voiceEntry.id, button);
-        });
-        container.dataset.handlersReady = 'true';
+  const containers = [
+    document.getElementById("inline-voice-assignment-list"),
+    document.getElementById("speaker-edit-modal-body"),
+  ].filter(Boolean);
+  if (!containers.length) return;
+  containers.forEach((container) => {
+    if (container.dataset.handlersReady === "true") return;
+    container.addEventListener("change", (event) => {
+      if (!(event.target instanceof HTMLElement)) return;
+      if (!event.target.classList.contains("reference-select")) return;
+      const row = event.target.closest(".voice-assignment-row");
+      const speaker = row?.dataset?.speaker;
+      if (speaker) {
+        const selection = event.target.value?.trim() || "";
+        if (selection) {
+          turboSelectionState[speaker] = selection;
+        } else {
+          delete turboSelectionState[speaker];
+        }
+      }
+      updateInlineSampleButtonState(row, { stopPlayback: true });
     });
-    inlineSampleHandlersReady = true;
+    container.addEventListener("click", (event) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const button = target?.closest('[data-role="voice-sample-preview-btn"]');
+      if (!button) return;
+      const row = button.closest(".voice-assignment-row");
+      const selection = row?.querySelector(".reference-select")?.value?.trim();
+      if (!selection) {
+        showNotification("Select a voice sample first.", "warning");
+        return;
+      }
+      const voiceEntry = findChatterboxVoiceByPath(selection);
+      if (!voiceEntry?.id) {
+        showNotification("Unable to resolve that voice sample.", "warning");
+        return;
+      }
+      if (!window.chatterboxPreviewController) {
+        showNotification(
+          "Preview controls are still loading. Try again shortly.",
+          "warning",
+        );
+        return;
+      }
+      window.chatterboxPreviewController.toggleById(voiceEntry.id, button);
+    });
+    container.dataset.handlersReady = "true";
+  });
+  inlineSampleHandlersReady = true;
 }
 
 // Populate voice select dropdowns
 function populateVoiceSelects() {
-    const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
-    if (!window.availableVoices && !window.availablePocketTtsVoices && !isKittenEngine(engineName) && !isIndexTTSEngine(engineName)) return;
-    const isQwen = isQwenEngine(engineName);
-    const isPocketPreset = isPocketPresetEngine(engineName);
-    const isKitten = isKittenEngine(engineName);
-    const selects = document.querySelectorAll('#inline-voice-assignment-list .voice-select, #speaker-edit-modal-body .voice-select');
-    selects.forEach(select => {
-        const previousValue = select.value;
-        select.innerHTML = '<option value="">Select Voice...</option>';
-        if (isQwen) {
-            appendQwen3VoiceOptions(select);
-        } else if (isPocketPreset) {
-            appendPocketPresetVoiceOptions(select);
-        } else if (isKitten) {
-            appendKittenVoiceOptions(select);
-        } else {
-            appendVoiceOptions(select);
-        }
-        restoreSelectValue(select, previousValue);
-    });
+  const engineName =
+    getSelectedJobEngine() || runtimeSettings?.tts_engine || "kokoro";
+  if (
+    !window.availableVoices &&
+    !window.availablePocketTtsVoices &&
+    !isKittenEngine(engineName) &&
+    !isIndexTTSEngine(engineName)
+  )
+    return;
+  const isQwen = isQwenEngine(engineName);
+  const isPocketPreset = isPocketPresetEngine(engineName);
+  const isKitten = isKittenEngine(engineName);
+  const selects = document.querySelectorAll(
+    "#inline-voice-assignment-list .voice-select, #speaker-edit-modal-body .voice-select",
+  );
+  selects.forEach((select) => {
+    const previousValue = select.value;
+    select.innerHTML = '<option value="">Select Voice...</option>';
+    if (isQwen) {
+      appendQwen3VoiceOptions(select);
+    } else if (isPocketPreset) {
+      appendPocketPresetVoiceOptions(select);
+    } else if (isKitten) {
+      appendKittenVoiceOptions(select);
+    } else {
+      appendVoiceOptions(select);
+    }
+    restoreSelectValue(select, previousValue);
+  });
 }
 
 // Generate audio
 async function generateAudio() {
-    const text = document.getElementById('input-text').value;
-    
-    if (!text.trim()) {
-        alert('Please enter some text first');
-        return;
-    }
-    
-    if (text.trim() !== lastAnalyzedText || !currentStats) {
-        const analysisSuccess = await analyzeText({ auto: true });
-        if (!analysisSuccess) {
-            alert('Unable to analyze text for generation');
-            return;
-        }
-        lastAnalyzedText = text.trim();
-    }
-    
-    // Check for unbalanced speaker tags before submitting
-    if (currentStats?.speakers?.length > 0) {
-        _updateTagErrorBanner();
-        if (_tagIssues.length > 0) {
-            _tagIssueIndex = 0;
-            _scrollToTagIssue(0);
-            const banner = document.getElementById('tag-error-banner');
-            if (banner) banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            showNotification(`Fix ${_tagIssues.length} unmatched speaker tag${_tagIssues.length === 1 ? '' : 's'} before submitting`, 'warning');
-            return;
-        }
-    }
+  const text = document.getElementById("input-text").value;
 
-    // Get voice assignments
-    let voiceAssignments = getVoiceAssignments();
-    
-    const hasDetectedSpeakers = Array.isArray(currentStats?.speakers) && currentStats.speakers.length > 0;
-    // Require per-speaker assignments since default voice selectors are no longer shown
-    if (Object.keys(voiceAssignments).length === 0) {
-        const warningMessage = hasDetectedSpeakers
-            ? 'Assign voices for the detected speakers before generating audio.'
-            : 'Assign a voice for Speaker 1 before generating audio.';
-        showNotification(warningMessage, 'warning');
-        return;
-    }
-    
-    console.log('Voice assignments for generation:', voiceAssignments);
-    
-    const splitByChapter = document.getElementById('split-chapters-checkbox')?.checked || false;
-    const customHeading = document.getElementById('custom-heading-input')?.value?.trim();
-    const generateFullStory = splitByChapter && (document.getElementById('full-story-checkbox')?.checked || false);
-    const outputFormat = document.getElementById('job-output-format')?.value || undefined;
-    const outputBitrate = document.getElementById('job-output-bitrate')?.value || undefined;
+  if (!text.trim()) {
+    alert("Please enter some text first");
+    return;
+  }
 
-    const selectedEngine = getSelectedJobEngine() || runtimeSettings?.tts_engine;
-    const wordReplacements = getAltWordRegistry().filter(e => e.original && e.replacement);
-    const payload = {
-        text,
-        split_by_chapter: splitByChapter,
-        generate_full_story: generateFullStory,
-        voice_assignments: voiceAssignments,
-        review_mode: true  // Always enabled - chunk review happens in library
-    };
-    if (wordReplacements.length > 0) {
-        payload.word_replacements = wordReplacements;
+  if (text.trim() !== lastAnalyzedText || !currentStats) {
+    const analysisSuccess = await analyzeText({ auto: true });
+    if (!analysisSuccess) {
+      alert("Unable to analyze text for generation");
+      return;
     }
-    if (customHeading) {
-        payload.custom_heading = customHeading;
+    lastAnalyzedText = text.trim();
+  }
+
+  // Check for unbalanced speaker tags before submitting
+  if (currentStats?.speakers?.length > 0) {
+    _updateTagErrorBanner();
+    if (_tagIssues.length > 0) {
+      _tagIssueIndex = 0;
+      _scrollToTagIssue(0);
+      const banner = document.getElementById("tag-error-banner");
+      if (banner)
+        banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      showNotification(
+        `Fix ${_tagIssues.length} unmatched speaker tag${_tagIssues.length === 1 ? "" : "s"} before submitting`,
+        "warning",
+      );
+      return;
     }
-    if (selectedEngine) {
-        payload.tts_engine = selectedEngine;
-        const overrides = collectEngineOverrides(selectedEngine);
-        if (overrides) {
-            payload.engine_options = overrides;
-        }
+  }
+
+  // Get voice assignments
+  let voiceAssignments = getVoiceAssignments();
+
+  const hasDetectedSpeakers =
+    Array.isArray(currentStats?.speakers) && currentStats.speakers.length > 0;
+  // Require per-speaker assignments since default voice selectors are no longer shown
+  if (Object.keys(voiceAssignments).length === 0) {
+    const warningMessage = hasDetectedSpeakers
+      ? "Assign voices for the detected speakers before generating audio."
+      : "Assign a voice for Speaker 1 before generating audio.";
+    showNotification(warningMessage, "warning");
+    return;
+  }
+
+  console.log("Voice assignments for generation:", voiceAssignments);
+
+  const splitByChapter =
+    document.getElementById("split-chapters-checkbox")?.checked || false;
+  const customHeading = document
+    .getElementById("custom-heading-input")
+    ?.value?.trim();
+  const generateFullStory =
+    splitByChapter &&
+    (document.getElementById("full-story-checkbox")?.checked || false);
+  const outputFormat =
+    document.getElementById("job-output-format")?.value || undefined;
+  const outputBitrate =
+    document.getElementById("job-output-bitrate")?.value || undefined;
+
+  const selectedEngine = getSelectedJobEngine() || runtimeSettings?.tts_engine;
+  const wordReplacements = getAltWordRegistry().filter(
+    (e) => e.original && e.replacement,
+  );
+  const payload = {
+    text,
+    split_by_chapter: splitByChapter,
+    generate_full_story: generateFullStory,
+    voice_assignments: voiceAssignments,
+    review_mode: true, // Always enabled - chunk review happens in library
+  };
+  if (wordReplacements.length > 0) {
+    payload.word_replacements = wordReplacements;
+  }
+  if (customHeading) {
+    payload.custom_heading = customHeading;
+  }
+  if (selectedEngine) {
+    payload.tts_engine = selectedEngine;
+    const overrides = collectEngineOverrides(selectedEngine);
+    if (overrides) {
+      payload.engine_options = overrides;
     }
-    if (outputFormat) {
-        payload.output_format = outputFormat;
+  }
+  if (outputFormat) {
+    payload.output_format = outputFormat;
+  }
+  if (outputFormat === "mp3" && outputBitrate) {
+    payload.output_bitrate_kbps = parseInt(outputBitrate, 10);
+  }
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Show success notification
+      showNotification(
+        `Job queued! Position: ${data.queue_position}`,
+        "success",
+      );
+
+      // Update queue indicator
+      updateQueueIndicator();
+    } else {
+      alert("Error: " + data.error);
     }
-    if (outputFormat === 'mp3' && outputBitrate) {
-        payload.output_bitrate_kbps = parseInt(outputBitrate, 10);
-    }
-    try {
-        const response = await fetch('/api/generate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Show success notification
-            showNotification(`Job queued! Position: ${data.queue_position}`, 'success');
-            
-            // Update queue indicator
-            updateQueueIndicator();
-            
-        } else {
-            alert('Error: ' + data.error);
-        }
-    } catch (error) {
-        console.error('Error generating audio:', error);
-        alert('Failed to generate audio');
-    }
+  } catch (error) {
+    console.error("Error generating audio:", error);
+    alert("Failed to generate audio");
+  }
 }
 
 // ── Speaker tag balance checker & inline banner ───────────────────────────────
 
-const _TAG_RESERVED = new Set(['default']);
+const _TAG_RESERVED = new Set(["default"]);
 
 /**
  * Returns an array of error objects, each with:
@@ -4474,119 +5324,126 @@ const _TAG_RESERVED = new Set(['default']);
  * `pos` is the character index in `text` of the offending tag.
  */
 function getSpeakerTagIssues(text) {
-    const openRe = /\[([a-zA-Z0-9_\-]+)\]/g;
-    const closeRe = /\[\/([a-zA-Z0-9_\-]+)\]/g;
+  const openRe = /\[([a-zA-Z0-9_\-]+)\]/g;
+  const closeRe = /\[\/([a-zA-Z0-9_\-]+)\]/g;
 
-    const events = [];
-    let m;
-    while ((m = openRe.exec(text)) !== null) {
-        const tag = m[1].toLowerCase();
-        if (!_TAG_RESERVED.has(tag)) events.push({ pos: m.index, len: m[0].length, kind: 'open', tag });
-    }
-    while ((m = closeRe.exec(text)) !== null) {
-        const tag = m[1].toLowerCase();
-        if (!_TAG_RESERVED.has(tag)) events.push({ pos: m.index, len: m[0].length, kind: 'close', tag });
-    }
-    events.sort((a, b) => a.pos - b.pos);
+  const events = [];
+  let m;
+  while ((m = openRe.exec(text)) !== null) {
+    const tag = m[1].toLowerCase();
+    if (!_TAG_RESERVED.has(tag))
+      events.push({ pos: m.index, len: m[0].length, kind: "open", tag });
+  }
+  while ((m = closeRe.exec(text)) !== null) {
+    const tag = m[1].toLowerCase();
+    if (!_TAG_RESERVED.has(tag))
+      events.push({ pos: m.index, len: m[0].length, kind: "close", tag });
+  }
+  events.sort((a, b) => a.pos - b.pos);
 
-    const issues = [];
-    const stack = []; // { tag, pos, len }
-    let lastCloseEvent = null;
-    for (const ev of events) {
-        if (ev.kind === 'open') {
-            stack.push(ev);
-        } else {
-            if (stack.length === 0) {
-                const blockStart = lastCloseEvent ? lastCloseEvent.pos + lastCloseEvent.len : 0;
-                issues.push({
-                    message: `Closing tag [/${ev.tag}] has no matching opening tag`,
-                    pos: ev.pos,
-                    kind: 'orphan-close',
-                    tag: ev.tag,
-                    focusStart: ev.pos,
-                    focusEnd: ev.pos + ev.len,
-                    blockStart,
-                    blockEnd: ev.pos + ev.len,
-                });
-            } else if (stack[stack.length - 1].tag !== ev.tag) {
-                const top = stack.pop();
-                issues.push({
-                    message: `Mismatched tags: expected [/${top.tag}] but found [/${ev.tag}]`,
-                    pos: ev.pos,
-                    kind: 'mismatch',
-                    tag: ev.tag,
-                    openerTag: top.tag,
-                    openerPos: top.pos,
-                    focusStart: ev.pos,
-                    focusEnd: ev.pos + ev.len,
-                    blockStart: top.pos,
-                    blockEnd: ev.pos + ev.len,
-                });
-            } else {
-                stack.pop();
-            }
-            lastCloseEvent = ev;
-        }
-    }
-    for (const unclosed of stack) {
-        const nextOpen = events.find(e => e.kind === 'open' && e.pos > unclosed.pos);
+  const issues = [];
+  const stack = []; // { tag, pos, len }
+  let lastCloseEvent = null;
+  for (const ev of events) {
+    if (ev.kind === "open") {
+      stack.push(ev);
+    } else {
+      if (stack.length === 0) {
+        const blockStart = lastCloseEvent
+          ? lastCloseEvent.pos + lastCloseEvent.len
+          : 0;
         issues.push({
-            message: `Opening tag [${unclosed.tag}] has no matching closing tag`,
-            pos: unclosed.pos,
-            kind: 'orphan-open',
-            tag: unclosed.tag,
-            focusStart: unclosed.pos,
-            focusEnd: unclosed.pos + unclosed.len,
-            blockStart: unclosed.pos,
-            blockEnd: nextOpen ? nextOpen.pos : text.length,
+          message: `Closing tag [/${ev.tag}] has no matching opening tag`,
+          pos: ev.pos,
+          kind: "orphan-close",
+          tag: ev.tag,
+          focusStart: ev.pos,
+          focusEnd: ev.pos + ev.len,
+          blockStart,
+          blockEnd: ev.pos + ev.len,
         });
+      } else if (stack[stack.length - 1].tag !== ev.tag) {
+        const top = stack.pop();
+        issues.push({
+          message: `Mismatched tags: expected [/${top.tag}] but found [/${ev.tag}]`,
+          pos: ev.pos,
+          kind: "mismatch",
+          tag: ev.tag,
+          openerTag: top.tag,
+          openerPos: top.pos,
+          focusStart: ev.pos,
+          focusEnd: ev.pos + ev.len,
+          blockStart: top.pos,
+          blockEnd: ev.pos + ev.len,
+        });
+      } else {
+        stack.pop();
+      }
+      lastCloseEvent = ev;
     }
-    return issues;
+  }
+  for (const unclosed of stack) {
+    const nextOpen = events.find(
+      (e) => e.kind === "open" && e.pos > unclosed.pos,
+    );
+    issues.push({
+      message: `Opening tag [${unclosed.tag}] has no matching closing tag`,
+      pos: unclosed.pos,
+      kind: "orphan-open",
+      tag: unclosed.tag,
+      focusStart: unclosed.pos,
+      focusEnd: unclosed.pos + unclosed.len,
+      blockStart: unclosed.pos,
+      blockEnd: nextOpen ? nextOpen.pos : text.length,
+    });
+  }
+  return issues;
 }
 
 /** Convenience: returns error message strings only (for submit guard). */
 function checkSpeakerTagBalance(text) {
-    return getSpeakerTagIssues(text).map(i => i.message);
+  return getSpeakerTagIssues(text).map((i) => i.message);
 }
 
 // ── Banner state ──────────────────────────────────────────────────────────────
-let _tagIssues = [];          // current list of issues
-let _tagIssueIndex = -1;      // which issue the user is navigating to
+let _tagIssues = []; // current list of issues
+let _tagIssueIndex = -1; // which issue the user is navigating to
 
 function _updateTagErrorBanner() {
-    const textarea = document.getElementById('input-text');
-    const banner   = document.getElementById('tag-error-banner');
-    const summary  = document.getElementById('tag-error-summary');
-    if (!textarea || !banner || !summary) return;
+  const textarea = document.getElementById("input-text");
+  const banner = document.getElementById("tag-error-banner");
+  const summary = document.getElementById("tag-error-summary");
+  if (!textarea || !banner || !summary) return;
 
-    const text = textarea.value;
-    // Only run the check when the text actually contains any speaker tags
-    const hasTags = /\[[a-zA-Z0-9_\-]+\]/.test(text);
-    if (!hasTags) {
-        _tagIssues = [];
-        banner.classList.add('hidden');
-        textarea.classList.remove('tag-error-highlight');
-        return;
-    }
+  const text = textarea.value;
+  // Only run the check when the text actually contains any speaker tags
+  const hasTags = /\[[a-zA-Z0-9_\-]+\]/.test(text);
+  if (!hasTags) {
+    _tagIssues = [];
+    banner.classList.add("hidden");
+    textarea.classList.remove("tag-error-highlight");
+    return;
+  }
 
-    _tagIssues = getSpeakerTagIssues(text);
-    if (_tagIssues.length === 0) {
-        banner.classList.add('hidden');
-        textarea.classList.remove('tag-error-highlight');
-        return;
-    }
+  _tagIssues = getSpeakerTagIssues(text);
+  if (_tagIssues.length === 0) {
+    banner.classList.add("hidden");
+    textarea.classList.remove("tag-error-highlight");
+    return;
+  }
 
-    const n = _tagIssues.length;
-    summary.textContent = `${n} unmatched speaker tag${n === 1 ? '' : 's'} found`;
-    banner.classList.remove('hidden');
-    textarea.classList.add('tag-error-highlight');
-    if (_tagIssueIndex < 0 || _tagIssueIndex >= n) _tagIssueIndex = 0;
+  const n = _tagIssues.length;
+  summary.textContent = `${n} unmatched speaker tag${n === 1 ? "" : "s"} found`;
+  banner.classList.remove("hidden");
+  textarea.classList.add("tag-error-highlight");
+  if (_tagIssueIndex < 0 || _tagIssueIndex >= n) _tagIssueIndex = 0;
 }
 
 function _navigateTagIssue(delta) {
-    if (_tagIssues.length === 0) return;
-    _tagIssueIndex = (_tagIssueIndex + delta + _tagIssues.length) % _tagIssues.length;
-    _scrollToTagIssue(_tagIssueIndex);
+  if (_tagIssues.length === 0) return;
+  _tagIssueIndex =
+    (_tagIssueIndex + delta + _tagIssues.length) % _tagIssues.length;
+  _scrollToTagIssue(_tagIssueIndex);
 }
 
 /**
@@ -4595,89 +5452,113 @@ function _navigateTagIssue(delta) {
  * typography and width.
  */
 function _computeScrollTopForChar(textarea, charIndex) {
-    const text = textarea.value || '';
-    const cs   = window.getComputedStyle(textarea);
+  const text = textarea.value || "";
+  const cs = window.getComputedStyle(textarea);
 
-    // Build mirror with identical layout properties
-    const mirror = document.createElement('div');
-    [
-        'paddingTop','paddingRight','paddingBottom','paddingLeft',
-        'fontFamily','fontSize','fontWeight','fontStyle',
-        'lineHeight','letterSpacing','wordSpacing','tabSize',
-    ].forEach(p => { mirror.style[p] = cs[p]; });
+  // Build mirror with identical layout properties
+  const mirror = document.createElement("div");
+  [
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "fontStyle",
+    "lineHeight",
+    "letterSpacing",
+    "wordSpacing",
+    "tabSize",
+  ].forEach((p) => {
+    mirror.style[p] = cs[p];
+  });
 
-    // Width must match the textarea's inner content width precisely
-    const innerWidth = textarea.clientWidth
-        - parseFloat(cs.paddingLeft)  - parseFloat(cs.paddingRight);
-    mirror.style.width     = innerWidth + 'px';
-    mirror.style.boxSizing = 'content-box';
-    mirror.style.position  = 'absolute';
-    mirror.style.top       = '0';
-    mirror.style.left      = '0';
-    mirror.style.visibility= 'hidden';
-    mirror.style.whiteSpace= 'pre-wrap';
-    mirror.style.wordWrap  = 'break-word';
-    mirror.style.overflow  = 'hidden';
+  // Width must match the textarea's inner content width precisely
+  const innerWidth =
+    textarea.clientWidth -
+    parseFloat(cs.paddingLeft) -
+    parseFloat(cs.paddingRight);
+  mirror.style.width = innerWidth + "px";
+  mirror.style.boxSizing = "content-box";
+  mirror.style.position = "absolute";
+  mirror.style.top = "0";
+  mirror.style.left = "0";
+  mirror.style.visibility = "hidden";
+  mirror.style.whiteSpace = "pre-wrap";
+  mirror.style.wordWrap = "break-word";
+  mirror.style.overflow = "hidden";
 
-    // We only need the text up to the target character to measure line position
-    const before = document.createTextNode(text.slice(0, charIndex));
-    const marker = document.createElement('span');
-    marker.textContent = '\u200B'; // zero-width space as anchor
-    mirror.appendChild(before);
-    mirror.appendChild(marker);
+  // We only need the text up to the target character to measure line position
+  const before = document.createTextNode(text.slice(0, charIndex));
+  const marker = document.createElement("span");
+  marker.textContent = "\u200B"; // zero-width space as anchor
+  mirror.appendChild(before);
+  mirror.appendChild(marker);
 
-    // Append to a hidden container so layout is computed correctly
-    const host = document.createElement('div');
-    host.style.cssText = 'position:fixed;top:0;left:0;width:' + textarea.clientWidth + 'px;visibility:hidden;overflow:visible;pointer-events:none;';
-    host.appendChild(mirror);
-    document.body.appendChild(host);
+  // Append to a hidden container so layout is computed correctly
+  const host = document.createElement("div");
+  host.style.cssText =
+    "position:fixed;top:0;left:0;width:" +
+    textarea.clientWidth +
+    "px;visibility:hidden;overflow:visible;pointer-events:none;";
+  host.appendChild(mirror);
+  document.body.appendChild(host);
 
-    // marker.offsetTop is relative to mirror (its offset parent)
-    const markerOffsetTop = marker.offsetTop;
-    document.body.removeChild(host);
+  // marker.offsetTop is relative to mirror (its offset parent)
+  const markerOffsetTop = marker.offsetTop;
+  document.body.removeChild(host);
 
-    // markerOffsetTop is the distance from mirror's top to the marker line.
-    // Subtract paddingTop so scrollTop=0 corresponds to the first line.
-    const paddingTop = parseFloat(cs.paddingTop) || 0;
-    return Math.max(0, markerOffsetTop - paddingTop);
+  // markerOffsetTop is the distance from mirror's top to the marker line.
+  // Subtract paddingTop so scrollTop=0 corresponds to the first line.
+  const paddingTop = parseFloat(cs.paddingTop) || 0;
+  return Math.max(0, markerOffsetTop - paddingTop);
 }
 
 function _scrollToTagIssue(idx) {
-    const textarea = document.getElementById('input-text');
-    if (!textarea || !_tagIssues[idx]) return;
-    const issue    = _tagIssues[idx];
-    const text     = textarea.value || '';
+  const textarea = document.getElementById("input-text");
+  if (!textarea || !_tagIssues[idx]) return;
+  const issue = _tagIssues[idx];
+  const text = textarea.value || "";
 
-    const focusStart = Number.isInteger(issue.focusStart) ? issue.focusStart : issue.pos;
-    const focusEnd   = Number.isInteger(issue.focusEnd)   ? issue.focusEnd   : Math.min(text.length, focusStart + 1);
-    const blockStart = Number.isInteger(issue.blockStart) ? issue.blockStart : focusStart;
-    const blockEnd   = Number.isInteger(issue.blockEnd)   ? issue.blockEnd   : focusEnd;
-    const blockLen   = Math.max(0, blockEnd - blockStart);
+  const focusStart = Number.isInteger(issue.focusStart)
+    ? issue.focusStart
+    : issue.pos;
+  const focusEnd = Number.isInteger(issue.focusEnd)
+    ? issue.focusEnd
+    : Math.min(text.length, focusStart + 1);
+  const blockStart = Number.isInteger(issue.blockStart)
+    ? issue.blockStart
+    : focusStart;
+  const blockEnd = Number.isInteger(issue.blockEnd) ? issue.blockEnd : focusEnd;
+  const blockLen = Math.max(0, blockEnd - blockStart);
 
-    const useBlock = blockLen > 0 && blockLen <= 3000;
-    const selStart = useBlock ? blockStart : focusStart;
-    const selEnd   = useBlock ? blockEnd   : focusEnd;
+  const useBlock = blockLen > 0 && blockLen <= 3000;
+  const selStart = useBlock ? blockStart : focusStart;
+  const selEnd = useBlock ? blockEnd : focusEnd;
 
-    textarea.focus();
-    textarea.setSelectionRange(selStart, selEnd);
+  textarea.focus();
+  textarea.setSelectionRange(selStart, selEnd);
 
-    // Compute where the focus tag sits in the content and place it at the top.
-    // Double-rAF ensures our assignment runs after the browser's own scroll-to-selection pass.
-    const targetScrollTop = _computeScrollTopForChar(textarea, focusStart);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-        textarea.scrollTop = targetScrollTop;
-    }));
+  // Compute where the focus tag sits in the content and place it at the top.
+  // Double-rAF ensures our assignment runs after the browser's own scroll-to-selection pass.
+  const targetScrollTop = _computeScrollTopForChar(textarea, focusStart);
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      textarea.scrollTop = targetScrollTop;
+    }),
+  );
 
-    // Update banner summary
-    const startLine = text.substring(0, focusStart).split('\n').length;
-    const endLine   = text.substring(0, selEnd).split('\n').length;
-    const summary   = document.getElementById('tag-error-summary');
-    if (summary) {
-        const highlightText = useBlock
-            ? `Highlighted affected block (lines ${startLine}–${endLine}).`
-            : `Highlighted unmatched tag at line ${startLine}.`;
-        summary.textContent = `Issue ${idx + 1} of ${_tagIssues.length}: ${issue.message} — ${highlightText}`;
-    }
+  // Update banner summary
+  const startLine = text.substring(0, focusStart).split("\n").length;
+  const endLine = text.substring(0, selEnd).split("\n").length;
+  const summary = document.getElementById("tag-error-summary");
+  if (summary) {
+    const highlightText = useBlock
+      ? `Highlighted affected block (lines ${startLine}–${endLine}).`
+      : `Highlighted unmatched tag at line ${startLine}.`;
+    summary.textContent = `Issue ${idx + 1} of ${_tagIssues.length}: ${issue.message} — ${highlightText}`;
+  }
 }
 
 /**
@@ -4691,160 +5572,175 @@ function _scrollToTagIssue(idx) {
  *                   (openerTag is stored from getSpeakerTagIssues)
  */
 function _autoFixTagBalance() {
-    const textarea = document.getElementById('input-text');
-    if (!textarea) return;
+  const textarea = document.getElementById("input-text");
+  if (!textarea) return;
 
-    const text   = textarea.value;
-    const issues = getSpeakerTagIssues(text);
-    if (issues.length === 0) return;
+  const text = textarea.value;
+  const issues = getSpeakerTagIssues(text);
+  if (issues.length === 0) return;
 
-    // Build flat sorted list of every tag occurrence for neighbour lookup
-    function allTags(t) {
-        const out = [];
-        let m;
-        const r1 = /\[([a-zA-Z0-9_\-]+)\]/g;
-        while ((m = r1.exec(t)) !== null) {
-            const tg = m[1].toLowerCase();
-            if (!_TAG_RESERVED.has(tg)) out.push({ pos: m.index, end: m.index + m[0].length, kind: 'open', tag: tg });
-        }
-        const r2 = /\[\/([a-zA-Z0-9_\-]+)\]/g;
-        while ((m = r2.exec(t)) !== null) {
-            const tg = m[1].toLowerCase();
-            if (!_TAG_RESERVED.has(tg)) out.push({ pos: m.index, end: m.index + m[0].length, kind: 'close', tag: tg });
-        }
-        out.sort((a, b) => a.pos - b.pos);
-        return out;
+  // Build flat sorted list of every tag occurrence for neighbour lookup
+  function allTags(t) {
+    const out = [];
+    let m;
+    const r1 = /\[([a-zA-Z0-9_\-]+)\]/g;
+    while ((m = r1.exec(t)) !== null) {
+      const tg = m[1].toLowerCase();
+      if (!_TAG_RESERVED.has(tg))
+        out.push({
+          pos: m.index,
+          end: m.index + m[0].length,
+          kind: "open",
+          tag: tg,
+        });
     }
-
-    const tags = allTags(text);
-
-    // Each insertion: { at: charIndex, text: string }
-    const insertions = [];
-
-    for (const issue of issues) {
-        if (issue.kind === 'orphan-open') {
-            // Insert closing tag just before the next opening tag after this one (or EOF)
-            const nextOpen = tags.find(t => t.kind === 'open' && t.pos > issue.pos);
-            const at = nextOpen ? nextOpen.pos : text.length;
-            insertions.push({ at, insert: `\n[/${issue.tag}]` });
-
-        } else if (issue.kind === 'mismatch') {
-            // The opener (openerTag) has no matching close — insert its close
-            // just before the next opening tag after the opener's position
-            const openerTag = issue.openerTag || issue.tag;
-            const openerPos = issue.openerPos != null ? issue.openerPos : issue.pos;
-            const nextOpen  = tags.find(t => t.kind === 'open' && t.pos > openerPos);
-            const at = nextOpen ? nextOpen.pos : text.length;
-            insertions.push({ at, insert: `\n[/${openerTag}]` });
-
-        } else if (issue.kind === 'orphan-close') {
-            // Insert opening tag just after the previous closing tag before this one (or BOF)
-            const prevClose = [...tags].reverse().find(t => t.kind === 'close' && t.end <= issue.pos);
-            const at = prevClose ? prevClose.end : 0;
-            insertions.push({ at, insert: `\n[${issue.tag}]` });
-        }
+    const r2 = /\[\/([a-zA-Z0-9_\-]+)\]/g;
+    while ((m = r2.exec(t)) !== null) {
+      const tg = m[1].toLowerCase();
+      if (!_TAG_RESERVED.has(tg))
+        out.push({
+          pos: m.index,
+          end: m.index + m[0].length,
+          kind: "close",
+          tag: tg,
+        });
     }
+    out.sort((a, b) => a.pos - b.pos);
+    return out;
+  }
 
-    // Deduplicate insertions at the same position with the same text
-    const seen = new Set();
-    const unique = insertions.filter(ins => {
-        const key = ins.at + '|' + ins.insert;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
+  const tags = allTags(text);
 
-    // Apply back-to-front so earlier offsets stay valid
-    unique.sort((a, b) => b.at - a.at);
+  // Each insertion: { at: charIndex, text: string }
+  const insertions = [];
 
-    let result = text;
-    for (const { at, insert } of unique) {
-        const before = result[at - 1];
-        const after  = result[at];
-        // insert starts with \n; if there's already a newline before, trim the leading \n
-        const actualInsert = (before === '\n' ? insert.replace(/^\n/, '') : insert)
-            + (after && after !== '\n' ? '\n' : '');
-        result = result.slice(0, at) + actualInsert + result.slice(at);
+  for (const issue of issues) {
+    if (issue.kind === "orphan-open") {
+      // Insert closing tag just before the next opening tag after this one (or EOF)
+      const nextOpen = tags.find((t) => t.kind === "open" && t.pos > issue.pos);
+      const at = nextOpen ? nextOpen.pos : text.length;
+      insertions.push({ at, insert: `\n[/${issue.tag}]` });
+    } else if (issue.kind === "mismatch") {
+      // The opener (openerTag) has no matching close — insert its close
+      // just before the next opening tag after the opener's position
+      const openerTag = issue.openerTag || issue.tag;
+      const openerPos = issue.openerPos != null ? issue.openerPos : issue.pos;
+      const nextOpen = tags.find((t) => t.kind === "open" && t.pos > openerPos);
+      const at = nextOpen ? nextOpen.pos : text.length;
+      insertions.push({ at, insert: `\n[/${openerTag}]` });
+    } else if (issue.kind === "orphan-close") {
+      // Insert opening tag just after the previous closing tag before this one (or BOF)
+      const prevClose = [...tags]
+        .reverse()
+        .find((t) => t.kind === "close" && t.end <= issue.pos);
+      const at = prevClose ? prevClose.end : 0;
+      insertions.push({ at, insert: `\n[${issue.tag}]` });
     }
+  }
 
-    textarea.value = result;
-    lastAnalyzedText = null;
-    _updateTagErrorBanner();
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  // Deduplicate insertions at the same position with the same text
+  const seen = new Set();
+  const unique = insertions.filter((ins) => {
+    const key = ins.at + "|" + ins.insert;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // Apply back-to-front so earlier offsets stay valid
+  unique.sort((a, b) => b.at - a.at);
+
+  let result = text;
+  for (const { at, insert } of unique) {
+    const before = result[at - 1];
+    const after = result[at];
+    // insert starts with \n; if there's already a newline before, trim the leading \n
+    const actualInsert =
+      (before === "\n" ? insert.replace(/^\n/, "") : insert) +
+      (after && after !== "\n" ? "\n" : "");
+    result = result.slice(0, at) + actualInsert + result.slice(at);
+  }
+
+  textarea.value = result;
+  lastAnalyzedText = null;
+  _updateTagErrorBanner();
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 // ── Wire up events once DOM is ready ─────────────────────────────────────────
 function _initTagErrorBanner() {
-    const textarea = document.getElementById('input-text');
-    const prevBtn  = document.getElementById('tag-error-prev-btn');
-    const nextBtn  = document.getElementById('tag-error-next-btn');
-    const fixBtn   = document.getElementById('tag-error-fix-btn');
-    if (!textarea) return;
+  const textarea = document.getElementById("input-text");
+  const prevBtn = document.getElementById("tag-error-prev-btn");
+  const nextBtn = document.getElementById("tag-error-next-btn");
+  const fixBtn = document.getElementById("tag-error-fix-btn");
+  if (!textarea) return;
 
-    let _tagCheckTimer = null;
-    textarea.addEventListener('input', () => {
-        clearTimeout(_tagCheckTimer);
-        _tagCheckTimer = setTimeout(_updateTagErrorBanner, 600);
-    });
-    textarea.addEventListener('paste', () => {
-        clearTimeout(_tagCheckTimer);
-        _tagCheckTimer = setTimeout(_updateTagErrorBanner, 800);
-    });
+  let _tagCheckTimer = null;
+  textarea.addEventListener("input", () => {
+    clearTimeout(_tagCheckTimer);
+    _tagCheckTimer = setTimeout(_updateTagErrorBanner, 600);
+  });
+  textarea.addEventListener("paste", () => {
+    clearTimeout(_tagCheckTimer);
+    _tagCheckTimer = setTimeout(_updateTagErrorBanner, 800);
+  });
 
-    if (prevBtn) prevBtn.addEventListener('click', () => _navigateTagIssue(-1));
-    if (nextBtn) nextBtn.addEventListener('click', () => _navigateTagIssue(+1));
-    if (fixBtn)  fixBtn.addEventListener('click',  _autoFixTagBalance);
+  if (prevBtn) prevBtn.addEventListener("click", () => _navigateTagIssue(-1));
+  if (nextBtn) nextBtn.addEventListener("click", () => _navigateTagIssue(+1));
+  if (fixBtn) fixBtn.addEventListener("click", _autoFixTagBalance);
 }
 
-document.addEventListener('DOMContentLoaded', _initTagErrorBanner);
+document.addEventListener("DOMContentLoaded", _initTagErrorBanner);
 
 // Show notification
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.classList.add('show');
-    }, 10);
-    
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+function showNotification(message, type = "info") {
+  const notification = document.createElement("div");
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    notification.classList.add("show");
+  }, 10);
+
+  setTimeout(() => {
+    notification.classList.remove("show");
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
 }
 
 // Update queue indicator
 async function updateQueueIndicator() {
-    if (queuePollInFlight) {
-        return;
+  if (queuePollInFlight) {
+    return;
+  }
+  queuePollInFlight = true;
+  try {
+    const response = await fetch("/api/queue");
+    const data = await response.json();
+
+    if (data.success) {
+      const indicator = document.getElementById("queue-indicator");
+      const queueSize = data.queue_size;
+      const processingJobs = data.jobs.filter(
+        (j) => j.status === "processing",
+      ).length;
+      if (typeof updateLatestAudioFromQueue === "function") {
+        updateLatestAudioFromQueue(data.jobs);
+      }
+
+      if (queueSize > 0 || processingJobs > 0) {
+        indicator.style.display = "inline-block";
+        indicator.textContent = `${processingJobs} processing, ${queueSize} queued`;
+      } else {
+        indicator.style.display = "none";
+      }
     }
-    queuePollInFlight = true;
-    try {
-        const response = await fetch('/api/queue');
-        const data = await response.json();
-        
-        if (data.success) {
-            const indicator = document.getElementById('queue-indicator');
-            const queueSize = data.queue_size;
-            const processingJobs = data.jobs.filter(j => j.status === 'processing').length;
-            if (typeof updateLatestAudioFromQueue === 'function') {
-                updateLatestAudioFromQueue(data.jobs);
-            }
-            
-            if (queueSize > 0 || processingJobs > 0) {
-                indicator.style.display = 'inline-block';
-                indicator.textContent = `${processingJobs} processing, ${queueSize} queued`;
-            } else {
-                indicator.style.display = 'none';
-            }
-        }
-    } catch (error) {
-        console.error('Error updating queue indicator:', error);
-    } finally {
-        queuePollInFlight = false;
-    }
+  } catch (error) {
+    console.error("Error updating queue indicator:", error);
+  } finally {
+    queuePollInFlight = false;
+  }
 }
 
 // Start periodic queue indicator updates
@@ -4855,405 +5751,432 @@ updateQueueIndicator();
 // only need a lightweight hook to update the latest-audio player.
 
 function updateLatestAudioFromQueue(jobs) {
-    if (!Array.isArray(jobs) || jobs.length === 0) {
-        const container = document.getElementById('latest-audio-container');
-        if (container) {
-            container.style.display = 'none';
-        }
-        return;
+  if (!Array.isArray(jobs) || jobs.length === 0) {
+    const container = document.getElementById("latest-audio-container");
+    if (container) {
+      container.style.display = "none";
     }
+    return;
+  }
 
-    // Jobs are already sorted newest-first in /api/queue
-    const latestCompleted = jobs.find(j => j.status === 'completed' && j.output_file);
-    const container = document.getElementById('latest-audio-container');
-    const player = document.getElementById('latest-audio-player');
-    const label = document.getElementById('latest-audio-label');
+  // Jobs are already sorted newest-first in /api/queue
+  const latestCompleted = jobs.find(
+    (j) => j.status === "completed" && j.output_file,
+  );
+  const container = document.getElementById("latest-audio-container");
+  const player = document.getElementById("latest-audio-player");
+  const label = document.getElementById("latest-audio-label");
 
-    if (!latestCompleted || !container || !player || !label) {
-        if (container) {
-            container.style.display = 'none';
-        }
-        return;
+  if (!latestCompleted || !container || !player || !label) {
+    if (container) {
+      container.style.display = "none";
     }
+    return;
+  }
 
-    container.style.display = 'block';
-    label.textContent = `Most recently completed job (${latestCompleted.job_id})`;
-    
-    if (player.src !== window.location.origin + latestCompleted.output_file) {
-        player.src = latestCompleted.output_file;
-        player.load();
-    }
+  container.style.display = "block";
+  label.textContent = `Most recently completed job (${latestCompleted.job_id})`;
+
+  if (player.src !== window.location.origin + latestCompleted.output_file) {
+    player.src = latestCompleted.output_file;
+    player.load();
+  }
 }
 
 // These functions are kept for backward compatibility but not used in queue mode
 function downloadAudio() {
-    if (!currentJobId) {
-        alert('No audio to download');
-        return;
-    }
-    window.location.href = `/api/download/${currentJobId}`;
+  if (!currentJobId) {
+    alert("No audio to download");
+    return;
+  }
+  window.location.href = `/api/download/${currentJobId}`;
 }
 
 function resetGeneration() {
-    // Not used in queue mode
+  // Not used in queue mode
 }
 
 function displayResult(outputFile) {
-    // Not used in queue mode - check Job Queue tab instead
-    console.log('Job completed:', outputFile);
+  // Not used in queue mode - check Job Queue tab instead
+  console.log("Job completed:", outputFile);
 }
 
 function pollJobStatus(jobId) {
-    // Not used in queue mode - Job Queue tab handles monitoring
+  // Not used in queue mode - Job Queue tab handles monitoring
 }
 
 function simulateProgressWithEstimate(estimatedSeconds) {
-    // Not used in queue mode
+  // Not used in queue mode
 }
 
 function resetVoiceAssignments() {
-    const inputText = document.getElementById('input-text')?.value || '';
-    const shouldProceed = inputText.trim()
-        ? confirm('Reset all speaker assignments and FX settings? You can re-run Analyze Text afterwards.')
-        : true;
-    if (!shouldProceed) {
-        return;
-    }
+  const inputText = document.getElementById("input-text")?.value || "";
+  const shouldProceed = inputText.trim()
+    ? confirm(
+        "Reset all speaker assignments and FX settings? You can re-run Analyze Text afterwards.",
+      )
+    : true;
+  if (!shouldProceed) {
+    return;
+  }
 
-    Object.keys(voiceFxState).forEach(key => {
-        if (!voiceFxState[key]) {
-            voiceFxState[key] = {
-                pitch: DEFAULT_FX_STATE.pitch,
-                speed: DEFAULT_FX_STATE.speed,
-                sampleText: DEFAULT_FX_STATE.sampleText
-            };
-        } else {
-            // Ensure legacy objects get any new defaults
-            voiceFxState[key] = {
-                pitch: Number.isFinite(voiceFxState[key].pitch) ? voiceFxState[key].pitch : DEFAULT_FX_STATE.pitch,
-                speed: Number.isFinite(voiceFxState[key].speed) ? voiceFxState[key].speed : DEFAULT_FX_STATE.speed,
-                sampleText: voiceFxState[key].sampleText ?? DEFAULT_FX_STATE.sampleText
-            };
-        }
-    });
+  Object.keys(voiceFxState).forEach((key) => {
+    if (!voiceFxState[key]) {
+      voiceFxState[key] = {
+        pitch: DEFAULT_FX_STATE.pitch,
+        speed: DEFAULT_FX_STATE.speed,
+        sampleText: DEFAULT_FX_STATE.sampleText,
+      };
+    } else {
+      // Ensure legacy objects get any new defaults
+      voiceFxState[key] = {
+        pitch: Number.isFinite(voiceFxState[key].pitch)
+          ? voiceFxState[key].pitch
+          : DEFAULT_FX_STATE.pitch,
+        speed: Number.isFinite(voiceFxState[key].speed)
+          ? voiceFxState[key].speed
+          : DEFAULT_FX_STATE.speed,
+        sampleText: voiceFxState[key].sampleText ?? DEFAULT_FX_STATE.sampleText,
+      };
+    }
+  });
 
-    const inlineAssignments = document.getElementById('inline-voice-assignments');
-    if (inlineAssignments) {
-        inlineAssignments.style.display = 'none';
-    }
-    const assignmentList = document.getElementById('inline-voice-assignment-list');
-    if (assignmentList) {
-        assignmentList.innerHTML = '';
-    }
-    const speakersList = document.getElementById('speakers-list');
-    if (speakersList) {
-        speakersList.innerHTML = '<p><em>No speaker tags detected. Run Analyze Text to rebuild assignments.</em></p>';
-    }
-    const statsSection = document.getElementById('stats-section');
-    if (statsSection) {
-        statsSection.style.display = 'none';
-    }
+  const inlineAssignments = document.getElementById("inline-voice-assignments");
+  if (inlineAssignments) {
+    inlineAssignments.style.display = "none";
+  }
+  const assignmentList = document.getElementById(
+    "inline-voice-assignment-list",
+  );
+  if (assignmentList) {
+    assignmentList.innerHTML = "";
+  }
+  const speakersList = document.getElementById("speakers-list");
+  if (speakersList) {
+    speakersList.innerHTML =
+      "<p><em>No speaker tags detected. Run Analyze Text to rebuild assignments.</em></p>";
+  }
+  const statsSection = document.getElementById("stats-section");
+  if (statsSection) {
+    statsSection.style.display = "none";
+  }
 
-    currentStats = null;
-    lastAnalyzedText = '';
-    updateSectionReviewButton(false);
-    initDefaultVoiceFxPanel();
-    showNotification('Assignments reset. Run Analyze Text again when you\'re ready.', 'info');
+  currentStats = null;
+  lastAnalyzedText = "";
+  updateSectionReviewButton(false);
+  initDefaultVoiceFxPanel();
+  showNotification(
+    "Assignments reset. Run Analyze Text again when you're ready.",
+    "info",
+  );
 }
 
 // Populate default voice selector
 function populateDefaultVoiceSelect() {
-    const select = document.getElementById('default-voice-select');
-    if (!select) {
-        return;
-    }
+  const select = document.getElementById("default-voice-select");
+  if (!select) {
+    return;
+  }
 
-    const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
-    const isPocketPreset = isPocketPresetEngine(engineName);
-    if (!isPocketPreset && !window.availableVoices) {
-        return;
-    }
-    if (isPocketPreset && !window.availablePocketTtsVoices) {
-        return;
-    }
+  const engineName =
+    getSelectedJobEngine() || runtimeSettings?.tts_engine || "kokoro";
+  const isPocketPreset = isPocketPresetEngine(engineName);
+  if (!isPocketPreset && !window.availableVoices) {
+    return;
+  }
+  if (isPocketPreset && !window.availablePocketTtsVoices) {
+    return;
+  }
 
-    const previousValue = select.value;
-    select.innerHTML = '<option value="">Select Default Voice...</option>';
-    if (isPocketPreset) {
-        appendPocketPresetVoiceOptions(select);
-    } else {
-        appendVoiceOptions(select);
-    }
-    restoreSelectValue(select, previousValue);
+  const previousValue = select.value;
+  select.innerHTML = '<option value="">Select Default Voice...</option>';
+  if (isPocketPreset) {
+    appendPocketPresetVoiceOptions(select);
+  } else {
+    appendVoiceOptions(select);
+  }
+  restoreSelectValue(select, previousValue);
 }
 
 function appendVoiceOptions(selectElement) {
-    if (!window.availableVoices) {
-        return;
-    }
-    Object.values(window.availableVoices).forEach(voiceConfig => {
-        if (!voiceConfig) return;
-        const baseOptgroup = document.createElement('optgroup');
-        baseOptgroup.label = voiceConfig.language || 'Voices';
-        
-        voiceConfig.voices.forEach(voiceName => {
-            const option = document.createElement('option');
-            option.value = voiceName;
-            option.textContent = voiceName;
-            baseOptgroup.appendChild(option);
-        });
-        
-        selectElement.appendChild(baseOptgroup);
-        
-        const customVoices = voiceConfig.custom_voices || [];
-        if (customVoices.length) {
-            const customGroup = document.createElement('optgroup');
-            customGroup.label = `${voiceConfig.language || 'Voices'} — Custom Blends`;
-            
-            customVoices.forEach(entry => {
-                const option = document.createElement('option');
-                option.value = entry.code;
-                option.textContent = entry.name || entry.code;
-                option.dataset.customVoice = 'true';
-                customGroup.appendChild(option);
-            });
-            
-            selectElement.appendChild(customGroup);
-        }
+  if (!window.availableVoices) {
+    return;
+  }
+  Object.values(window.availableVoices).forEach((voiceConfig) => {
+    if (!voiceConfig) return;
+    const baseOptgroup = document.createElement("optgroup");
+    baseOptgroup.label = voiceConfig.language || "Voices";
+
+    voiceConfig.voices.forEach((voiceName) => {
+      const option = document.createElement("option");
+      option.value = voiceName;
+      option.textContent = voiceName;
+      baseOptgroup.appendChild(option);
     });
+
+    selectElement.appendChild(baseOptgroup);
+
+    const customVoices = voiceConfig.custom_voices || [];
+    if (customVoices.length) {
+      const customGroup = document.createElement("optgroup");
+      customGroup.label = `${voiceConfig.language || "Voices"} — Custom Blends`;
+
+      customVoices.forEach((entry) => {
+        const option = document.createElement("option");
+        option.value = entry.code;
+        option.textContent = entry.name || entry.code;
+        option.dataset.customVoice = "true";
+        customGroup.appendChild(option);
+      });
+
+      selectElement.appendChild(customGroup);
+    }
+  });
 }
 
 function restoreSelectValue(selectElement, previousValue) {
-    if (!previousValue) {
-        return;
-    }
-    const options = Array.from(selectElement.options);
-    const match = options.find(option => option.value === previousValue);
-    if (match) {
-        selectElement.value = previousValue;
-    }
+  if (!previousValue) {
+    return;
+  }
+  const options = Array.from(selectElement.options);
+  const match = options.find((option) => option.value === previousValue);
+  if (match) {
+    selectElement.value = previousValue;
+  }
 }
 
 // Helper function to get lang_code for a voice
 function getLangCodeForVoice(voiceName) {
-    if (!voiceName) {
-        return 'a';
-    }
+  if (!voiceName) {
+    return "a";
+  }
 
-    if (window.customVoiceMap && window.customVoiceMap[voiceName]) {
-        return window.customVoiceMap[voiceName].lang_code || 'a';
-    }
+  if (window.customVoiceMap && window.customVoiceMap[voiceName]) {
+    return window.customVoiceMap[voiceName].lang_code || "a";
+  }
 
-    if (!window.availableVoices) return 'a';
-    
-    for (const [key, voiceConfig] of Object.entries(window.availableVoices)) {
-        if (voiceConfig.voices.includes(voiceName)) {
-            return voiceConfig.lang_code;
-        }
+  if (!window.availableVoices) return "a";
+
+  for (const [key, voiceConfig] of Object.entries(window.availableVoices)) {
+    if (voiceConfig.voices.includes(voiceName)) {
+      return voiceConfig.lang_code;
     }
-    return 'a'; // Default to American English
+  }
+  return "a"; // Default to American English
 }
 
 // Get voice assignments from UI (from inline assignments in Generate tab)
 function buildTurboSelectionMap() {
-    const map = {};
-    getAssignmentRows().forEach(row => {
-        const speaker = row.dataset.speaker;
-        if (!speaker) return;
-        const reference = row.querySelector('.reference-select')?.value.trim();
-        if (reference) {
-            map[speaker] = { reference };
-        }
-    });
-    return map;
+  const map = {};
+  getAssignmentRows().forEach((row) => {
+    const speaker = row.dataset.speaker;
+    if (!speaker) return;
+    const reference = row.querySelector(".reference-select")?.value.trim();
+    if (reference) {
+      map[speaker] = { reference };
+    }
+  });
+  return map;
 }
 
 function applyTurboSelections(assignments, turboSelections, globalReference) {
-    Object.entries(assignments).forEach(([speakerKey, assignment]) => {
-        const selection = turboSelections[speakerKey] || {};
-        const resolvedReference = selection.reference || globalReference || '';
-        if (!assignment.audio_prompt_path && resolvedReference) {
-            assignment.audio_prompt_path = resolvedReference;
-            const promptEntry = findReferencePromptByPath(resolvedReference);
-            if (promptEntry?.transcript) {
-                assignment.extra = {
-                    ...(assignment.extra || {}),
-                    prompt_text: promptEntry.transcript,
-                };
-            }
-        }
-    });
+  Object.entries(assignments).forEach(([speakerKey, assignment]) => {
+    const selection = turboSelections[speakerKey] || {};
+    const resolvedReference = selection.reference || globalReference || "";
+    if (!assignment.audio_prompt_path && resolvedReference) {
+      assignment.audio_prompt_path = resolvedReference;
+      const promptEntry = findReferencePromptByPath(resolvedReference);
+      if (promptEntry?.transcript) {
+        assignment.extra = {
+          ...(assignment.extra || {}),
+          prompt_text: promptEntry.transcript,
+        };
+      }
+    }
+  });
 }
 
 function buildTurboAssignment(speakerKey, referencePath) {
-    const assignment = {};
-    if (referencePath) {
-        assignment.audio_prompt_path = referencePath;
-        const promptEntry = findReferencePromptByPath(referencePath);
-        if (promptEntry?.transcript) {
-            assignment.extra = {
-                ...(assignment.extra || {}),
-                prompt_text: promptEntry.transcript,
-            };
-        }
+  const assignment = {};
+  if (referencePath) {
+    assignment.audio_prompt_path = referencePath;
+    const promptEntry = findReferencePromptByPath(referencePath);
+    if (promptEntry?.transcript) {
+      assignment.extra = {
+        ...(assignment.extra || {}),
+        prompt_text: promptEntry.transcript,
+      };
     }
-    const fxPayload = getFxPayload(speakerKey);
-    if (fxPayload) {
-        assignment.fx = fxPayload;
-    }
-    const state = getFxState(speakerKey);
-    const speedValue = Number(state?.speed) || 1;
-    if (Math.abs(speedValue - 1) > 0.01) {
-        assignment.speed = Number(speedValue.toFixed(2));
-    }
-    return Object.keys(assignment).length ? assignment : null;
+  }
+  const fxPayload = getFxPayload(speakerKey);
+  if (fxPayload) {
+    assignment.fx = fxPayload;
+  }
+  const state = getFxState(speakerKey);
+  const speedValue = Number(state?.speed) || 1;
+  if (Math.abs(speedValue - 1) > 0.01) {
+    assignment.speed = Number(speedValue.toFixed(2));
+  }
+  return Object.keys(assignment).length ? assignment : null;
 }
 
 function getVoiceAssignments() {
-    const assignments = {};
-    const selects = document.querySelectorAll('#inline-voice-assignment-list .voice-select, #speaker-edit-modal-body .voice-select');
-    const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
-    const turboEnabled = isPromptEngine(engineName);
-    const qwenEnabled = isQwenEngine(engineName);
-    const qwenCloneEnabled = isQwenCloneEngine(engineName);
-    const pocketPresetEnabled = isPocketPresetEngine(engineName);
-    const pocketPresetDefault = pocketPresetEnabled
-        ? document.getElementById('default-voice-select')?.value?.trim() || ''
-        : '';
-    const turboSelections = (turboEnabled || qwenCloneEnabled) ? buildTurboSelectionMap() : {};
-    const globalReference = (turboEnabled || qwenCloneEnabled) ? getGlobalReferenceSelection() : '';
-    const qwenSpeakerDefault = document.getElementById('qwen3-default-speaker')?.value || '';
-    const qwenLanguage = document.getElementById('qwen3-default-language')?.value || 'Auto';
+  const assignments = {};
+  const selects = document.querySelectorAll(
+    "#inline-voice-assignment-list .voice-select, #speaker-edit-modal-body .voice-select",
+  );
+  const engineName =
+    getSelectedJobEngine() || runtimeSettings?.tts_engine || "kokoro";
+  const turboEnabled = isPromptEngine(engineName);
+  const qwenEnabled = isQwenEngine(engineName);
+  const qwenCloneEnabled = isQwenCloneEngine(engineName);
+  const pocketPresetEnabled = isPocketPresetEngine(engineName);
+  const pocketPresetDefault = pocketPresetEnabled
+    ? document.getElementById("default-voice-select")?.value?.trim() || ""
+    : "";
+  const turboSelections =
+    turboEnabled || qwenCloneEnabled ? buildTurboSelectionMap() : {};
+  const globalReference =
+    turboEnabled || qwenCloneEnabled ? getGlobalReferenceSelection() : "";
+  const qwenSpeakerDefault =
+    document.getElementById("qwen3-default-speaker")?.value || "";
+  const qwenLanguage =
+    document.getElementById("qwen3-default-language")?.value || "Auto";
 
-    selects.forEach(select => {
-        const speaker = select.dataset.speaker;
-        const voiceName = select.value;
-        if (qwenEnabled) {
-            const selectedVoice = voiceName || qwenSpeakerDefault;
-            if (selectedVoice) {
-                // Get per-speaker Qwen3 settings from inline controls
-                const row = select.closest('.voice-assignment-row');
-                const langSelect = row?.querySelector('.qwen3-language-select');
-                const instructInput = row?.querySelector('.qwen3-instruct-input');
-                const speakerLang = langSelect?.value || qwenLanguage;
-                const speakerInstruct = instructInput?.value?.trim() || '';
-                
-                assignments[speaker] = {
-                    voice: selectedVoice,
-                    extra: { 
-                        language: speakerLang,
-                        ...(speakerInstruct && { instruct: speakerInstruct })
-                    }
-                };
-            }
-            return;
-        }
+  selects.forEach((select) => {
+    const speaker = select.dataset.speaker;
+    const voiceName = select.value;
+    if (qwenEnabled) {
+      const selectedVoice = voiceName || qwenSpeakerDefault;
+      if (selectedVoice) {
+        // Get per-speaker Qwen3 settings from inline controls
+        const row = select.closest(".voice-assignment-row");
+        const langSelect = row?.querySelector(".qwen3-language-select");
+        const instructInput = row?.querySelector(".qwen3-instruct-input");
+        const speakerLang = langSelect?.value || qwenLanguage;
+        const speakerInstruct = instructInput?.value?.trim() || "";
 
-        if (qwenCloneEnabled) {
-            return;
-        }
-
-        if (pocketPresetEnabled) {
-            const presetVoice = voiceName || pocketPresetDefault;
-            if (presetVoice) {
-                assignments[speaker] = createPresetAssignment(presetVoice, speaker);
-            }
-            return;
-        }
-
-        if (voiceName && window.availableVoices) {
-            const langCode = getLangCodeForVoice(voiceName);
-            assignments[speaker] = createAssignment(voiceName, langCode, speaker);
-        }
-    });
-
-    if (pocketPresetEnabled && !Object.keys(assignments).length) {
-        const fallbackVoice = pocketPresetDefault;
-        if (fallbackVoice) {
-            assignments.default = createPresetAssignment(fallbackVoice, 'default');
-        }
+        assignments[speaker] = {
+          voice: selectedVoice,
+          extra: {
+            language: speakerLang,
+            ...(speakerInstruct && { instruct: speakerInstruct }),
+          },
+        };
+      }
+      return;
     }
 
-    if (turboEnabled || qwenCloneEnabled) {
-        if (Object.keys(assignments).length) {
-            applyTurboSelections(assignments, turboSelections, globalReference);
-        } else {
-            const rowSpeakers = getAssignmentRows()
-                .map(row => row.dataset.speaker)
-                .filter(Boolean);
-            const targets = rowSpeakers.length
-                ? rowSpeakers
-                : ((currentStats?.speakers && currentStats.speakers.length)
-                    ? currentStats.speakers
-                    : ['default']);
-            targets.forEach(speakerKey => {
-                const selection = turboSelections[speakerKey] || {};
-                const resolvedReference = selection.reference || globalReference || '';
-                const turboAssignment = buildTurboAssignment(speakerKey, resolvedReference);
-                if (turboAssignment) {
-                    assignments[speakerKey] = turboAssignment;
-                }
-            });
-        }
-    }
-    
-    if (qwenEnabled && !Object.keys(assignments).length) {
-        const fallbackSpeaker = qwenSpeakerDefault;
-        if (fallbackSpeaker) {
-            const targets = (currentStats?.speakers && currentStats.speakers.length)
-                ? currentStats.speakers
-                : ['default'];
-            targets.forEach(speakerKey => {
-                assignments[speakerKey] = {
-                    voice: fallbackSpeaker,
-                    extra: { language: qwenLanguage }
-                };
-            });
-        }
+    if (qwenCloneEnabled) {
+      return;
     }
 
-    return assignments;
+    if (pocketPresetEnabled) {
+      const presetVoice = voiceName || pocketPresetDefault;
+      if (presetVoice) {
+        assignments[speaker] = createPresetAssignment(presetVoice, speaker);
+      }
+      return;
+    }
+
+    if (voiceName && window.availableVoices) {
+      const langCode = getLangCodeForVoice(voiceName);
+      assignments[speaker] = createAssignment(voiceName, langCode, speaker);
+    }
+  });
+
+  if (pocketPresetEnabled && !Object.keys(assignments).length) {
+    const fallbackVoice = pocketPresetDefault;
+    if (fallbackVoice) {
+      assignments.default = createPresetAssignment(fallbackVoice, "default");
+    }
+  }
+
+  if (turboEnabled || qwenCloneEnabled) {
+    if (Object.keys(assignments).length) {
+      applyTurboSelections(assignments, turboSelections, globalReference);
+    } else {
+      const rowSpeakers = getAssignmentRows()
+        .map((row) => row.dataset.speaker)
+        .filter(Boolean);
+      const targets = rowSpeakers.length
+        ? rowSpeakers
+        : currentStats?.speakers && currentStats.speakers.length
+          ? currentStats.speakers
+          : ["default"];
+      targets.forEach((speakerKey) => {
+        const selection = turboSelections[speakerKey] || {};
+        const resolvedReference = selection.reference || globalReference || "";
+        const turboAssignment = buildTurboAssignment(
+          speakerKey,
+          resolvedReference,
+        );
+        if (turboAssignment) {
+          assignments[speakerKey] = turboAssignment;
+        }
+      });
+    }
+  }
+
+  if (qwenEnabled && !Object.keys(assignments).length) {
+    const fallbackSpeaker = qwenSpeakerDefault;
+    if (fallbackSpeaker) {
+      const targets =
+        currentStats?.speakers && currentStats.speakers.length
+          ? currentStats.speakers
+          : ["default"];
+      targets.forEach((speakerKey) => {
+        assignments[speakerKey] = {
+          voice: fallbackSpeaker,
+          extra: { language: qwenLanguage },
+        };
+      });
+    }
+  }
+
+  return assignments;
 }
 
 function findReferencePromptByPath(pathValue) {
-    if (!pathValue) return null;
-    const normalized = pathValue.trim();
-    if (!normalized) return null;
-    const prompts = window.availableReferencePrompts || [];
-    return prompts.find(entry => {
-        const name = (entry?.name || '').trim();
-        const display = (entry?.display || '').trim();
-        return name === normalized || display === normalized;
-    });
+  if (!pathValue) return null;
+  const normalized = pathValue.trim();
+  if (!normalized) return null;
+  const prompts = window.availableReferencePrompts || [];
+  return prompts.find((entry) => {
+    const name = (entry?.name || "").trim();
+    const display = (entry?.display || "").trim();
+    return name === normalized || display === normalized;
+  });
 }
 
 // Update voice assignments UI
 function updateVoiceAssignments(speakers) {
-    const container = document.getElementById('voice-assignments');
-    if (!container) {
-        return;
-    }
-    
-    if (!speakers || speakers.length === 0) {
-        container.innerHTML = '<p><em>No speakers detected. Analyze text first.</em></p>';
-        return;
-    }
-    
-    container.innerHTML = '';
-    
-    speakers.forEach(speaker => {
-        const assignment = createVoiceAssignment(speaker);
-        container.appendChild(assignment);
-    });
+  const container = document.getElementById("voice-assignments");
+  if (!container) {
+    return;
+  }
+
+  if (!speakers || speakers.length === 0) {
+    container.innerHTML =
+      "<p><em>No speakers detected. Analyze text first.</em></p>";
+    return;
+  }
+
+  container.innerHTML = "";
+
+  speakers.forEach((speaker) => {
+    const assignment = createVoiceAssignment(speaker);
+    container.appendChild(assignment);
+  });
 }
 
 // Create voice assignment element
 function createVoiceAssignment(speaker) {
-    const div = document.createElement('div');
-    div.className = 'voice-assignment';
-    div.dataset.speaker = speaker;
-    
-    div.innerHTML = `
+  const div = document.createElement("div");
+  div.className = "voice-assignment";
+  div.dataset.speaker = speaker;
+
+  div.innerHTML = `
         <h3>${speaker}</h3>
         <div class="voice-selector">
             <div style="flex: 1;">
@@ -5286,14 +6209,14 @@ function createVoiceAssignment(speaker) {
             </div>
         </div>
     `;
-    
-    return div;
+
+  return div;
 }
 
 // Cancel generation (not used in queue mode - use Job Queue tab instead)
 async function cancelGeneration() {
-    // Redirect to queue tab
-    showNotification('Please use the Job Queue tab to cancel jobs', 'info');
+  // Redirect to queue tab
+  showNotification("Please use the Job Queue tab to cancel jobs", "info");
 }
 
 // ============================================================
@@ -5301,201 +6224,215 @@ async function cancelGeneration() {
 // ============================================================
 
 function initDocumentUpload() {
-    const wrapper = document.getElementById('text-input-wrapper');
-    const textarea = document.getElementById('input-text');
-    const dropOverlay = document.getElementById('drop-overlay');
-    const browseBtn = document.getElementById('browse-document-btn');
-    const fileInput = document.getElementById('document-file-input');
-    const statusEl = document.getElementById('document-upload-status');
-    const clearBtn = document.getElementById('clear-text-btn');
+  const wrapper = document.getElementById("text-input-wrapper");
+  const textarea = document.getElementById("input-text");
+  const dropOverlay = document.getElementById("drop-overlay");
+  const browseBtn = document.getElementById("browse-document-btn");
+  const fileInput = document.getElementById("document-file-input");
+  const statusEl = document.getElementById("document-upload-status");
+  const clearBtn = document.getElementById("clear-text-btn");
 
-    if (!wrapper || !textarea || !fileInput) return;
+  if (!wrapper || !textarea || !fileInput) return;
 
-    // Clear button click
-    clearBtn?.addEventListener('click', () => {
-        if (textarea.value.trim() && !confirm('Clear all text from the input?')) {
-            return;
-        }
-        textarea.value = '';
-        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-        if (statusEl) {
-            statusEl.textContent = '';
-            statusEl.className = 'upload-status';
-        }
+  // Clear button click
+  clearBtn?.addEventListener("click", () => {
+    if (textarea.value.trim() && !confirm("Clear all text from the input?")) {
+      return;
+    }
+    textarea.value = "";
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    if (statusEl) {
+      statusEl.textContent = "";
+      statusEl.className = "upload-status";
+    }
+  });
+
+  // Drag and drop events
+  ["dragenter", "dragover"].forEach((eventName) => {
+    wrapper.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      wrapper.classList.add("drag-over");
     });
+  });
 
-    // Drag and drop events
-    ['dragenter', 'dragover'].forEach(eventName => {
-        wrapper.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            wrapper.classList.add('drag-over');
-        });
+  ["dragleave", "drop"].forEach((eventName) => {
+    wrapper.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      wrapper.classList.remove("drag-over");
     });
+  });
 
-    ['dragleave', 'drop'].forEach(eventName => {
-        wrapper.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            wrapper.classList.remove('drag-over');
-        });
-    });
+  wrapper.addEventListener("drop", (e) => {
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      handleMultipleDocuments(Array.from(files), statusEl, textarea);
+    }
+  });
 
-    wrapper.addEventListener('drop', (e) => {
-        const files = e.dataTransfer?.files;
-        if (files && files.length > 0) {
-            handleMultipleDocuments(Array.from(files), statusEl, textarea);
-        }
-    });
+  // Browse button click
+  browseBtn?.addEventListener("click", () => {
+    fileInput.click();
+  });
 
-    // Browse button click
-    browseBtn?.addEventListener('click', () => {
-        fileInput.click();
-    });
-
-    // File input change - support multiple files
-    fileInput.setAttribute('multiple', 'true');
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files && fileInput.files.length > 0) {
-            handleMultipleDocuments(Array.from(fileInput.files), statusEl, textarea);
-            fileInput.value = ''; // Reset for next selection
-        }
-    });
+  // File input change - support multiple files
+  fileInput.setAttribute("multiple", "true");
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files && fileInput.files.length > 0) {
+      handleMultipleDocuments(Array.from(fileInput.files), statusEl, textarea);
+      fileInput.value = ""; // Reset for next selection
+    }
+  });
 }
 
 async function handleMultipleDocuments(files, statusEl, textarea) {
-    const supportedExtensions = ['.txt', '.pdf', '.doc', '.docx', '.rtf', '.epub', '.odt', '.md', '.html', '.htm'];
-    
-    // Filter to supported files
-    const validFiles = files.filter(file => {
-        const ext = '.' + file.name.toLowerCase().split('.').pop();
-        return supportedExtensions.includes(ext);
-    });
+  const supportedExtensions = [
+    ".txt",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".rtf",
+    ".epub",
+    ".odt",
+    ".md",
+    ".html",
+    ".htm",
+  ];
 
-    if (validFiles.length === 0) {
-        if (statusEl) {
-            statusEl.textContent = 'No supported documents found';
-            statusEl.className = 'upload-status error';
-        }
-        return;
-    }
+  // Filter to supported files
+  const validFiles = files.filter((file) => {
+    const ext = "." + file.name.toLowerCase().split(".").pop();
+    return supportedExtensions.includes(ext);
+  });
 
+  if (validFiles.length === 0) {
     if (statusEl) {
-        statusEl.textContent = `Extracting text from ${validFiles.length} document(s)...`;
-        statusEl.className = 'upload-status loading';
+      statusEl.textContent = "No supported documents found";
+      statusEl.className = "upload-status error";
     }
+    return;
+  }
 
-    let totalWords = 0;
-    let successCount = 0;
-    let errors = [];
+  if (statusEl) {
+    statusEl.textContent = `Extracting text from ${validFiles.length} document(s)...`;
+    statusEl.className = "upload-status loading";
+  }
 
-    for (const file of validFiles) {
-        try {
-            const result = await extractSingleDocument(file);
-            if (result.success) {
-                // Always append
-                const existingText = textarea.value.trim();
-                if (existingText) {
-                    textarea.value = existingText + '\n\n' + result.text;
-                } else {
-                    textarea.value = result.text;
-                }
-                totalWords += result.word_count;
-                successCount++;
-            } else {
-                errors.push(`${file.name}: ${result.error}`);
-            }
-        } catch (err) {
-            errors.push(`${file.name}: ${err.message}`);
-        }
-    }
+  let totalWords = 0;
+  let successCount = 0;
+  let errors = [];
 
-    // Update status
-    if (statusEl) {
-        if (successCount > 0) {
-            statusEl.textContent = `✓ Loaded ${successCount} doc(s): ${totalWords.toLocaleString()} words`;
-            statusEl.className = 'upload-status';
+  for (const file of validFiles) {
+    try {
+      const result = await extractSingleDocument(file);
+      if (result.success) {
+        // Always append
+        const existingText = textarea.value.trim();
+        if (existingText) {
+          textarea.value = existingText + "\n\n" + result.text;
         } else {
-            statusEl.textContent = 'Failed to extract documents';
-            statusEl.className = 'upload-status error';
+          textarea.value = result.text;
         }
+        totalWords += result.word_count;
+        successCount++;
+      } else {
+        errors.push(`${file.name}: ${result.error}`);
+      }
+    } catch (err) {
+      errors.push(`${file.name}: ${err.message}`);
     }
+  }
 
-    // Trigger input event
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-    // Show notification
+  // Update status
+  if (statusEl) {
     if (successCount > 0) {
-        showNotification(`Extracted ${totalWords.toLocaleString()} words from ${successCount} document(s)`, 'success');
+      statusEl.textContent = `✓ Loaded ${successCount} doc(s): ${totalWords.toLocaleString()} words`;
+      statusEl.className = "upload-status";
+    } else {
+      statusEl.textContent = "Failed to extract documents";
+      statusEl.className = "upload-status error";
     }
-    if (errors.length > 0) {
-        console.warn('Document extraction errors:', errors);
-    }
+  }
+
+  // Trigger input event
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+  // Show notification
+  if (successCount > 0) {
+    showNotification(
+      `Extracted ${totalWords.toLocaleString()} words from ${successCount} document(s)`,
+      "success",
+    );
+  }
+  if (errors.length > 0) {
+    console.warn("Document extraction errors:", errors);
+  }
 }
 
 async function extractSingleDocument(file) {
-    const formData = new FormData();
-    formData.append('file', file);
+  const formData = new FormData();
+  formData.append("file", file);
 
-    const response = await fetch('/api/extract-document', {
-        method: 'POST',
-        body: formData
-    });
+  const response = await fetch("/api/extract-document", {
+    method: "POST",
+    body: formData,
+  });
 
-    return await response.json();
+  return await response.json();
 }
 
 // Initialize document upload on page load
-document.addEventListener('DOMContentLoaded', initDocumentUpload);
+document.addEventListener("DOMContentLoaded", initDocumentUpload);
 
 // ============================================================
 // Paralinguistic Tag Insertion
 // ============================================================
 
 function initParalinguisticTags() {
-    const tagsBar = document.querySelector('.paralinguistic-tags-bar');
-    const textarea = document.getElementById('input-text');
-    
-    if (!tagsBar || !textarea) return;
-    
-    tagsBar.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-tag');
-        if (!btn) return;
-        
-        const tag = btn.dataset.tag;
-        if (!tag) return;
-        
-        insertTextAtCursor(textarea, tag);
-    });
+  const tagsBar = document.querySelector(".paralinguistic-tags-bar");
+  const textarea = document.getElementById("input-text");
+
+  if (!tagsBar || !textarea) return;
+
+  tagsBar.addEventListener("click", (e) => {
+    const btn = e.target.closest(".btn-tag");
+    if (!btn) return;
+
+    const tag = btn.dataset.tag;
+    if (!tag) return;
+
+    insertTextAtCursor(textarea, tag);
+  });
 }
 
 function insertTextAtCursor(textarea, text) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const before = textarea.value.substring(0, start);
-    const after = textarea.value.substring(end);
-    
-    textarea.value = before + text + after;
-    
-    // Move cursor to after the inserted text
-    const newPos = start + text.length;
-    textarea.selectionStart = newPos;
-    textarea.selectionEnd = newPos;
-    
-    // Focus the textarea
-    textarea.focus();
-    
-    // Trigger input event for any listeners
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const before = textarea.value.substring(0, start);
+  const after = textarea.value.substring(end);
+
+  textarea.value = before + text + after;
+
+  // Move cursor to after the inserted text
+  const newPos = start + text.length;
+  textarea.selectionStart = newPos;
+  textarea.selectionEnd = newPos;
+
+  // Focus the textarea
+  textarea.focus();
+
+  // Trigger input event for any listeners
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-document.addEventListener('DOMContentLoaded', initParalinguisticTags);
+document.addEventListener("DOMContentLoaded", initParalinguisticTags);
 
 // ============================================================
 // Alt Word Registry
 // ============================================================
 
-const ALT_WORD_REGISTRY_KEY = 'tts-alt-word-registry';
+const ALT_WORD_REGISTRY_KEY = "tts-alt-word-registry";
 
 // In-memory registry: [{original, replacement}]
 let altWordRegistry = [];
@@ -5506,55 +6443,61 @@ let awrPreviewAudio = null;
 let awrEditIndex = -1;
 
 function loadAltWordRegistry() {
-    // Session-only: do not restore from localStorage
-    altWordRegistry = [];
+  // Session-only: do not restore from localStorage
+  altWordRegistry = [];
 }
 
 function saveAltWordRegistry() {
-    // Session-only: do not persist to localStorage
+  // Session-only: do not persist to localStorage
 }
 
 /** Return the registry as [{original, replacement}] for use by generateAudio */
 function getAltWordRegistry() {
-    return altWordRegistry.slice();
+  return altWordRegistry.slice();
 }
 window.getAltWordRegistry = getAltWordRegistry;
 
 /** Count case-insensitive occurrences of `word` in `text` (whole-word match) */
 function countWordInstances(word, text) {
-    if (!word || !text) return 0;
-    try {
-        const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp(escaped, 'gi');
-        return (text.match(re) || []).length;
-    } catch (e) {
-        return 0;
-    }
+  if (!word || !text) return 0;
+  try {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(escaped, "gi");
+    return (text.match(re) || []).length;
+  } catch (e) {
+    return 0;
+  }
 }
 
 function getCurrentInputText() {
-    return document.getElementById('input-text')?.value || '';
+  return document.getElementById("input-text")?.value || "";
 }
 
 function renderAltWordTable() {
-    const tbody = document.getElementById('awr-table-body');
-    const countLabel = document.getElementById('awr-count-label');
-    if (!tbody) return;
+  const tbody = document.getElementById("awr-table-body");
+  const countLabel = document.getElementById("awr-count-label");
+  if (!tbody) return;
 
-    const text = getCurrentInputText();
+  const text = getCurrentInputText();
 
-    if (altWordRegistry.length === 0) {
-        tbody.innerHTML = '<tr id="awr-empty-row"><td colspan="4" class="awr-empty">No entries yet. Click <strong>＋ Add Entry</strong> to get started.</td></tr>';
-        if (countLabel) countLabel.textContent = '';
-        return;
-    }
+  if (altWordRegistry.length === 0) {
+    tbody.innerHTML =
+      '<tr id="awr-empty-row"><td colspan="4" class="awr-empty">No entries yet. Click <strong>＋ Add Entry</strong> to get started.</td></tr>';
+    if (countLabel) countLabel.textContent = "";
+    return;
+  }
 
-    if (countLabel) countLabel.textContent = `${altWordRegistry.length} entr${altWordRegistry.length === 1 ? 'y' : 'ies'}`;
+  if (countLabel)
+    countLabel.textContent = `${altWordRegistry.length} entr${altWordRegistry.length === 1 ? "y" : "ies"}`;
 
-    tbody.innerHTML = altWordRegistry.map((entry, idx) => {
-        const instances = countWordInstances(entry.original, text);
-        const badgeClass = instances === 0 ? 'awr-instances-badge awr-zero' : 'awr-instances-badge';
-        return `
+  tbody.innerHTML = altWordRegistry
+    .map((entry, idx) => {
+      const instances = countWordInstances(entry.original, text);
+      const badgeClass =
+        instances === 0
+          ? "awr-instances-badge awr-zero"
+          : "awr-instances-badge";
+      return `
         <tr>
             <td class="awr-original-cell">${escapeHtml(entry.original)}</td>
             <td class="awr-replacement-cell">${escapeHtml(entry.replacement)}</td>
@@ -5564,303 +6507,344 @@ function renderAltWordTable() {
                 <button class="awr-delete-btn" data-idx="${idx}" title="Delete">🗑️</button>
             </td>
         </tr>`;
-    }).join('');
+    })
+    .join("");
 
-    // Bind row action buttons
-    tbody.querySelectorAll('.awr-edit-btn').forEach(btn => {
-        btn.addEventListener('click', () => openAwrEntryModal(parseInt(btn.dataset.idx, 10)));
+  // Bind row action buttons
+  tbody.querySelectorAll(".awr-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", () =>
+      openAwrEntryModal(parseInt(btn.dataset.idx, 10)),
+    );
+  });
+  tbody.querySelectorAll(".awr-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      altWordRegistry.splice(idx, 1);
+      saveAltWordRegistry();
+      renderAltWordTable();
     });
-    tbody.querySelectorAll('.awr-delete-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const idx = parseInt(btn.dataset.idx, 10);
-            altWordRegistry.splice(idx, 1);
-            saveAltWordRegistry();
-            renderAltWordTable();
-        });
-    });
+  });
 }
 
 // ---- Main registry modal ----
 
 function openAltWordRegistryModal() {
-    renderAltWordTable();
-    document.getElementById('alt-word-registry-overlay')?.classList.remove('hidden');
-    document.getElementById('alt-word-registry-modal')?.classList.remove('hidden');
+  renderAltWordTable();
+  document
+    .getElementById("alt-word-registry-overlay")
+    ?.classList.remove("hidden");
+  document
+    .getElementById("alt-word-registry-modal")
+    ?.classList.remove("hidden");
 }
 
 function closeAltWordRegistryModal() {
-    document.getElementById('alt-word-registry-overlay')?.classList.add('hidden');
-    document.getElementById('alt-word-registry-modal')?.classList.add('hidden');
+  document.getElementById("alt-word-registry-overlay")?.classList.add("hidden");
+  document.getElementById("alt-word-registry-modal")?.classList.add("hidden");
 }
 
 // ---- Entry sub-modal ----
 
 async function awrPopulateVoiceSelect(engineName) {
-    const select = document.getElementById('awr-preview-voice');
-    if (!select) return;
-    const prev = select.value;
-    select.innerHTML = '<option value="">-- Select voice --</option>';
+  const select = document.getElementById("awr-preview-voice");
+  if (!select) return;
+  const prev = select.value;
+  select.innerHTML = '<option value="">-- Select voice --</option>';
 
-    const norm = (engineName || '').toLowerCase().replace(/[_-]/g, '');
-    const usesPrompts = norm.includes('chatterbox') || norm.includes('voxcpm')
-        || (norm.includes('pockettts') && !norm.includes('pocketttspreset'))
-        || (norm.includes('qwen3') && norm.includes('clone'));
-    const isQwen = norm.includes('qwen3') && !norm.includes('clone');
-    const isPocketPreset = norm.includes('pocketttspreset');
+  const norm = (engineName || "").toLowerCase().replace(/[_-]/g, "");
+  const usesPrompts =
+    norm.includes("chatterbox") ||
+    norm.includes("voxcpm") ||
+    (norm.includes("pockettts") && !norm.includes("pocketttspreset")) ||
+    (norm.includes("qwen3") && norm.includes("clone"));
+  const isQwen = norm.includes("qwen3") && !norm.includes("clone");
+  const isPocketPreset = norm.includes("pocketttspreset");
 
-    try {
-        if (usesPrompts) {
-            const resp = await fetch('/api/voice-prompts');
-            const data = await resp.json();
-            if (data.success && data.prompts) {
-                data.prompts.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.path || p.name;
-                    opt.textContent = p.display || p.name;
-                    select.appendChild(opt);
-                });
-            }
-        } else if (isQwen) {
-            const resp = await fetch('/api/qwen3/metadata');
-            const data = await resp.json();
-            if (data.success && data.speakers) {
-                data.speakers.forEach(s => {
-                    const opt = document.createElement('option');
-                    opt.value = s;
-                    opt.textContent = s;
-                    select.appendChild(opt);
-                });
-            }
-        } else if (isPocketPreset) {
-            const resp = await fetch('/api/pocket-tts/voices');
-            const data = await resp.json();
-            if (data.success && data.voices) {
-                data.voices.forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v;
-                    opt.textContent = v;
-                    select.appendChild(opt);
-                });
-            }
-        } else {
-            // Kokoro / standard voices
-            if (window.availableVoices) {
-                Object.values(window.availableVoices).forEach(vc => {
-                    const grp = document.createElement('optgroup');
-                    grp.label = vc.language || 'Voices';
-                    (vc.voices || []).forEach(name => {
-                        const opt = document.createElement('option');
-                        opt.value = name;
-                        opt.textContent = name;
-                        grp.appendChild(opt);
-                    });
-                    select.appendChild(grp);
-                });
-            }
-        }
-    } catch (e) {
-        console.warn('AWR: failed to load voices', e);
+  try {
+    if (usesPrompts) {
+      const resp = await fetch("/api/voice-prompts");
+      const data = await resp.json();
+      if (data.success && data.prompts) {
+        data.prompts.forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = p.path || p.name;
+          opt.textContent = p.display || p.name;
+          select.appendChild(opt);
+        });
+      }
+    } else if (isQwen) {
+      const resp = await fetch("/api/qwen3/metadata");
+      const data = await resp.json();
+      if (data.success && data.speakers) {
+        data.speakers.forEach((s) => {
+          const opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = s;
+          select.appendChild(opt);
+        });
+      }
+    } else if (isPocketPreset) {
+      const resp = await fetch("/api/pocket-tts/voices");
+      const data = await resp.json();
+      if (data.success && data.voices) {
+        data.voices.forEach((v) => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = v;
+          select.appendChild(opt);
+        });
+      }
+    } else {
+      // Kokoro / standard voices
+      if (window.availableVoices) {
+        Object.values(window.availableVoices).forEach((vc) => {
+          const grp = document.createElement("optgroup");
+          grp.label = vc.language || "Voices";
+          (vc.voices || []).forEach((name) => {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            grp.appendChild(opt);
+          });
+          select.appendChild(grp);
+        });
+      }
     }
+  } catch (e) {
+    console.warn("AWR: failed to load voices", e);
+  }
 
-    // Restore previous selection if still valid
-    if (prev && Array.from(select.options).some(o => o.value === prev)) {
-        select.value = prev;
-    }
-    updateAwrPlayButtons();
+  // Restore previous selection if still valid
+  if (prev && Array.from(select.options).some((o) => o.value === prev)) {
+    select.value = prev;
+  }
+  updateAwrPlayButtons();
 }
 
 function updateAwrPlayButtons() {
-    const voice = document.getElementById('awr-preview-voice')?.value || '';
-    const hasVoice = voice.trim() !== '';
-    const origBtn = document.getElementById('awr-play-original');
-    const replBtn = document.getElementById('awr-play-replacement');
-    if (origBtn) origBtn.disabled = !hasVoice;
-    if (replBtn) replBtn.disabled = !hasVoice;
+  const voice = document.getElementById("awr-preview-voice")?.value || "";
+  const hasVoice = voice.trim() !== "";
+  const origBtn = document.getElementById("awr-play-original");
+  const replBtn = document.getElementById("awr-play-replacement");
+  if (origBtn) origBtn.disabled = !hasVoice;
+  if (replBtn) replBtn.disabled = !hasVoice;
 }
 
 function openAwrEntryModal(editIdx = -1) {
-    awrEditIndex = editIdx;
-    const titleEl = document.getElementById('awr-entry-title');
-    const origInput = document.getElementById('awr-original-input');
-    const replInput = document.getElementById('awr-replacement-input');
+  awrEditIndex = editIdx;
+  const titleEl = document.getElementById("awr-entry-title");
+  const origInput = document.getElementById("awr-original-input");
+  const replInput = document.getElementById("awr-replacement-input");
 
-    if (editIdx >= 0 && altWordRegistry[editIdx]) {
-        if (titleEl) titleEl.textContent = 'Edit Alt Word Entry';
-        if (origInput) origInput.value = altWordRegistry[editIdx].original;
-        if (replInput) replInput.value = altWordRegistry[editIdx].replacement;
-    } else {
-        if (titleEl) titleEl.textContent = 'Add Alt Word Entry';
-        if (origInput) origInput.value = '';
-        if (replInput) replInput.value = '';
-    }
+  if (editIdx >= 0 && altWordRegistry[editIdx]) {
+    if (titleEl) titleEl.textContent = "Edit Alt Word Entry";
+    if (origInput) origInput.value = altWordRegistry[editIdx].original;
+    if (replInput) replInput.value = altWordRegistry[editIdx].replacement;
+  } else {
+    if (titleEl) titleEl.textContent = "Add Alt Word Entry";
+    if (origInput) origInput.value = "";
+    if (replInput) replInput.value = "";
+  }
 
-    // Sync engine dropdown to current job engine
-    const engineSelect = document.getElementById('awr-preview-engine');
-    if (engineSelect) {
-        const currentEngine = getSelectedJobEngine() || window.runtimeSettings?.tts_engine || 'kokoro';
-        const norm = currentEngine.toLowerCase().replace(/[_-]/g, '');
-        const matchingOpt = Array.from(engineSelect.options).find(o =>
-            o.value.toLowerCase().replace(/[_-]/g, '') === norm
-        );
-        if (matchingOpt) engineSelect.value = matchingOpt.value;
-    }
+  // Sync engine dropdown to current job engine
+  const engineSelect = document.getElementById("awr-preview-engine");
+  if (engineSelect) {
+    const currentEngine =
+      getSelectedJobEngine() || window.runtimeSettings?.tts_engine || "kokoro";
+    const norm = currentEngine.toLowerCase().replace(/[_-]/g, "");
+    const matchingOpt = Array.from(engineSelect.options).find(
+      (o) => o.value.toLowerCase().replace(/[_-]/g, "") === norm,
+    );
+    if (matchingOpt) engineSelect.value = matchingOpt.value;
+  }
 
-    awrPopulateVoiceSelect(engineSelect?.value || 'kokoro');
+  awrPopulateVoiceSelect(engineSelect?.value || "kokoro");
 
-    const statusEl = document.getElementById('awr-preview-status');
-    if (statusEl) statusEl.textContent = '';
+  const statusEl = document.getElementById("awr-preview-status");
+  if (statusEl) statusEl.textContent = "";
 
-    document.getElementById('awr-entry-overlay')?.classList.remove('hidden');
-    document.getElementById('awr-entry-modal')?.classList.remove('hidden');
-    origInput?.focus();
+  document.getElementById("awr-entry-overlay")?.classList.remove("hidden");
+  document.getElementById("awr-entry-modal")?.classList.remove("hidden");
+  origInput?.focus();
 }
 
 function closeAwrEntryModal() {
-    awrStopPreview();
-    document.getElementById('awr-entry-overlay')?.classList.add('hidden');
-    document.getElementById('awr-entry-modal')?.classList.add('hidden');
+  awrStopPreview();
+  document.getElementById("awr-entry-overlay")?.classList.add("hidden");
+  document.getElementById("awr-entry-modal")?.classList.add("hidden");
 }
 
 function awrStopPreview() {
-    if (awrPreviewAudio) {
-        awrPreviewAudio.pause();
-        awrPreviewAudio = null;
-    }
+  if (awrPreviewAudio) {
+    awrPreviewAudio.pause();
+    awrPreviewAudio = null;
+  }
 }
 
 async function awrPlayText(text) {
-    awrStopPreview();
-    const engineSelect = document.getElementById('awr-preview-engine');
-    const voiceSelect = document.getElementById('awr-preview-voice');
-    const statusEl = document.getElementById('awr-preview-status');
+  awrStopPreview();
+  const engineSelect = document.getElementById("awr-preview-engine");
+  const voiceSelect = document.getElementById("awr-preview-voice");
+  const statusEl = document.getElementById("awr-preview-status");
 
-    const engineName = engineSelect?.value || 'kokoro';
-    const voice = voiceSelect?.value || '';
-    if (!voice) {
-        if (statusEl) statusEl.textContent = 'Select a voice first.';
-        return;
+  const engineName = engineSelect?.value || "kokoro";
+  const voice = voiceSelect?.value || "";
+  if (!voice) {
+    if (statusEl) statusEl.textContent = "Select a voice first.";
+    return;
+  }
+  if (!text.trim()) {
+    if (statusEl) statusEl.textContent = "No text to preview.";
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = "Generating…";
+
+  try {
+    const payload = {
+      text: text.trim(),
+      tts_engine: engineName,
+      voice: voice,
+      lang_code: getLangCodeForVoice(voice),
+      speed: 1.0,
+    };
+    const resp = await fetch("/api/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+
+    if (!data.success) {
+      if (statusEl) statusEl.textContent = data.error || "Preview failed.";
+      return;
     }
-    if (!text.trim()) {
-        if (statusEl) statusEl.textContent = 'No text to preview.';
-        return;
-    }
-
-    if (statusEl) statusEl.textContent = 'Generating…';
-
-    try {
-        const payload = {
-            text: text.trim(),
-            tts_engine: engineName,
-            voice: voice,
-            lang_code: getLangCodeForVoice(voice),
-            speed: 1.0,
-        };
-        const resp = await fetch('/api/preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        const data = await resp.json();
-
-        if (!data.success) {
-            if (statusEl) statusEl.textContent = data.error || 'Preview failed.';
-            return;
-        }
-        const mime = data.mime_type || 'audio/wav';
-        awrPreviewAudio = new Audio(`data:${mime};base64,${data.audio_base64}`);
-        awrPreviewAudio.play();
-        if (statusEl) statusEl.textContent = 'Playing…';
-        awrPreviewAudio.onended = () => {
-            awrPreviewAudio = null;
-            if (statusEl) statusEl.textContent = '';
-        };
-    } catch (e) {
-        if (statusEl) statusEl.textContent = 'Preview error.';
-        console.error('AWR preview error:', e);
-    }
+    const mime = data.mime_type || "audio/wav";
+    awrPreviewAudio = new Audio(`data:${mime};base64,${data.audio_base64}`);
+    awrPreviewAudio.play();
+    if (statusEl) statusEl.textContent = "Playing…";
+    awrPreviewAudio.onended = () => {
+      awrPreviewAudio = null;
+      if (statusEl) statusEl.textContent = "";
+    };
+  } catch (e) {
+    if (statusEl) statusEl.textContent = "Preview error.";
+    console.error("AWR preview error:", e);
+  }
 }
 
 function initAltWordRegistry() {
-    loadAltWordRegistry();
+  loadAltWordRegistry();
 
-    // Open main modal
-    document.getElementById('alt-word-registry-btn')?.addEventListener('click', openAltWordRegistryModal);
+  // Open main modal
+  document
+    .getElementById("alt-word-registry-btn")
+    ?.addEventListener("click", openAltWordRegistryModal);
 
-    // Close main modal
-    document.getElementById('alt-word-registry-close')?.addEventListener('click', closeAltWordRegistryModal);
-    document.getElementById('alt-word-registry-cancel')?.addEventListener('click', closeAltWordRegistryModal);
-    document.getElementById('alt-word-registry-overlay')?.addEventListener('click', (e) => {
-        if (e.target === document.getElementById('alt-word-registry-overlay')) closeAltWordRegistryModal();
+  // Close main modal
+  document
+    .getElementById("alt-word-registry-close")
+    ?.addEventListener("click", closeAltWordRegistryModal);
+  document
+    .getElementById("alt-word-registry-cancel")
+    ?.addEventListener("click", closeAltWordRegistryModal);
+  document
+    .getElementById("alt-word-registry-overlay")
+    ?.addEventListener("click", (e) => {
+      if (e.target === document.getElementById("alt-word-registry-overlay"))
+        closeAltWordRegistryModal();
     });
 
-    // Open add entry modal
-    document.getElementById('awr-add-btn')?.addEventListener('click', () => openAwrEntryModal(-1));
+  // Open add entry modal
+  document
+    .getElementById("awr-add-btn")
+    ?.addEventListener("click", () => openAwrEntryModal(-1));
 
-    // Clear all entries
-    document.getElementById('awr-clear-btn')?.addEventListener('click', () => {
-        if (altWordRegistry.length === 0) return;
-        if (!confirm('Clear all Alt Word Registry entries?')) return;
-        altWordRegistry = [];
-        renderAltWordTable();
-    });
+  // Clear all entries
+  document.getElementById("awr-clear-btn")?.addEventListener("click", () => {
+    if (altWordRegistry.length === 0) return;
+    if (!confirm("Clear all Alt Word Registry entries?")) return;
+    altWordRegistry = [];
+    renderAltWordTable();
+  });
 
-    // Close entry modal
-    document.getElementById('awr-entry-close')?.addEventListener('click', closeAwrEntryModal);
-    document.getElementById('awr-entry-cancel')?.addEventListener('click', closeAwrEntryModal);
-    document.getElementById('awr-entry-overlay')?.addEventListener('click', (e) => {
-        if (e.target === document.getElementById('awr-entry-overlay')) closeAwrEntryModal();
-    });
-
-    // Engine change → repopulate voices
-    document.getElementById('awr-preview-engine')?.addEventListener('change', (e) => {
-        awrPopulateVoiceSelect(e.target.value);
-    });
-
-    // Voice change → update play button state
-    document.getElementById('awr-preview-voice')?.addEventListener('change', updateAwrPlayButtons);
-
-    // Play original
-    document.getElementById('awr-play-original')?.addEventListener('click', () => {
-        const text = document.getElementById('awr-original-input')?.value || '';
-        awrPlayText(text);
-    });
-
-    // Play replacement
-    document.getElementById('awr-play-replacement')?.addEventListener('click', () => {
-        const text = document.getElementById('awr-replacement-input')?.value || '';
-        awrPlayText(text);
-    });
-
-    // OK – save entry
-    document.getElementById('awr-entry-ok')?.addEventListener('click', () => {
-        const original = (document.getElementById('awr-original-input')?.value || '').trim();
-        const replacement = (document.getElementById('awr-replacement-input')?.value || '').trim();
-        if (!original) {
-            alert('Please enter the original word or phrase.');
-            return;
-        }
-        if (!replacement) {
-            alert('Please enter the replacement word or phrase.');
-            return;
-        }
-        const entry = { original, replacement };
-        if (awrEditIndex >= 0 && awrEditIndex < altWordRegistry.length) {
-            altWordRegistry[awrEditIndex] = entry;
-        } else {
-            altWordRegistry.push(entry);
-        }
-        saveAltWordRegistry();
+  // Close entry modal
+  document
+    .getElementById("awr-entry-close")
+    ?.addEventListener("click", closeAwrEntryModal);
+  document
+    .getElementById("awr-entry-cancel")
+    ?.addEventListener("click", closeAwrEntryModal);
+  document
+    .getElementById("awr-entry-overlay")
+    ?.addEventListener("click", (e) => {
+      if (e.target === document.getElementById("awr-entry-overlay"))
         closeAwrEntryModal();
-        renderAltWordTable();
     });
 
-    // Re-render table when text changes (updates instance counts)
-    document.getElementById('input-text')?.addEventListener('input', () => {
-        const overlay = document.getElementById('alt-word-registry-overlay');
-        if (overlay && !overlay.classList.contains('hidden')) {
-            renderAltWordTable();
-        }
+  // Engine change → repopulate voices
+  document
+    .getElementById("awr-preview-engine")
+    ?.addEventListener("change", (e) => {
+      awrPopulateVoiceSelect(e.target.value);
     });
+
+  // Voice change → update play button state
+  document
+    .getElementById("awr-preview-voice")
+    ?.addEventListener("change", updateAwrPlayButtons);
+
+  // Play original
+  document
+    .getElementById("awr-play-original")
+    ?.addEventListener("click", () => {
+      const text = document.getElementById("awr-original-input")?.value || "";
+      awrPlayText(text);
+    });
+
+  // Play replacement
+  document
+    .getElementById("awr-play-replacement")
+    ?.addEventListener("click", () => {
+      const text =
+        document.getElementById("awr-replacement-input")?.value || "";
+      awrPlayText(text);
+    });
+
+  // OK – save entry
+  document.getElementById("awr-entry-ok")?.addEventListener("click", () => {
+    const original = (
+      document.getElementById("awr-original-input")?.value || ""
+    ).trim();
+    const replacement = (
+      document.getElementById("awr-replacement-input")?.value || ""
+    ).trim();
+    if (!original) {
+      alert("Please enter the original word or phrase.");
+      return;
+    }
+    if (!replacement) {
+      alert("Please enter the replacement word or phrase.");
+      return;
+    }
+    const entry = { original, replacement };
+    if (awrEditIndex >= 0 && awrEditIndex < altWordRegistry.length) {
+      altWordRegistry[awrEditIndex] = entry;
+    } else {
+      altWordRegistry.push(entry);
+    }
+    saveAltWordRegistry();
+    closeAwrEntryModal();
+    renderAltWordTable();
+  });
+
+  // Re-render table when text changes (updates instance counts)
+  document.getElementById("input-text")?.addEventListener("input", () => {
+    const overlay = document.getElementById("alt-word-registry-overlay");
+    if (overlay && !overlay.classList.contains("hidden")) {
+      renderAltWordTable();
+    }
+  });
 }
 
-document.addEventListener('DOMContentLoaded', initAltWordRegistry);
+document.addEventListener("DOMContentLoaded", initAltWordRegistry);

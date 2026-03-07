@@ -113,8 +113,10 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 JOBS_DATA_DIR = Path("data/jobs")
 JOBS_ARCHIVE_DIR = JOBS_DATA_DIR / "archive"
 JOBS_DB_PATH = JOBS_DATA_DIR / "jobs.db"
+PREP_JOBS_DATA_DIR = JOBS_DATA_DIR / "prep"
 JOBS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 JOBS_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+PREP_JOBS_DATA_DIR.mkdir(parents=True, exist_ok=True)
 VOICE_PROMPT_DIR = Path("data/voice_prompts")
 VOICE_PROMPT_DIR.mkdir(parents=True, exist_ok=True)
 VOICE_PROMPT_EXTENSIONS = {".wav", ".mp3", ".m4a", ".flac", ".ogg"}
@@ -123,6 +125,11 @@ EXTERNAL_VOICES_ARCHIVE_FILE = Path("data/external_voice_archives.json")
 JOB_METADATA_FILENAME = "metadata.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 DEFAULT_LLM_PROVIDER = "gemini"
+DEFAULT_PREP_JOB_MAX_RETRIES = 3
+DEFAULT_PREP_JOB_RETRY_BASE_DELAY = 1.0
+DEFAULT_PREP_JOB_RETRY_MAX_DELAY = 8.0
+PREP_JOB_ACTIVE_STATUSES = {"queued", "processing", "retrying", "waiting_to_retry"}
+PREP_JOB_TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 LIBRARY_CACHE_TTL = 5  # seconds
 MIN_CHATTERBOX_PROMPT_SECONDS = 5.0
 DEFAULT_CONFIG = {
@@ -829,6 +836,9 @@ library_cache = {
     "items": None,
     "timestamp": 0.0,
 }
+prep_job_threads: Dict[str, threading.Thread] = {}
+prep_job_cancel_events: Dict[str, threading.Event] = {}
+prep_job_lock = threading.Lock()
 ACTIVE_SERVER_PORT: Optional[int] = None
 PREFERRED_SERVER_PORT: Optional[int] = None
 SERVER_PORT_SOURCE = "default"
@@ -1371,6 +1381,40 @@ def _init_jobs_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS prep_jobs (
+                job_id TEXT PRIMARY KEY,
+                status TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                text_hash TEXT,
+                text_path TEXT,
+                prompt_override TEXT,
+                custom_heading TEXT,
+                prefer_chapters INTEGER,
+                provider TEXT,
+                model_name TEXT,
+                sections_json TEXT,
+                completed_outputs_json TEXT,
+                known_speakers_json TEXT,
+                current_section_index INTEGER,
+                processed_sections INTEGER,
+                total_sections INTEGER,
+                progress INTEGER,
+                last_error TEXT,
+                retryable INTEGER,
+                retry_count INTEGER,
+                max_retries INTEGER,
+                active_attempt INTEGER,
+                waiting_until TEXT,
+                failure_section_index INTEGER,
+                resume_token TEXT,
+                final_text TEXT,
+                job_payload TEXT
+            )
+            """
+        )
         conn.commit()
 
 
@@ -1566,6 +1610,492 @@ def _load_jobs_from_db() -> Dict[str, Dict[str, Any]]:
             if key in _extra:
                 loaded[job_id][key] = _extra[key]
     return loaded
+
+
+def _prep_job_dir(job_id: str) -> Path:
+    job_dir = PREP_JOBS_DATA_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    return job_dir
+
+
+def _write_prep_job_text(job_id: str, text: str) -> str:
+    job_dir = _prep_job_dir(job_id)
+    text_path = job_dir / "input.txt"
+    text_path.write_text(text or "", encoding="utf-8")
+    return str(text_path)
+
+
+def _hash_prep_job_text(text: str) -> str:
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def _normalize_prep_known_speakers(values: Any) -> List[str]:
+    normalized = []
+    seen = set()
+    for value in values or []:
+        if not isinstance(value, str):
+            continue
+        candidate = value.strip().lower()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        normalized.append(candidate)
+    return normalized
+
+
+def _normalize_prep_completed_outputs(values: Any) -> Dict[str, Dict[str, Any]]:
+    if not isinstance(values, dict):
+        return {}
+    normalized: Dict[str, Dict[str, Any]] = {}
+    for raw_key, payload in values.items():
+        if not isinstance(payload, dict):
+            continue
+        try:
+            key = str(int(raw_key))
+        except (TypeError, ValueError):
+            continue
+        normalized[key] = {
+            "output": (payload.get("output") or "").strip(),
+            "title": payload.get("title"),
+            "source": payload.get("source"),
+            "speakers": _normalize_prep_known_speakers(payload.get("speakers") or []),
+            "completed_at": payload.get("completed_at"),
+        }
+    return normalized
+
+
+def _reconstruct_prep_job_text(job_entry: Dict[str, Any]) -> str:
+    sections = job_entry.get("sections") or []
+    completed_outputs = _normalize_prep_completed_outputs(job_entry.get("completed_outputs") or {})
+    pieces: List[str] = []
+    for idx in range(len(sections)):
+        payload = completed_outputs.get(str(idx)) or {}
+        output = (payload.get("output") or "").strip()
+        if output:
+            pieces.append(output)
+    return "\n\n".join(pieces).strip()
+
+
+def _find_first_incomplete_prep_section(job_entry: Dict[str, Any]) -> int:
+    sections = job_entry.get("sections") or []
+    completed_outputs = _normalize_prep_completed_outputs(job_entry.get("completed_outputs") or {})
+    for idx in range(len(sections)):
+        payload = completed_outputs.get(str(idx)) or {}
+        if not (payload.get("output") or "").strip():
+            return idx
+    return len(sections)
+
+
+def _serialize_prep_job_payload(job_entry: Dict[str, Any]) -> Dict[str, Any]:
+    payload = dict(job_entry.get("job_payload") or {})
+    if not isinstance(payload, dict):
+        payload = {}
+    for key in ("started_at", "completed_at", "status_detail"):
+        value = job_entry.get(key)
+        if value is not None:
+            payload[key] = value
+    return payload
+
+
+def _serialize_prep_job_entry(job_entry: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "job_id": job_entry.get("job_id"),
+        "status": job_entry.get("status"),
+        "created_at": job_entry.get("created_at"),
+        "updated_at": datetime.now().isoformat(),
+        "text_hash": job_entry.get("text_hash"),
+        "text_path": job_entry.get("text_path"),
+        "prompt_override": job_entry.get("prompt_override") or "",
+        "custom_heading": job_entry.get("custom_heading") or "",
+        "prefer_chapters": int(bool(job_entry.get("prefer_chapters", True))),
+        "provider": job_entry.get("provider") or DEFAULT_LLM_PROVIDER,
+        "model_name": job_entry.get("model_name") or DEFAULT_GEMINI_MODEL,
+        "sections_json": json.dumps(job_entry.get("sections") or []),
+        "completed_outputs_json": json.dumps(job_entry.get("completed_outputs") or {}),
+        "known_speakers_json": json.dumps(job_entry.get("known_speakers") or []),
+        "current_section_index": job_entry.get("current_section_index", 0),
+        "processed_sections": job_entry.get("processed_sections", 0),
+        "total_sections": job_entry.get("total_sections", 0),
+        "progress": job_entry.get("progress", 0),
+        "last_error": job_entry.get("last_error"),
+        "retryable": int(bool(job_entry.get("retryable"))),
+        "retry_count": job_entry.get("retry_count", 0),
+        "max_retries": job_entry.get("max_retries", DEFAULT_PREP_JOB_MAX_RETRIES),
+        "active_attempt": job_entry.get("active_attempt", 0),
+        "waiting_until": job_entry.get("waiting_until"),
+        "failure_section_index": job_entry.get("failure_section_index"),
+        "resume_token": job_entry.get("resume_token") or job_entry.get("job_id"),
+        "final_text": job_entry.get("final_text") or "",
+        "job_payload": json.dumps(_serialize_prep_job_payload(job_entry)),
+    }
+
+
+def _persist_prep_job_state(job_entry: Dict[str, Any]) -> None:
+    payload = _serialize_prep_job_entry(job_entry)
+    with _get_jobs_db_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO prep_jobs (
+                job_id, status, created_at, updated_at, text_hash, text_path, prompt_override,
+                custom_heading, prefer_chapters, provider, model_name, sections_json,
+                completed_outputs_json, known_speakers_json, current_section_index,
+                processed_sections, total_sections, progress, last_error, retryable,
+                retry_count, max_retries, active_attempt, waiting_until,
+                failure_section_index, resume_token, final_text, job_payload
+            ) VALUES (
+                :job_id, :status, :created_at, :updated_at, :text_hash, :text_path, :prompt_override,
+                :custom_heading, :prefer_chapters, :provider, :model_name, :sections_json,
+                :completed_outputs_json, :known_speakers_json, :current_section_index,
+                :processed_sections, :total_sections, :progress, :last_error, :retryable,
+                :retry_count, :max_retries, :active_attempt, :waiting_until,
+                :failure_section_index, :resume_token, :final_text, :job_payload
+            )
+            ON CONFLICT(job_id) DO UPDATE SET
+                status=excluded.status,
+                updated_at=excluded.updated_at,
+                text_hash=excluded.text_hash,
+                text_path=excluded.text_path,
+                prompt_override=excluded.prompt_override,
+                custom_heading=excluded.custom_heading,
+                prefer_chapters=excluded.prefer_chapters,
+                provider=excluded.provider,
+                model_name=excluded.model_name,
+                sections_json=excluded.sections_json,
+                completed_outputs_json=excluded.completed_outputs_json,
+                known_speakers_json=excluded.known_speakers_json,
+                current_section_index=excluded.current_section_index,
+                processed_sections=excluded.processed_sections,
+                total_sections=excluded.total_sections,
+                progress=excluded.progress,
+                last_error=excluded.last_error,
+                retryable=excluded.retryable,
+                retry_count=excluded.retry_count,
+                max_retries=excluded.max_retries,
+                active_attempt=excluded.active_attempt,
+                waiting_until=excluded.waiting_until,
+                failure_section_index=excluded.failure_section_index,
+                resume_token=excluded.resume_token,
+                final_text=excluded.final_text,
+                job_payload=excluded.job_payload
+            """,
+            payload,
+        )
+        conn.commit()
+
+
+def _load_prep_job(job_id: str) -> Optional[Dict[str, Any]]:
+    with _get_jobs_db_connection() as conn:
+        row = conn.execute("SELECT * FROM prep_jobs WHERE job_id = ?", (job_id,)).fetchone()
+    if not row:
+        return None
+    job_payload = json.loads(row["job_payload"] or "{}")
+    job_entry = {
+        "job_id": row["job_id"],
+        "status": row["status"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "text_hash": row["text_hash"],
+        "text_path": row["text_path"],
+        "prompt_override": row["prompt_override"] or "",
+        "custom_heading": row["custom_heading"] or "",
+        "prefer_chapters": bool(row["prefer_chapters"]),
+        "provider": row["provider"] or DEFAULT_LLM_PROVIDER,
+        "model_name": row["model_name"] or DEFAULT_GEMINI_MODEL,
+        "sections": json.loads(row["sections_json"] or "[]"),
+        "completed_outputs": _normalize_prep_completed_outputs(json.loads(row["completed_outputs_json"] or "{}")),
+        "known_speakers": _normalize_prep_known_speakers(json.loads(row["known_speakers_json"] or "[]")),
+        "current_section_index": row["current_section_index"] or 0,
+        "processed_sections": row["processed_sections"] or 0,
+        "total_sections": row["total_sections"] or 0,
+        "progress": row["progress"] or 0,
+        "last_error": row["last_error"],
+        "retryable": bool(row["retryable"]),
+        "retry_count": row["retry_count"] or 0,
+        "max_retries": row["max_retries"] or DEFAULT_PREP_JOB_MAX_RETRIES,
+        "active_attempt": row["active_attempt"] or 0,
+        "waiting_until": row["waiting_until"],
+        "failure_section_index": row["failure_section_index"],
+        "resume_token": row["resume_token"] or row["job_id"],
+        "final_text": row["final_text"] or "",
+        "job_payload": job_payload if isinstance(job_payload, dict) else {},
+    }
+    for key in ("started_at", "completed_at", "status_detail"):
+        if key in job_entry["job_payload"]:
+            job_entry[key] = job_entry["job_payload"][key]
+    return job_entry
+
+
+def _build_prep_job_status_detail(job_entry: Dict[str, Any]) -> str:
+    status = job_entry.get("status")
+    total_sections = int(job_entry.get("total_sections") or 0)
+    processed_sections = int(job_entry.get("processed_sections") or 0)
+    current_section_index = int(job_entry.get("current_section_index") or 0)
+    if status == "queued":
+        return "Queued and waiting to start."
+    if status == "processing":
+        return f"Processing section {min(current_section_index + 1, total_sections)} of {total_sections}."
+    if status == "retrying":
+        return f"Retrying section {min(current_section_index + 1, total_sections)}."
+    if status == "waiting_to_retry":
+        retry_count = int(job_entry.get("retry_count") or 0)
+        max_retries = int(job_entry.get("max_retries") or DEFAULT_PREP_JOB_MAX_RETRIES)
+        return f"Waiting to retry after an upstream overload ({retry_count}/{max_retries})."
+    if status == "completed":
+        return f"Completed {processed_sections} of {total_sections} sections."
+    if status == "cancelled":
+        return f"Cancelled after completing {processed_sections} of {total_sections} sections."
+    if status == "failed":
+        if job_entry.get("retryable"):
+            return "Prep paused after a retryable upstream failure. Resume to continue from the first incomplete section."
+        return "Prep failed due to a non-retryable error."
+    return "Prep job status unavailable."
+
+
+def _resolve_prep_job_book_title(job_entry: Dict[str, Any]) -> str:
+    for section in job_entry.get("sections") or []:
+        raw_title = (section.get("title") or "").strip()
+        if not raw_title:
+            continue
+        candidate = raw_title.split("—")[0].strip()
+        lowered = candidate.lower()
+        if not lowered or lowered == "full story":
+            continue
+        if re.match(r'^(chapter|section|book|part|letter|prologue|epilogue)\b', candidate, re.IGNORECASE):
+            continue
+        return candidate
+    return ""
+
+
+def _prep_job_response_payload(job_entry: Dict[str, Any]) -> Dict[str, Any]:
+    total_sections = int(job_entry.get("total_sections") or 0)
+    current_index = int(job_entry.get("current_section_index") or 0)
+    sections = job_entry.get("sections") or []
+    current_section = sections[current_index] if 0 <= current_index < len(sections) else None
+    final_text = (job_entry.get("final_text") or "").strip()
+    if not final_text and job_entry.get("status") == "completed":
+        final_text = _reconstruct_prep_job_text(job_entry)
+    completed_indexes = sorted(int(key) for key in (job_entry.get("completed_outputs") or {}).keys())
+    return {
+        "job_id": job_entry.get("job_id"),
+        "resume_token": job_entry.get("resume_token") or job_entry.get("job_id"),
+        "status": job_entry.get("status"),
+        "status_detail": job_entry.get("status_detail") or _build_prep_job_status_detail(job_entry),
+        "created_at": job_entry.get("created_at"),
+        "updated_at": job_entry.get("updated_at"),
+        "processed_sections": int(job_entry.get("processed_sections") or 0),
+        "total_sections": total_sections,
+        "progress": int(job_entry.get("progress") or 0),
+        "current_section_index": current_index,
+        "current_section_title": (current_section or {}).get("title"),
+        "failure_section_index": job_entry.get("failure_section_index"),
+        "retryable": bool(job_entry.get("retryable")),
+        "retry_count": int(job_entry.get("retry_count") or 0),
+        "max_retries": int(job_entry.get("max_retries") or DEFAULT_PREP_JOB_MAX_RETRIES),
+        "active_attempt": int(job_entry.get("active_attempt") or 0),
+        "waiting_until": job_entry.get("waiting_until"),
+        "last_error": job_entry.get("last_error"),
+        "resume_available": job_entry.get("status") == "failed" and bool(job_entry.get("retryable")),
+        "known_speakers": job_entry.get("known_speakers") or [],
+        "completed_section_indexes": completed_indexes,
+        "result_text": final_text,
+        "provider": job_entry.get("provider") or DEFAULT_LLM_PROVIDER,
+        "model_name": job_entry.get("model_name") or DEFAULT_GEMINI_MODEL,
+        "text_hash": job_entry.get("text_hash"),
+        "book_title": _resolve_prep_job_book_title(job_entry),
+    }
+
+
+def _set_prep_job_status(job_entry: Dict[str, Any], status: str, *, detail: Optional[str] = None) -> None:
+    job_entry["status"] = status
+    if detail is not None:
+        job_entry["status_detail"] = detail
+
+
+def _launch_prep_job_worker(job_id: str) -> None:
+    with prep_job_lock:
+        active_thread = prep_job_threads.get(job_id)
+        if active_thread and active_thread.is_alive():
+            return
+        cancel_event = prep_job_cancel_events.get(job_id)
+        if cancel_event is None:
+            cancel_event = threading.Event()
+            prep_job_cancel_events[job_id] = cancel_event
+        cancel_event.clear()
+        worker = threading.Thread(
+            target=_process_prep_job_worker,
+            args=(job_id,),
+            daemon=True,
+            name=f"prep-job-{job_id}",
+        )
+        prep_job_threads[job_id] = worker
+        worker.start()
+
+
+def _update_prep_job_retry_state(job_id: str, section_index: int, event: Dict[str, Any]) -> None:
+    job_entry = _load_prep_job(job_id)
+    if not job_entry:
+        return
+    status = event.get("status") or "retrying"
+    delay_seconds = float(event.get("delay_seconds") or 0.0)
+    waiting_until = None
+    if status == "waiting_to_retry" and delay_seconds > 0:
+        waiting_until = (datetime.now() + timedelta(seconds=delay_seconds)).isoformat()
+    _set_prep_job_status(job_entry, status)
+    job_entry["current_section_index"] = section_index
+    job_entry["failure_section_index"] = section_index
+    job_entry["retryable"] = True
+    job_entry["retry_count"] = max(int(event.get("attempt") or 0), 0)
+    job_entry["active_attempt"] = max(int(event.get("attempt") or 0), 0)
+    job_entry["waiting_until"] = waiting_until
+    if event.get("message"):
+        job_entry["last_error"] = event.get("message")
+    job_entry["updated_at"] = datetime.now().isoformat()
+    job_entry["status_detail"] = _build_prep_job_status_detail(job_entry)
+    _persist_prep_job_state(job_entry)
+
+
+def _process_prep_job_worker(job_id: str) -> None:
+    try:
+        job_entry = _load_prep_job(job_id)
+        if not job_entry:
+            return
+        if job_entry.get("status") == "completed":
+            return
+
+        cancel_event = prep_job_cancel_events.get(job_id) or threading.Event()
+        prep_job_cancel_events[job_id] = cancel_event
+        config = load_config()
+        text = _load_job_text(job_entry.get("text_path"))
+        sections = job_entry.get("sections") or []
+        text_processor = TextProcessor(chunk_size=config.get("chunk_size", 500))
+        prompt_prefix = (job_entry.get("prompt_override") or "").strip() or (config.get("gemini_prompt") or "").strip()
+        completed_outputs = _normalize_prep_completed_outputs(job_entry.get("completed_outputs") or {})
+        known_speakers = set(_normalize_prep_known_speakers(job_entry.get("known_speakers") or text_processor.extract_speakers(text)))
+
+        if "started_at" not in job_entry:
+            job_entry["started_at"] = datetime.now().isoformat()
+
+        start_index = _find_first_incomplete_prep_section(job_entry)
+        for section_index in range(start_index, len(sections)):
+            if cancel_event.is_set():
+                _set_prep_job_status(job_entry, "cancelled")
+                job_entry["status_detail"] = _build_prep_job_status_detail(job_entry)
+                job_entry["updated_at"] = datetime.now().isoformat()
+                _persist_prep_job_state(job_entry)
+                return
+
+            section = sections[section_index] or {}
+            content = (section.get("content") or "").strip()
+            if not content:
+                continue
+
+            _set_prep_job_status(job_entry, "processing")
+            job_entry["current_section_index"] = section_index
+            job_entry["failure_section_index"] = None
+            job_entry["waiting_until"] = None
+            job_entry["active_attempt"] = 1
+            job_entry["retry_count"] = 0
+            job_entry["retryable"] = False
+            job_entry["last_error"] = None
+            job_entry["status_detail"] = _build_prep_job_status_detail(job_entry)
+            job_entry["updated_at"] = datetime.now().isoformat()
+            _persist_prep_job_state(job_entry)
+
+            prompt = compose_gemini_prompt(section, prompt_prefix, sorted(known_speakers))
+            response_text = _run_llm_prompt(
+                prompt,
+                config,
+                retry_callback=lambda event, idx=section_index: _update_prep_job_retry_state(job_id, idx, event),
+            )
+
+            detected_speakers = text_processor.extract_speakers(response_text)
+            for speaker_name in detected_speakers:
+                if isinstance(speaker_name, str) and speaker_name.strip():
+                    known_speakers.add(speaker_name.strip().lower())
+
+            completed_outputs[str(section_index)] = {
+                "output": response_text.strip(),
+                "title": section.get("title"),
+                "source": section.get("source"),
+                "speakers": sorted({speaker.strip().lower() for speaker in detected_speakers if isinstance(speaker, str) and speaker.strip()}),
+                "completed_at": datetime.now().isoformat(),
+            }
+            job_entry["completed_outputs"] = completed_outputs
+            job_entry["known_speakers"] = sorted(known_speakers)
+            job_entry["processed_sections"] = len(completed_outputs)
+            job_entry["current_section_index"] = min(section_index + 1, len(sections))
+            job_entry["progress"] = int(round((len(completed_outputs) / max(len(sections), 1)) * 100))
+            job_entry["retryable"] = False
+            job_entry["retry_count"] = 0
+            job_entry["active_attempt"] = 0
+            job_entry["waiting_until"] = None
+            job_entry["failure_section_index"] = None
+            job_entry["last_error"] = None
+            _set_prep_job_status(job_entry, "processing")
+            job_entry["status_detail"] = _build_prep_job_status_detail(job_entry)
+            job_entry["updated_at"] = datetime.now().isoformat()
+            _persist_prep_job_state(job_entry)
+
+        job_entry["processed_sections"] = len(completed_outputs)
+        job_entry["current_section_index"] = len(sections)
+        job_entry["progress"] = 100 if sections else 0
+        job_entry["final_text"] = _reconstruct_prep_job_text(job_entry)
+        job_entry["completed_at"] = datetime.now().isoformat()
+        _set_prep_job_status(job_entry, "completed")
+        job_entry["status_detail"] = _build_prep_job_status_detail(job_entry)
+        job_entry["updated_at"] = datetime.now().isoformat()
+        _persist_prep_job_state(job_entry)
+    except (GeminiProcessorError, LocalLLMProcessorError) as exc:
+        job_entry = _load_prep_job(job_id)
+        if job_entry:
+            section_index = _find_first_incomplete_prep_section(job_entry)
+            _set_prep_job_status(job_entry, "failed")
+            job_entry["failure_section_index"] = min(section_index, max((job_entry.get("total_sections") or 1) - 1, 0))
+            job_entry["current_section_index"] = min(section_index, job_entry.get("total_sections") or 0)
+            job_entry["retryable"] = bool(getattr(exc, "retryable", False))
+            job_entry["retry_count"] = int(getattr(exc, "attempts", job_entry.get("retry_count") or 0) or 0)
+            job_entry["active_attempt"] = int(getattr(exc, "attempts", 0) or 0)
+            job_entry["waiting_until"] = None
+            job_entry["last_error"] = str(exc)
+            job_entry["status_detail"] = _build_prep_job_status_detail(job_entry)
+            job_entry["updated_at"] = datetime.now().isoformat()
+            _persist_prep_job_state(job_entry)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.error("Unhandled prep job failure for %s: %s", job_id, exc, exc_info=True)
+        job_entry = _load_prep_job(job_id)
+        if job_entry:
+            section_index = _find_first_incomplete_prep_section(job_entry)
+            _set_prep_job_status(job_entry, "failed")
+            job_entry["failure_section_index"] = min(section_index, max((job_entry.get("total_sections") or 1) - 1, 0))
+            job_entry["current_section_index"] = min(section_index, job_entry.get("total_sections") or 0)
+            job_entry["retryable"] = False
+            job_entry["waiting_until"] = None
+            job_entry["last_error"] = str(exc)
+            job_entry["status_detail"] = _build_prep_job_status_detail(job_entry)
+            job_entry["updated_at"] = datetime.now().isoformat()
+            _persist_prep_job_state(job_entry)
+    finally:
+        with prep_job_lock:
+            prep_job_threads.pop(job_id, None)
+
+
+def _restore_prep_jobs_from_db() -> None:
+    with _get_jobs_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT job_id FROM prep_jobs WHERE status IN ('queued', 'processing', 'retrying', 'waiting_to_retry')"
+        ).fetchall()
+    for row in rows:
+        job_entry = _load_prep_job(row["job_id"])
+        if not job_entry:
+            continue
+        _set_prep_job_status(job_entry, "failed")
+        job_entry["retryable"] = True
+        job_entry["waiting_until"] = None
+        if not job_entry.get("last_error"):
+            job_entry["last_error"] = "Server restarted while the prep job was running. Resume to continue from the first incomplete section."
+        job_entry["status_detail"] = _build_prep_job_status_detail(job_entry)
+        job_entry["updated_at"] = datetime.now().isoformat()
+        _persist_prep_job_state(job_entry)
 
 
 def _purge_stale_jobs(days: int = 7) -> None:
@@ -2587,7 +3117,11 @@ def compose_gemini_prompt(section: dict, prompt_prefix: str = "", known_speakers
     return "\n\n".join(parts).strip()
 
 
-def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
+def _run_llm_prompt(
+    prompt: str,
+    config: Dict[str, Any],
+    retry_callback: Optional[Any] = None,
+) -> str:
     """Run a prompt through the configured LLM provider (Gemini or local)."""
     provider = (config.get("llm_provider") or DEFAULT_LLM_PROVIDER).lower().strip()
     if provider == "gemini":
@@ -2595,8 +3129,14 @@ def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
         if not api_key:
             raise GeminiProcessorError("Gemini API key not configured")
         model_name = config.get("gemini_model") or DEFAULT_GEMINI_MODEL
-        processor = GeminiProcessor(api_key=api_key, model_name=model_name)
-        return processor.generate_text(prompt)
+        processor = GeminiProcessor(
+            api_key=api_key,
+            model_name=model_name,
+            max_retries=DEFAULT_PREP_JOB_MAX_RETRIES,
+            base_delay=DEFAULT_PREP_JOB_RETRY_BASE_DELAY,
+            max_delay=DEFAULT_PREP_JOB_RETRY_MAX_DELAY,
+        )
+        return processor.generate_text(prompt, on_retry=retry_callback)
 
     local_provider = (config.get("llm_local_provider") or "").lower().strip()
     base_url = (config.get("llm_local_base_url") or "").strip()
@@ -2624,6 +3164,27 @@ def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
         disable_reasoning=disable_reasoning,
     )
     return processor.generate_text(prompt)
+
+
+def _llm_error_response(exc: Exception):
+    retryable = bool(getattr(exc, "retryable", False))
+    status_code = 503 if retryable else 400
+    payload = {
+        "success": False,
+        "error": str(exc),
+        "retryable": retryable,
+    }
+    if hasattr(exc, "status_code"):
+        payload["status_code"] = getattr(exc, "status_code")
+    if hasattr(exc, "reason"):
+        payload["reason"] = getattr(exc, "reason")
+    if hasattr(exc, "attempts"):
+        payload["attempts"] = getattr(exc, "attempts")
+    if hasattr(exc, "max_retries"):
+        payload["max_retries"] = getattr(exc, "max_retries")
+    if hasattr(exc, "retry_after_seconds") and getattr(exc, "retry_after_seconds") is not None:
+        payload["retry_after_seconds"] = getattr(exc, "retry_after_seconds")
+    return jsonify(payload), status_code
 
 
 def compose_gemini_speaker_profile_prompt(prompt_prefix: str, speakers: List[str], context: str = "", processed_text: str = "") -> str:
@@ -5987,10 +6548,7 @@ def list_gemini_models():
         })
 
     except (GeminiProcessorError, LocalLLMProcessorError) as exc:
-        return jsonify({
-            "success": False,
-            "error": str(exc)
-        }), 400
+        return _llm_error_response(exc)
     except Exception as e:  # pragma: no cover - general failure
         logger.error(f"Error listing Gemini models: {e}", exc_info=True)
         return jsonify({
@@ -6027,10 +6585,7 @@ def list_local_llm_models():
             "error": "Invalid timeout value"
         }), 400
     except (GeminiProcessorError, LocalLLMProcessorError) as exc:
-        return jsonify({
-            "success": False,
-            "error": str(exc)
-        }), 400
+        return _llm_error_response(exc)
     except Exception as exc:  # pragma: no cover - general failure
         logger.error("Error listing local LLM models: %s", exc, exc_info=True)
         return jsonify({
@@ -6481,6 +7036,185 @@ def update_library_title(job_id: str):
     return jsonify({"success": True, "title": title})
 
 
+def _create_prep_job_entry(
+    text: str,
+    *,
+    prefer_chapters: bool,
+    custom_heading: Optional[Any],
+    prompt_override: str,
+    config: Dict[str, Any],
+) -> Dict[str, Any]:
+    sections = build_gemini_sections(text, prefer_chapters, config, custom_heading)
+    if not sections:
+        raise ValueError("Unable to create sections for Gemini processing")
+
+    text_processor = TextProcessor(chunk_size=config.get('chunk_size', 500))
+    provider = (config.get("llm_provider") or DEFAULT_LLM_PROVIDER).lower().strip()
+    model_name = (
+        config.get("gemini_model") if provider == "gemini" else config.get("llm_local_model")
+    ) or DEFAULT_GEMINI_MODEL
+    job_id = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "created_at": now,
+        "updated_at": now,
+        "text_hash": _hash_prep_job_text(text),
+        "text_path": _write_prep_job_text(job_id, text),
+        "prompt_override": prompt_override,
+        "custom_heading": str(custom_heading or "").strip(),
+        "prefer_chapters": bool(prefer_chapters),
+        "provider": provider,
+        "model_name": model_name,
+        "sections": sections,
+        "completed_outputs": {},
+        "known_speakers": _normalize_prep_known_speakers(text_processor.extract_speakers(text)),
+        "current_section_index": 0,
+        "processed_sections": 0,
+        "total_sections": len(sections),
+        "progress": 0,
+        "last_error": None,
+        "retryable": False,
+        "retry_count": 0,
+        "max_retries": DEFAULT_PREP_JOB_MAX_RETRIES,
+        "active_attempt": 0,
+        "waiting_until": None,
+        "failure_section_index": None,
+        "resume_token": job_id,
+        "final_text": "",
+        "status_detail": "Queued and waiting to start.",
+        "job_payload": {},
+    }
+
+
+@app.route('/api/gemini/prep-jobs', methods=['POST'])
+def create_gemini_prep_job():
+    """Create and start a persisted Gemini prep job."""
+    try:
+        data = request.json or {}
+        text = (data.get('text') or '').strip()
+        prefer_chapters = bool(data.get('prefer_chapters', True))
+        custom_heading = data.get('custom_heading')
+        prompt_override = (data.get('prompt_override') or '').strip()
+
+        if not text:
+            return jsonify({"success": False, "error": "No text provided"}), 400
+
+        config = load_config()
+        provider = (config.get("llm_provider") or DEFAULT_LLM_PROVIDER).lower().strip()
+        if provider == "gemini":
+            api_key = (config.get('gemini_api_key') or '').strip()
+            if not api_key:
+                return jsonify({
+                    "success": False,
+                    "error": "Gemini API key not configured",
+                    "retryable": False,
+                }), 400
+
+        job_entry = _create_prep_job_entry(
+            text,
+            prefer_chapters=prefer_chapters,
+            custom_heading=custom_heading,
+            prompt_override=prompt_override,
+            config=config,
+        )
+        _persist_prep_job_state(job_entry)
+        _launch_prep_job_worker(job_entry['job_id'])
+
+        return jsonify({
+            "success": True,
+            "job": _prep_job_response_payload(job_entry),
+        }), 202
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.error("Error creating Gemini prep job: %s", exc, exc_info=True)
+        return jsonify({"success": False, "error": "Failed to create prep job"}), 500
+
+
+@app.route('/api/gemini/prep-jobs/<job_id>', methods=['GET'])
+def get_gemini_prep_job(job_id: str):
+    """Return persisted Gemini prep job status and progress."""
+    job_entry = _load_prep_job(job_id)
+    if not job_entry:
+        return jsonify({"success": False, "error": "Prep job not found"}), 404
+    job_entry['final_text'] = (job_entry.get('final_text') or '').strip() or _reconstruct_prep_job_text(job_entry)
+    job_entry['status_detail'] = _build_prep_job_status_detail(job_entry)
+    return jsonify({
+        "success": True,
+        "job": _prep_job_response_payload(job_entry),
+    })
+
+
+@app.route('/api/gemini/prep-jobs/<job_id>/resume', methods=['POST'])
+def resume_gemini_prep_job(job_id: str):
+    """Resume a failed or interrupted Gemini prep job from the first incomplete section."""
+    job_entry = _load_prep_job(job_id)
+    if not job_entry:
+        return jsonify({"success": False, "error": "Prep job not found"}), 404
+    if job_entry.get('status') == 'completed':
+        return jsonify({"success": True, "job": _prep_job_response_payload(job_entry)})
+    if job_entry.get('status') in PREP_JOB_ACTIVE_STATUSES:
+        return jsonify({"success": True, "job": _prep_job_response_payload(job_entry)})
+    if job_entry.get('status') not in {'failed', 'cancelled'}:
+        return jsonify({"success": False, "error": "Prep job is not resumable"}), 400
+    if job_entry.get('status') == 'failed' and not job_entry.get('retryable'):
+        return jsonify({
+            "success": False,
+            "error": "Prep job failed with a non-retryable error and cannot be resumed",
+            "retryable": False,
+        }), 400
+
+    cancel_event = prep_job_cancel_events.get(job_id)
+    if cancel_event:
+        cancel_event.clear()
+
+    _set_prep_job_status(job_entry, 'queued')
+    job_entry['last_error'] = None
+    job_entry['retryable'] = False
+    job_entry['retry_count'] = 0
+    job_entry['active_attempt'] = 0
+    job_entry['waiting_until'] = None
+    job_entry['failure_section_index'] = None
+    job_entry['status_detail'] = _build_prep_job_status_detail(job_entry)
+    job_entry['updated_at'] = datetime.now().isoformat()
+    _persist_prep_job_state(job_entry)
+    _launch_prep_job_worker(job_id)
+
+    return jsonify({
+        "success": True,
+        "job": _prep_job_response_payload(job_entry),
+    }), 202
+
+
+@app.route('/api/gemini/prep-jobs/<job_id>/cancel', methods=['POST'])
+def cancel_gemini_prep_job(job_id: str):
+    """Cancel a running Gemini prep job."""
+    job_entry = _load_prep_job(job_id)
+    if not job_entry:
+        return jsonify({"success": False, "error": "Prep job not found"}), 404
+
+    cancel_event = prep_job_cancel_events.get(job_id)
+    if cancel_event is None:
+        cancel_event = threading.Event()
+        prep_job_cancel_events[job_id] = cancel_event
+    cancel_event.set()
+
+    if job_entry.get('status') in PREP_JOB_TERMINAL_STATUSES:
+        return jsonify({"success": True, "job": _prep_job_response_payload(job_entry)})
+
+    _set_prep_job_status(job_entry, 'cancelled')
+    job_entry['status_detail'] = _build_prep_job_status_detail(job_entry)
+    job_entry['updated_at'] = datetime.now().isoformat()
+    _persist_prep_job_state(job_entry)
+
+    return jsonify({
+        "success": True,
+        "job": _prep_job_response_payload(job_entry),
+    })
+
+
 @app.route('/api/gemini/process', methods=['POST'])
 def process_text_with_gemini():
     """Send text (optionally chapterized) through Google Gemini."""
@@ -6563,10 +7297,7 @@ def process_text_with_gemini():
         })
 
     except (GeminiProcessorError, LocalLLMProcessorError) as exc:
-        return jsonify({
-            "success": False,
-            "error": str(exc)
-        }), 400
+        return _llm_error_response(exc)
     except Exception as e:  # pragma: no cover - general failure
         logger.error(f"Error during Gemini processing: {e}", exc_info=True)
         return jsonify({
@@ -6615,10 +7346,7 @@ def process_full_text_with_gemini():
         })
 
     except (GeminiProcessorError, LocalLLMProcessorError) as exc:
-        return jsonify({
-            "success": False,
-            "error": str(exc)
-        }), 400
+        return _llm_error_response(exc)
     except Exception as e:  # pragma: no cover - general failure
         logger.error(f"Error during full-text Gemini processing: {e}", exc_info=True)
         return jsonify({
@@ -6670,10 +7398,7 @@ def process_gemini_speaker_profiles():
             "raw": response_text.strip()
         })
     except (GeminiProcessorError, LocalLLMProcessorError) as exc:
-        return jsonify({
-            "success": False,
-            "error": str(exc)
-        }), 400
+        return _llm_error_response(exc)
     except Exception as e:  # pragma: no cover - general failure
         logger.error(f"Error during Gemini speaker profile processing: {e}", exc_info=True)
         return jsonify({
@@ -6774,10 +7499,7 @@ def process_gemini_section():
         })
 
     except (GeminiProcessorError, LocalLLMProcessorError) as exc:
-        return jsonify({
-            "success": False,
-            "error": str(exc)
-        }), 400
+        return _llm_error_response(exc)
     except Exception as e:  # pragma: no cover - general failure
         logger.error(f"Error processing Gemini section: {e}", exc_info=True)
         return jsonify({
@@ -8781,6 +9503,7 @@ if __name__ == '__main__':
     _init_jobs_db()
     _purge_stale_jobs()
     _restore_jobs_from_db()
+    _restore_prep_jobs_from_db()
     _archive_old_jobs()
     _cleanup_orphaned_chatterbox_voices()
     _auto_register_voice_prompt_files()

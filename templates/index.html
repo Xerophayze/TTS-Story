@@ -112,14 +112,31 @@
                         <p class="help-text" style="margin-top: 8px;">
                             ✨ Prep with your selected prompt before generating audio.
                         </p>
-                        <div id="gemini-progress" class="gemini-progress" style="display: none;">
-                            <div class="progress-label">
-                                <span id="gemini-progress-text">Preparing Gemini request…</span>
-                                <span id="gemini-progress-count"></span>
+                        <div id="gemini-progress" class="gemini-progress gemini-progress-state is-hidden"
+                            aria-live="polite">
+                            <div class="gemini-progress-header">
+                                <div class="gemini-progress-stateline">
+                                    <span id="gemini-status-spinner" class="gemini-status-spinner"
+                                        aria-hidden="true"></span>
+                                    <div class="gemini-progress-copy">
+                                        <div class="gemini-progress-title-row">
+                                            <span id="gemini-status-badge" class="gemini-status-badge">Queued</span>
+                                            <span id="gemini-progress-count"></span>
+                                        </div>
+                                        <div id="gemini-progress-text" class="gemini-progress-text">Preparing Gemini
+                                            request…</div>
+                                    </div>
+                                </div>
+                                <div class="gemini-progress-actions">
+                                    <button type="button" id="gemini-resume-btn" class="btn btn-secondary btn-sm"
+                                        style="display: none;">Resume Prep</button>
+                                </div>
                             </div>
                             <div class="progress-bar">
                                 <div id="gemini-progress-fill" class="progress-bar-fill"></div>
                             </div>
+                            <div id="gemini-progress-meta" class="gemini-progress-meta"></div>
+                            <div id="gemini-progress-error" class="gemini-progress-error" style="display: none;"></div>
                         </div>
                     </div>
                 </div>

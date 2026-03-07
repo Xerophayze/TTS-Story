@@ -113,8 +113,9 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 
 ### AI & Processing
 
+- **Resilient Prep Text Jobs**: Prep Text now runs as a persisted backend job so completed sections survive retries, browser refreshes, and server restarts
 - **Gemini Pre-Processing**: Automatically decides between whole-text or chapter-based Gemini runs with speaker-memory context
-- **Speaker Memory Between Chunks**: Gemini requests carry forward discovered speaker tags for consistency
+- **Speaker Memory Between Chunks**: Gemini requests carry forward discovered speaker tags for consistency, even after resuming a failed prep job
 - **Local GPU Processing**: Run entirely on your machine for privacy and speed
 - **Cloud API Option**: Use Replicate API when you don't have local GPU resources
 
@@ -508,19 +509,23 @@ You can use any alphanumeric name (letters, numbers, underscores). The system wi
 
 ### Gemini Pre-Processing Workflow
 
-Need to tidy a manuscript or add consistent speaker tags before running TTS? Use the **Prep Text with Gemini** button:
+Need to tidy a manuscript or add consistent speaker tags before running TTS? Use the **Prep Text** button:
 
 1. Enter your Gemini API key and model in **Settings**, then click **Fetch Available Models** if you want to load the latest list directly from Google.
-2. Paste your story in the **Generate** tab and decide whether "Generate separate audio files for each chapter" should be enabled.
+2. Paste your story in the **Generate** tab and decide whether chapter/section splitting should be enabled.
 3. Select a **Prompt Preset** (see below) or write your own custom prompt.
-4. Click **Prep Text with Gemini**:
-   - If chapter splitting is enabled, TTS-Story reuses the detected chapter list and sends each one to Gemini separately with your pre-prompt and the running speaker list.
-   - If chapter splitting is disabled, the whole manuscript (plus pre-prompt) is sent in a single Gemini request to respect the context window.
-   - A real-time progress bar shows which chapter or full-text step is running.
-5. When Gemini finishes, the cleaned/expanded narrative replaces the input field. Chapter headings stay inside the narrator tags so audio splitting still works.
-6. Re-run **Analyze Text** if needed. Your voice assignments and FX settings remain untouched unless you explicitly reset them.
+4. Click **Prep Text**:
 
-Because the speaker list is tracked across sections, characters that appear later continue to use the same tag, which keeps the voice assignment UI tidy and prevents duplicate dropdowns.
+- TTS-Story creates a persisted backend prep job and stores the section list, completed outputs, running speaker list, retry metadata, and final status in SQLite.
+- If chapter splitting is enabled, each detected section is processed independently and saved immediately after success.
+- If Gemini returns a transient overload (`503`, `UNAVAILABLE`, similar capacity errors), the backend retries automatically with bounded exponential backoff.
+- The Prep Text status card shows whether the job is generating, waiting to retry, actively retrying, completed, or failed.
+
+5. If the browser refreshes or Gemini exhausts its retry budget, the completed sections remain saved. Use **Resume Prep** to continue from the first incomplete section instead of starting over.
+6. When the prep job completes, the cleaned/expanded narrative replaces the input field automatically. Chapter headings stay inside the narrator tags so audio splitting still works.
+7. Re-run **Analyze Text** if needed. Your voice assignments and FX settings remain untouched unless you explicitly reset them.
+
+Because the speaker list is tracked and persisted across sections, characters that appear later continue to use the same tag, which keeps the voice assignment UI tidy and prevents duplicate dropdowns.
 
 #### Pre-loaded Prompt Presets
 
@@ -675,8 +680,12 @@ TTS-Story/
 - `GET /api/settings` - Get current settings
 - `POST /api/settings` - Update settings
 - `POST /api/analyze` - Analyze text and return statistics/speakers
+- `POST /api/gemini/prep-jobs` - Create and start a persisted Prep Text job
+- `GET /api/gemini/prep-jobs/<job_id>` - Poll persisted Prep Text job state, retry metadata, and final output
+- `POST /api/gemini/prep-jobs/<job_id>/resume` - Resume a failed/retryable prep job from the first incomplete section
+- `POST /api/gemini/prep-jobs/<job_id>/cancel` - Cancel an in-flight prep job
 - `POST /api/gemini/sections` - Preview the sections (chapters/chunks) Gemini will process for a given input
-- `POST /api/gemini/process-section` - Send a single section to Gemini (called in sequence by the frontend for live progress updates)
+- `POST /api/gemini/process-section` - Process a single section directly (legacy/manual endpoint; retryable Gemini overloads now return `503` with `retryable: true`)
 - `POST /api/gemini/process` - Process the entire text through Gemini in one backend call (used for scripted workflows)
 - `POST /api/gemini/models` - Fetch available Gemini models after providing an API key
 - `POST /api/generate` - Queue a new audio generation job
