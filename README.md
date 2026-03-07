@@ -293,6 +293,9 @@ You can also choose one explicitly:
 TTS_STORY_PORT=5001 ./run.sh
 ```
 
+Or save a default port in the app UI under `Settings -> Quick Settings -> Server Port`.
+That value is stored in `config.json` and used on the next launch. One-off environment overrides such as `TTS_STORY_PORT=5001` or `PORT=5001` still take priority.
+
 4. **Open your browser**
 
 ```
@@ -347,6 +350,8 @@ To run on a different port:
 ```bash
 TTS_STORY_PORT=5001 python app.py
 ```
+
+If you prefer not to set an environment variable each time, save the port from `Settings -> Quick Settings -> Server Port` and restart the app.
 
 ## Usage
 

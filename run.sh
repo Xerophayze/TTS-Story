@@ -73,6 +73,31 @@ raise SystemExit(1)
 EOF
 }
 
+read_configured_port() {
+    python - <<'EOF'
+import json
+from pathlib import Path
+
+default_port = 5000
+config_path = Path("config.json")
+
+try:
+    if config_path.exists():
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        candidate = data.get("server_port", default_port)
+    else:
+        candidate = default_port
+    port = int(candidate)
+except Exception:
+    port = default_port
+
+if not (1 <= port <= 65535):
+    port = default_port
+
+print(port)
+EOF
+}
+
 # Check that virtual environment exists
 if [ ! -f "venv/bin/activate" ]; then
     echo "ERROR: Virtual environment not found."
@@ -84,7 +109,22 @@ fi
 # shellcheck disable=SC1091
 source "venv/bin/activate"
 
-REQUESTED_PORT="${TTS_STORY_PORT:-${PORT:-5000}}"
+PORT_SOURCE="default"
+STRICT_PORT_REQUEST=0
+
+if [ -n "${TTS_STORY_PORT:-}" ]; then
+    REQUESTED_PORT="$TTS_STORY_PORT"
+    PORT_SOURCE="environment"
+    STRICT_PORT_REQUEST=1
+elif [ -n "${PORT:-}" ]; then
+    REQUESTED_PORT="$PORT"
+    PORT_SOURCE="environment"
+    STRICT_PORT_REQUEST=1
+else
+    REQUESTED_PORT="$(read_configured_port)"
+    PORT_SOURCE="config"
+fi
+
 APP_PORT="$REQUESTED_PORT"
 
 if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1 ] || [ "$APP_PORT" -gt 65535 ]; then
@@ -93,19 +133,23 @@ if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1 ] || [ "$APP_PORT" -gt
 fi
 
 if ! is_port_available "$APP_PORT"; then
-    if [ -n "${TTS_STORY_PORT:-}" ] || [ -n "${PORT:-}" ]; then
+    if [ "$STRICT_PORT_REQUEST" -eq 1 ]; then
         echo "ERROR: Requested port $APP_PORT is already in use."
         echo "Set TTS_STORY_PORT to another port and re-run, for example: TTS_STORY_PORT=5001 ./run.sh"
         exit 1
     fi
 
-    ALT_PORT="$(find_available_port 5001 || true)"
+    ALT_PORT="$(find_available_port $((APP_PORT + 1)) || true)"
     if [ -z "$ALT_PORT" ]; then
-        echo "ERROR: Port 5000 is in use and no fallback port was found in the 5001-5100 range."
+        echo "ERROR: Preferred port $APP_PORT is in use and no fallback port was found in the next 100 ports."
         exit 1
     fi
 
-    echo "Port 5000 is already in use. Falling back to port $ALT_PORT."
+    if [ "$PORT_SOURCE" = "config" ]; then
+        echo "Saved port $APP_PORT is already in use. Falling back to port $ALT_PORT for this run."
+    else
+        echo "Port $APP_PORT is already in use. Falling back to port $ALT_PORT."
+    fi
     if [ "$IS_MACOS" -eq 1 ]; then
         echo "Tip: this is commonly caused by AirPlay Receiver on macOS."
     fi

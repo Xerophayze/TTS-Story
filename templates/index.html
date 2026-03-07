@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TTS-Story - Multi-Voice TTS</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2326324a'/%3E%3Cpath d='M18 22h6v20h-6zM28 22h6v20h-6zM38 22h6v20h-6z' fill='%23a78bfa'/%3E%3Ccircle cx='32' cy='16' r='4' fill='%23fcd34d'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23fcd34d'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2326324a'/%3E%3Cpath d='M18 22h6v20h-6zM28 22h6v20h-6zM38 22h6v20h-6z' fill='%23a78bfa'/%3E%3Ccircle cx='32' cy='16' r='4' fill='%23fcd34d'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23fcd34d'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/static/css/style.css?v=31">
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -34,32 +37,33 @@
                 <div class="section-title-row">
                     <div class="section-title-inline">
                         <h2>Input Text</h2>
-                        <button type="button" class="help-icon" data-help-id="input-text" aria-label="Help: Input Text">?</button>
+                        <button type="button" class="help-icon" data-help-id="input-text"
+                            aria-label="Help: Input Text">?</button>
                     </div>
                     <div class="project-controls project-controls-inline">
                         <div class="project-controls-label">
                             Project
-                            <button type="button" class="help-icon" data-help-id="projects" aria-label="Help: Projects">?</button>
+                            <button type="button" class="help-icon" data-help-id="projects"
+                                aria-label="Help: Projects">?</button>
                         </div>
 
                         <div class="project-controls-actions">
-                            <button type="button" id="project-manage-btn" class="btn btn-secondary btn-sm">Manage Projects</button>
+                            <button type="button" id="project-manage-btn" class="btn btn-secondary btn-sm">Manage
+                                Projects</button>
                             <span id="project-status" class="help-text"></span>
                         </div>
                     </div>
                 </div>
                 <p class="help-text">
-                    Enter your text below. Use speaker tags like <code>[narrator]text[/narrator]</code> or 
+                    Enter your text below. Use speaker tags like <code>[narrator]text[/narrator]</code> or
                     <code>[speaker1]text[/speaker1]</code> for multi-voice stories, or plain text for single voice.
                     You can use any name: <code>[alice]</code>, <code>[bob]</code>, <code>[narrator]</code>, etc.
                 </p>
                 <div class="text-input-wrapper" id="text-input-wrapper">
                     <button type="button" id="clear-text-btn" class="clear-text-btn" title="Clear text">C</button>
-                    <textarea 
-                        id="input-text" 
+                    <textarea id="input-text"
                         placeholder="[narrator]Once upon a time...[/narrator]&#10;[alice]Hello, I'm Alice![/alice]&#10;[bob]And I'm Bob![/bob]&#10;&#10;Or drag & drop documents here (Word, PDF, TXT, RTF, EPUB)"
-                        rows="15"
-                    ></textarea>
+                        rows="15"></textarea>
                     <div class="drop-overlay" id="drop-overlay">
                         <div class="drop-overlay-content">
                             <span class="drop-icon">📄</span>
@@ -73,8 +77,10 @@
                         <span id="tag-error-summary"></span>
                     </div>
                     <div class="tag-error-banner-actions">
-                        <button type="button" id="tag-error-prev-btn" class="btn btn-sm btn-ghost" title="Jump to previous issue">&#8593; Prev</button>
-                        <button type="button" id="tag-error-next-btn" class="btn btn-sm btn-ghost" title="Jump to next issue">Next &#8595;</button>
+                        <button type="button" id="tag-error-prev-btn" class="btn btn-sm btn-ghost"
+                            title="Jump to previous issue">&#8593; Prev</button>
+                        <button type="button" id="tag-error-next-btn" class="btn btn-sm btn-ghost"
+                            title="Jump to next issue">Next &#8595;</button>
                         <button type="button" id="tag-error-fix-btn" class="btn btn-sm btn-primary">Auto-Fix</button>
                     </div>
                 </div>
@@ -86,8 +92,10 @@
                         <button type="button" id="alt-word-registry-btn" class="btn btn-secondary btn-sm">
                             🔤 Alt Word Registry
                         </button>
-                        <input type="file" id="document-file-input" accept=".txt,.pdf,.doc,.docx,.rtf,.epub,.odt,.md,.html,.htm" style="display: none;">
-                        <span class="upload-hint">Supports: TXT, PDF, Word (.doc/.docx), RTF, EPUB, ODT, Markdown, HTML</span>
+                        <input type="file" id="document-file-input"
+                            accept=".txt,.pdf,.doc,.docx,.rtf,.epub,.odt,.md,.html,.htm" style="display: none;">
+                        <span class="upload-hint">Supports: TXT, PDF, Word (.doc/.docx), RTF, EPUB, ODT, Markdown,
+                            HTML</span>
                         <span id="document-upload-status" class="upload-status"></span>
                     </div>
                     <div class="gemini-section gemini-section-inline">
@@ -97,7 +105,8 @@
                                     <option value="">Use default prompt</option>
                                 </select>
                                 <button id="gemini-process-btn" class="btn btn-secondary">Prep Text</button>
-                                <button type="button" class="help-icon" data-help-id="prep-text" aria-label="Help: Prep Text">?</button>
+                                <button type="button" class="help-icon" data-help-id="prep-text"
+                                    aria-label="Help: Prep Text">?</button>
                             </div>
                         </div>
                         <p class="help-text" style="margin-top: 8px;">
@@ -118,7 +127,8 @@
                 <div class="paralinguistic-tags-bar" id="paralinguistic-tags-bar">
                     <span class="tags-label">
                         Insert paralinguistic tag:
-                        <button type="button" class="help-icon" data-help-id="paralinguistic-tags" aria-label="Help: Paralinguistic Tags">?</button>
+                        <button type="button" class="help-icon" data-help-id="paralinguistic-tags"
+                            aria-label="Help: Paralinguistic Tags">?</button>
                     </span>
                     <div class="tags-buttons">
                         <button type="button" class="btn btn-tag" data-tag="[clear throat]">[clear throat]</button>
@@ -132,11 +142,12 @@
                         <button type="button" class="btn btn-tag" data-tag="[laugh]">[laugh]</button>
                     </div>
                 </div>
-                
+
                 <div id="stats-section" class="section" style="display: none;">
                     <div class="section-title-inline">
                         <h2>Text Statistics</h2>
-                        <button type="button" class="help-icon" data-help-id="text-statistics" aria-label="Help: Text Statistics">?</button>
+                        <button type="button" class="help-icon" data-help-id="text-statistics"
+                            aria-label="Help: Text Statistics">?</button>
                     </div>
                     <div class="stats-grid">
                         <div class="stat-card">
@@ -159,20 +170,23 @@
                     <div class="speakers-header-row">
                         <div id="speakers-list"></div>
                         <div class="speakers-actions">
-                            <button type="button" id="generate-voices-btn" class="btn btn-secondary btn-sm">Generate Voices</button>
-                            <button type="button" id="auto-assign-voices-btn" class="btn btn-secondary btn-sm">Auto Assign</button>
+                            <button type="button" id="generate-voices-btn" class="btn btn-secondary btn-sm">Generate
+                                Voices</button>
+                            <button type="button" id="auto-assign-voices-btn" class="btn btn-secondary btn-sm">Auto
+                                Assign</button>
                         </div>
                     </div>
                     <div id="speakers-duplicates" class="speakers-duplicates" style="display: none;"></div>
                     <div id="chapter-detection-info" class="help-text" style="display: none; margin-top: 10px;"></div>
                     <div id="inline-voice-assignments" style="display: none; margin-top: 20px;">
                         <h3>
-                        Assign Voices
-                        <button type="button" class="help-icon" data-help-id="assign-voices" aria-label="Help: Assign Voices">?</button>
-                    </h3>
-                    <div id="inline-voice-assignment-list" class="speaker-assignment-host"></div>
+                            Assign Voices
+                            <button type="button" class="help-icon" data-help-id="assign-voices"
+                                aria-label="Help: Assign Voices">?</button>
+                        </h3>
+                        <div id="inline-voice-assignment-list" class="speaker-assignment-host"></div>
+                    </div>
                 </div>
-            </div>
 
                 <div class="generate-cards-row">
                     <div class="section generate-card-right">
@@ -180,8 +194,10 @@
                             <div>
                                 <div class="section-title-inline">
                                     <h3>🎬 Generation Options</h3>
-                                    <button type="button" class="help-icon" data-help-id="generation-options" aria-label="Help: Generation Options">?</button>
-                                    <span class="section-title-note">Configure output format and generation settings.</span>
+                                    <button type="button" class="help-icon" data-help-id="generation-options"
+                                        aria-label="Help: Generation Options">?</button>
+                                    <span class="section-title-note">Configure output format and generation
+                                        settings.</span>
                                 </div>
                             </div>
                         </div>
@@ -189,14 +205,16 @@
                         <div class="generation-options-content">
                             <div class="generation-options-grid">
                                 <div class="generation-options-column">
-                                    <div class="engine-select-grid" style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                                    <div class="engine-select-grid"
+                                        style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
                                         <div class="form-group">
                                             <label for="job-tts-engine">Engine</label>
                                             <select id="job-tts-engine">
                                                 <option value="kokoro">Kokoro · Local GPU</option>
                                                 <option value="kokoro_replicate">Kokoro · Replicate</option>
                                                 <option value="chatterbox_turbo_local">Chatterbox · Local GPU</option>
-                                                <option value="chatterbox_turbo_replicate">Chatterbox · Replicate</option>
+                                                <option value="chatterbox_turbo_replicate">Chatterbox · Replicate
+                                                </option>
                                                 <option value="voxcpm_local">VoxCPM 1.5 · Local GPU</option>
                                                 <option value="pocket_tts">Pocket TTS · Clone Voices</option>
                                                 <option value="pocket_tts_preset">Pocket TTS · Preset Voices</option>
@@ -232,7 +250,8 @@
                                         </div>
                                     </div>
                                     <div class="generate-button-section">
-                                        <button id="generate-btn" class="btn btn-primary btn-large">🎙️ Generate Audio</button>
+                                        <button id="generate-btn" class="btn btn-primary btn-large">🎙️ Generate
+                                            Audio</button>
                                         <div id="queue-indicator" class="queue-indicator" style="display: none;">
                                             0 processing, 0 queued
                                         </div>
@@ -244,19 +263,23 @@
                                             <input type="checkbox" id="split-chapters-checkbox" checked>
                                             Intelligently create separate audio files for each book, chapter, or section
                                         </label>
-                                        <p id="chapter-detection-hint" class="help-text" style="margin-top: 8px; margin-bottom: 0;">
+                                        <p id="chapter-detection-hint" class="help-text"
+                                            style="margin-top: 8px; margin-bottom: 0;">
                                             Sections not analyzed yet.
                                         </p>
                                         <div class="chapter-review-row" style="margin-top: 10px;">
-                                            <button type="button" id="review-sections-btn" class="btn btn-secondary btn-sm" disabled>
+                                            <button type="button" id="review-sections-btn"
+                                                class="btn btn-secondary btn-sm" disabled>
                                                 Review detected sections
                                             </button>
                                         </div>
                                         <div class="chapter-custom-heading" style="margin-top: 10px;">
                                             <label for="custom-heading-input">Custom section heading (optional)</label>
-                                            <input type="text" id="custom-heading-input" placeholder="e.g., Episode, Volume, Act">
+                                            <input type="text" id="custom-heading-input"
+                                                placeholder="e.g., Episode, Volume, Act">
                                             <p class="help-text" style="margin-top: 6px;">
-                                                We already detect headings like Book, Chapter, Section, Letter, Part, Prologue, and Epilogue.
+                                                We already detect headings like Book, Chapter, Section, Letter, Part,
+                                                Prologue, and Epilogue.
                                                 Add extra heading words here to include them in section detection.
                                             </p>
                                         </div>
@@ -266,7 +289,8 @@
                                                 Also create a single full-length audiobook after section exports
                                             </label>
                                             <p class="help-text" style="margin-top: 6px;">
-                                                When enabled, TTS-Story keeps the per-chapter files and adds one combined file to the library.
+                                                When enabled, TTS-Story keeps the per-chapter files and adds one
+                                                combined file to the library.
                                             </p>
                                         </div>
                                     </div>
@@ -278,9 +302,11 @@
                 </div>
             </div>
 
-            <div class="section" style="margin-top: 20px; padding: 15px; background: rgba(99, 102, 241, 0.05); border-radius: 8px;">
+            <div class="section"
+                style="margin-top: 20px; padding: 15px; background: rgba(99, 102, 241, 0.05); border-radius: 8px;">
                 <p style="margin: 0; color: var(--text-muted); text-align: center;">
-                    💡 <strong>Tip:</strong> You can submit multiple jobs! Check the <strong>Job Queue</strong> tab to monitor all your generations.
+                    💡 <strong>Tip:</strong> You can submit multiple jobs! Check the <strong>Job Queue</strong> tab to
+                    monitor all your generations.
                 </p>
             </div>
 
@@ -295,7 +321,8 @@
 
         <!-- Job Detail Modal -->
         <div id="job-detail-modal-overlay" class="modal-overlay hidden"></div>
-        <div id="job-detail-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="job-detail-modal-title">
+        <div id="job-detail-modal" class="modal hidden" role="dialog" aria-modal="true"
+            aria-labelledby="job-detail-modal-title">
             <div class="modal-header">
                 <h3 id="job-detail-modal-title">Job Details</h3>
                 <button type="button" class="modal-close" id="job-detail-modal-close">×</button>
@@ -331,8 +358,10 @@
                 <div class="library-section-header">
                     <div class="library-section-title">
                         <h2>Audio Library</h2>
-                        <button type="button" class="help-icon" data-help-id="audio-library" aria-label="Help: Audio Library">?</button>
-                        <span class="library-section-desc">Manage your generated audio files. Play, download, or delete previous generations.</span>
+                        <button type="button" class="help-icon" data-help-id="audio-library"
+                            aria-label="Help: Audio Library">?</button>
+                        <span class="library-section-desc">Manage your generated audio files. Play, download, or delete
+                            previous generations.</span>
                     </div>
                     <div class="button-group library-section-actions">
                         <button id="refresh-library-btn" class="btn btn-secondary">Refresh Library</button>
@@ -343,7 +372,8 @@
 
             <div id="library-list" class="section">
                 <div id="library-items"></div>
-                <p id="library-empty" style="display: none; text-align: center; color: var(--text-muted); padding: 40px;">
+                <p id="library-empty"
+                    style="display: none; text-align: center; color: var(--text-muted); padding: 40px;">
                     No audio files in library yet. Generate some audio to get started!
                 </p>
             </div>
@@ -354,7 +384,8 @@
             <div class="section">
                 <div class="section-title-inline">
                     <h2>Available Voices</h2>
-                    <button type="button" class="help-icon" data-help-id="available-voices" aria-label="Help: Available Voices">?</button>
+                    <button type="button" class="help-icon" data-help-id="available-voices"
+                        aria-label="Help: Available Voices">?</button>
                 </div>
                 <p class="help-text">Browse built-in, custom, and prompt-based voice libraries.</p>
             </div>
@@ -364,9 +395,11 @@
                         <div>
                             <div class="section-title-inline">
                                 <h2>Kokoro Voices</h2>
-                                <button type="button" class="help-icon" data-help-id="kokoro-voices" aria-label="Help: Kokoro Voices">?</button>
+                                <button type="button" class="help-icon" data-help-id="kokoro-voices"
+                                    aria-label="Help: Kokoro Voices">?</button>
                             </div>
-                            <p class="help-text">Explore all Kokoro voices. Click any voice to hear a preview sample.</p>
+                            <p class="help-text">Explore all Kokoro voices. Click any voice to hear a preview sample.
+                            </p>
                         </div>
                         <span class="voices-section-toggle">▶</span>
                     </div>
@@ -375,7 +408,8 @@
                             Loading voice preview status...
                         </div>
                         <div id="voice-sample-controls" class="sample-controls">
-                            <button id="generate-voice-samples-btn" class="btn btn-primary" onclick="generateSamples(false)">
+                            <button id="generate-voice-samples-btn" class="btn btn-primary"
+                                onclick="generateSamples(false)">
                                 Generate Voice Previews
                             </button>
                             <button class="btn btn-secondary" onclick="generateSamples(true)">
@@ -391,7 +425,8 @@
                         <div>
                             <div class="section-title-inline">
                                 <h2>Custom Kokoro Voice Blends</h2>
-                                <button type="button" class="help-icon" data-help-id="custom-kokoro-blends" aria-label="Help: Custom Kokoro Voice Blends">?</button>
+                                <button type="button" class="help-icon" data-help-id="custom-kokoro-blends"
+                                    aria-label="Help: Custom Kokoro Voice Blends">?</button>
                             </div>
                             <p class="help-text">Blend two Kokoro voices and manage your custom library.</p>
                         </div>
@@ -412,7 +447,8 @@
                         <div>
                             <div class="section-title-inline">
                                 <h2>Qwen Voice Creation</h2>
-                                <button type="button" class="help-icon" data-help-id="qwen-voice-creation" aria-label="Help: Qwen Voice Creation">?</button>
+                                <button type="button" class="help-icon" data-help-id="qwen-voice-creation"
+                                    aria-label="Help: Qwen Voice Creation">?</button>
                             </div>
                             <p class="help-text">Design a Qwen3 voice, preview it, then save it to your prompts.</p>
                         </div>
@@ -440,20 +476,25 @@
                             </div>
                             <div class="form-group">
                                 <label for="qwen-voice-description">Short Description</label>
-                                <input type="text" id="qwen-voice-description" placeholder="Moody, intimate noir narrator">
+                                <input type="text" id="qwen-voice-description"
+                                    placeholder="Moody, intimate noir narrator">
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="qwen-voice-text">Sample Text</label>
-                            <textarea id="qwen-voice-text" rows="3" placeholder="Type a short script for the preview clip..."></textarea>
+                            <textarea id="qwen-voice-text" rows="3"
+                                placeholder="Type a short script for the preview clip..."></textarea>
                         </div>
                         <div class="form-group">
                             <label for="qwen-voice-instruct">Voice Style Instruction</label>
-                            <textarea id="qwen-voice-instruct" rows="3" placeholder="e.g., Speak with controlled intensity and a smoky, cinematic tone."></textarea>
+                            <textarea id="qwen-voice-instruct" rows="3"
+                                placeholder="e.g., Speak with controlled intensity and a smoky, cinematic tone."></textarea>
                         </div>
                         <div class="qwen-voice-actions">
-                            <button type="button" class="btn btn-primary" id="qwen-voice-generate-btn">Generate Preview</button>
-                            <button type="button" class="btn btn-secondary" id="qwen-voice-save-btn" disabled>Save to Voice Prompts</button>
+                            <button type="button" class="btn btn-primary" id="qwen-voice-generate-btn">Generate
+                                Preview</button>
+                            <button type="button" class="btn btn-secondary" id="qwen-voice-save-btn" disabled>Save to
+                                Voice Prompts</button>
                             <span class="help-text" id="qwen-voice-status"></span>
                         </div>
                         <div class="qwen-voice-preview">
@@ -462,12 +503,14 @@
                     </div>
                 </div>
 
-                <div class="section voices-section collapsed" id="chatterbox-voices-section" data-voices-section="prompts">
+                <div class="section voices-section collapsed" id="chatterbox-voices-section"
+                    data-voices-section="prompts">
                     <div class="voices-section-header">
                         <div>
                             <div class="section-title-inline">
                                 <h2>Voice Prompts</h2>
-                                <button type="button" class="help-icon" data-help-id="voice-prompts" aria-label="Help: Voice Prompts">?</button>
+                                <button type="button" class="help-icon" data-help-id="voice-prompts"
+                                    aria-label="Help: Voice Prompts">?</button>
                             </div>
                             <p class="help-text">Manage prompt libraries for Chatterbox, VoxCPM, and Qwen3.</p>
                         </div>
@@ -488,19 +531,22 @@
                             </div>
                         </form>
                         <div class="chatterbox-dropzone" id="chatterbox-dropzone">
-                            <input type="file" id="chatterbox-dropzone-input" accept=".wav,.mp3,.m4a,.flac,.ogg" multiple>
+                            <input type="file" id="chatterbox-dropzone-input" accept=".wav,.mp3,.m4a,.flac,.ogg"
+                                multiple>
                             <div class="dropzone-content">
                                 <h3>Bulk import via drag & drop</h3>
-                                <p>Drop multiple WAV/MP3 clips (5–10s). We'll keep any clips ≥5s and name them after the file.</p>
+                                <p>Drop multiple WAV/MP3 clips (5–10s). We'll keep any clips ≥5s and name them after the
+                                    file.</p>
                                 <button type="button" class="btn btn-secondary btn-sm">Browse Files</button>
                             </div>
                             <div class="dropzone-status" id="chatterbox-dropzone-status"></div>
                         </div>
-                        
+
                         <!-- Voice List Filters -->
                         <div class="voice-list-controls" id="voice-list-controls">
                             <div class="voice-filter-row">
-                                <input type="text" id="voice-search-input" placeholder="Search voices..." class="voice-search-input">
+                                <input type="text" id="voice-search-input" placeholder="Search voices..."
+                                    class="voice-search-input">
                                 <select id="voice-filter-source" class="voice-filter-select">
                                     <option value="all">All Sources</option>
                                     <option value="local">Local Only</option>
@@ -528,28 +574,38 @@
                                 <span id="voice-selected-count">0 selected</span>
                             </div>
                             <div class="voice-batch-actions">
-                                <button type="button" class="btn btn-secondary btn-sm" id="voice-batch-export-btn" disabled>Export</button>
-                                <button type="button" class="btn btn-secondary btn-sm" id="voice-batch-archive-btn" disabled>Archive</button>
-                                <button type="button" class="btn btn-danger btn-sm" id="voice-batch-delete-btn" disabled>Delete</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="voice-batch-export-btn"
+                                    disabled>Export</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="voice-batch-archive-btn"
+                                    disabled>Archive</button>
+                                <button type="button" class="btn btn-danger btn-sm" id="voice-batch-delete-btn"
+                                    disabled>Delete</button>
                             </div>
                         </div>
-                        
+
                         <!-- Voice List Table -->
                         <div class="voice-list-table-container">
                             <table class="voice-list-table" id="chatterbox-voice-table">
                                 <thead>
                                     <tr>
-                                        <th class="select-col"><input type="checkbox" id="voice-select-all" aria-label="Select all voices"></th>
+                                        <th class="select-col"><input type="checkbox" id="voice-select-all"
+                                                aria-label="Select all voices"></th>
                                         <th class="sortable" data-sort="name">Name <span class="sort-icon"></span></th>
-                                        <th class="sortable" data-sort="gender">Gender <span class="sort-icon"></span></th>
-                                        <th class="sortable" data-sort="language">Language <span class="sort-icon"></span></th>
-                                        <th class="sortable" data-sort="duration">Duration <span class="sort-icon"></span></th>
-                                        <th class="sortable" data-sort="source">Source <span class="sort-icon"></span></th>
+                                        <th class="sortable" data-sort="gender">Gender <span class="sort-icon"></span>
+                                        </th>
+                                        <th class="sortable" data-sort="language">Language <span
+                                                class="sort-icon"></span></th>
+                                        <th class="sortable" data-sort="duration">Duration <span
+                                                class="sort-icon"></span></th>
+                                        <th class="sortable" data-sort="source">Source <span class="sort-icon"></span>
+                                        </th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="chatterbox-voice-list">
-                                    <tr><td colspan="7" class="help-text">No saved voices yet. Add one above.</td></tr>
+                                    <tr>
+                                        <td colspan="7" class="help-text">No saved voices yet. Add one above.</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -564,26 +620,37 @@
                                     <span id="voice-archive-selected-count">0 selected</span>
                                 </div>
                                 <div class="voice-batch-actions">
-                                    <button type="button" class="btn btn-secondary btn-sm" id="voice-archive-export-btn" disabled>Export</button>
-                                    <button type="button" class="btn btn-secondary btn-sm" id="voice-archive-restore-btn" disabled>Unarchive</button>
-                                    <button type="button" class="btn btn-danger btn-sm" id="voice-archive-delete-btn" disabled>Delete</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="voice-archive-export-btn"
+                                        disabled>Export</button>
+                                    <button type="button" class="btn btn-secondary btn-sm"
+                                        id="voice-archive-restore-btn" disabled>Unarchive</button>
+                                    <button type="button" class="btn btn-danger btn-sm" id="voice-archive-delete-btn"
+                                        disabled>Delete</button>
                                 </div>
                             </div>
                             <div class="voice-list-table-container">
                                 <table class="voice-list-table" id="chatterbox-voice-archive-table">
                                     <thead>
                                         <tr>
-                                            <th class="select-col"><input type="checkbox" id="voice-archive-select-all" aria-label="Select all archived voices"></th>
-                                            <th class="sortable" data-sort="name">Name <span class="sort-icon"></span></th>
-                                            <th class="sortable" data-sort="gender">Gender <span class="sort-icon"></span></th>
-                                            <th class="sortable" data-sort="language">Language <span class="sort-icon"></span></th>
-                                            <th class="sortable" data-sort="duration">Duration <span class="sort-icon"></span></th>
-                                            <th class="sortable" data-sort="source">Source <span class="sort-icon"></span></th>
+                                            <th class="select-col"><input type="checkbox" id="voice-archive-select-all"
+                                                    aria-label="Select all archived voices"></th>
+                                            <th class="sortable" data-sort="name">Name <span class="sort-icon"></span>
+                                            </th>
+                                            <th class="sortable" data-sort="gender">Gender <span
+                                                    class="sort-icon"></span></th>
+                                            <th class="sortable" data-sort="language">Language <span
+                                                    class="sort-icon"></span></th>
+                                            <th class="sortable" data-sort="duration">Duration <span
+                                                    class="sort-icon"></span></th>
+                                            <th class="sortable" data-sort="source">Source <span
+                                                    class="sort-icon"></span></th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="chatterbox-voice-archive-list">
-                                        <tr><td colspan="7" class="help-text">No archived voices.</td></tr>
+                                        <tr>
+                                            <td colspan="7" class="help-text">No archived voices.</td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -598,7 +665,8 @@
             <div class="section">
                 <div class="section-title-inline">
                     <h2>Settings</h2>
-                    <button type="button" class="help-icon" data-help-id="settings" aria-label="Help: Settings">?</button>
+                    <button type="button" class="help-icon" data-help-id="settings"
+                        aria-label="Help: Settings">?</button>
                 </div>
                 <p class="help-text">Configure defaults, engine details, audio generation, and LLM prep behavior.</p>
             </div>
@@ -609,12 +677,14 @@
                     <div class="settings-group-header" data-toggle="settings-group">
                         <div class="section-title-inline">
                             <h3><span class="group-icon">⚡</span> Quick Settings</h3>
-                            <button type="button" class="help-icon" data-help-id="settings-quick" aria-label="Help: Quick Settings">?</button>
+                            <button type="button" class="help-icon" data-help-id="settings-quick"
+                                aria-label="Help: Quick Settings">?</button>
                         </div>
                         <span class="collapse-icon">▼</span>
                     </div>
                     <div class="settings-group-content">
-                        <p class="help-text" style="margin-top:0;">Default engine and output format used when TTS-Story starts.</p>
+                        <p class="help-text" style="margin-top:0;">Default engine and output format used when TTS-Story
+                            starts.</p>
                         <div class="quick-settings-grid">
                             <div class="form-group">
                                 <label for="settings-tts-engine">Default Engine</label>
@@ -631,6 +701,12 @@
                                     <option value="kitten_tts">KittenTTS · CPU Lightweight</option>
                                     <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
                                 </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="settings-server-port">Server Port</label>
+                                <input type="number" id="settings-server-port" min="1" max="65535" step="1"
+                                    value="5000">
+                                <small>Saved for future launches. Environment variables still win if set.</small>
                             </div>
                             <div class="form-group">
                                 <label for="settings-output-format">File Format</label>
@@ -653,6 +729,10 @@
                                 </select>
                             </div>
                         </div>
+                        <p class="help-text" id="settings-server-port-status"
+                            style="margin-top: 12px; margin-bottom: 6px;">Checking active server port…</p>
+                        <p class="help-text" id="settings-server-port-note" style="margin-top: 0;">Port changes apply on
+                            the next launch.</p>
                     </div>
                 </div>
 
@@ -661,17 +741,21 @@
                     <div class="settings-group-header" data-toggle="settings-group">
                         <div class="section-title-inline">
                             <h3><span class="group-icon">🔧</span> Engine Settings</h3>
-                            <button type="button" class="help-icon" data-help-id="settings-engines" aria-label="Help: Engine Settings">?</button>
+                            <button type="button" class="help-icon" data-help-id="settings-engines"
+                                aria-label="Help: Engine Settings">?</button>
                         </div>
                         <span class="collapse-icon">▼</span>
                     </div>
                     <div class="settings-group-content">
                         <div class="engine-tabs">
                             <button type="button" class="engine-tab-btn active" data-engine-tab="kokoro">Kokoro</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-local">Chatterbox Local</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-replicate">Chatterbox Cloud</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-local">Chatterbox
+                                Local</button>
+                            <button type="button" class="engine-tab-btn"
+                                data-engine-tab="chatterbox-replicate">Chatterbox Cloud</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="voxcpm">VoxCPM 1.5</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="pocket-tts">Pocket TTS</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="pocket-tts">Pocket
+                                TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="qwen3">Qwen3-TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="kitten-tts">KittenTTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="index-tts">IndexTTS</button>
@@ -682,13 +766,16 @@
                         <div class="engine-panel active" id="engine-panel-kokoro">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>Kokoro</h4>
-                                <button type="button" class="help-icon" data-help-id="engine-kokoro" aria-label="Help: Kokoro Settings">?</button>
+                                <button type="button" class="help-icon" data-help-id="engine-kokoro"
+                                    aria-label="Help: Kokoro Settings">?</button>
                             </div>
-                            <p class="help-text" style="margin-top:0;">Kokoro uses built-in voices. Configure the default voice on the Generate tab.</p>
+                            <p class="help-text" style="margin-top:0;">Kokoro uses built-in voices. Configure the
+                                default voice on the Generate tab.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="kokoro-chunk-size">Chunk Size (chars)</label>
-                                    <input type="number" id="kokoro-chunk-size" min="100" max="1000" step="50" value="500">
+                                    <input type="number" id="kokoro-chunk-size" min="100" max="1000" step="50"
+                                        value="500">
                                     <small>Character limit per chunk (recommended 300–600).</small>
                                 </div>
                             </div>
@@ -699,9 +786,11 @@
                         <div class="engine-panel" id="engine-panel-chatterbox-local">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>Chatterbox Local</h4>
-                                <button type="button" class="help-icon" data-help-id="engine-chatterbox-local" aria-label="Help: Chatterbox Local">?</button>
+                                <button type="button" class="help-icon" data-help-id="engine-chatterbox-local"
+                                    aria-label="Help: Chatterbox Local">?</button>
                             </div>
-                            <p class="help-text" style="margin-top:0;">Local Chatterbox Turbo. Requires CUDA GPU with ~8GB VRAM.</p>
+                            <p class="help-text" style="margin-top:0;">Local Chatterbox Turbo. Requires CUDA GPU with
+                                ~8GB VRAM.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="chatterbox-turbo-local-device">Device</label>
@@ -710,11 +799,13 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="chatterbox-turbo-local-chunk-size">Chunk Size (chars)</label>
-                                    <input type="number" id="chatterbox-turbo-local-chunk-size" min="100" max="1000" step="50" value="450">
+                                    <input type="number" id="chatterbox-turbo-local-chunk-size" min="100" max="1000"
+                                        step="50" value="450">
                                 </div>
                                 <div class="form-group">
                                     <label for="chatterbox-turbo-local-prompt">Default Prompt</label>
-                                    <input type="text" id="chatterbox-turbo-local-prompt" placeholder="data/voice_prompts/...">
+                                    <input type="text" id="chatterbox-turbo-local-prompt"
+                                        placeholder="data/voice_prompts/...">
                                 </div>
                             </div>
                             <div class="settings-subsection" style="margin-top:16px;">
@@ -722,27 +813,33 @@
                                 <div class="settings-form-grid">
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-local-temperature">Temperature</label>
-                                        <input type="number" id="chatterbox-turbo-local-temperature" min="0.05" max="2" step="0.05">
+                                        <input type="number" id="chatterbox-turbo-local-temperature" min="0.05" max="2"
+                                            step="0.05">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-local-top-p">Top P</label>
-                                        <input type="number" id="chatterbox-turbo-local-top-p" min="0.1" max="1" step="0.01">
+                                        <input type="number" id="chatterbox-turbo-local-top-p" min="0.1" max="1"
+                                            step="0.01">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-local-top-k">Top K</label>
-                                        <input type="number" id="chatterbox-turbo-local-top-k" min="1" max="4000" step="1">
+                                        <input type="number" id="chatterbox-turbo-local-top-k" min="1" max="4000"
+                                            step="1">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-local-rep-penalty">Rep. Penalty</label>
-                                        <input type="number" id="chatterbox-turbo-local-rep-penalty" min="1" max="2" step="0.05">
+                                        <input type="number" id="chatterbox-turbo-local-rep-penalty" min="1" max="2"
+                                            step="0.05">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-local-cfg-weight">CFG Weight</label>
-                                        <input type="number" id="chatterbox-turbo-local-cfg-weight" min="0" max="2" step="0.05">
+                                        <input type="number" id="chatterbox-turbo-local-cfg-weight" min="0" max="2"
+                                            step="0.05">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-local-exaggeration">Exaggeration</label>
-                                        <input type="number" id="chatterbox-turbo-local-exaggeration" min="0" max="2" step="0.05">
+                                        <input type="number" id="chatterbox-turbo-local-exaggeration" min="0" max="2"
+                                            step="0.05">
                                     </div>
                                 </div>
                             </div>
@@ -762,17 +859,21 @@
                         <div class="engine-panel" id="engine-panel-chatterbox-replicate">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>Chatterbox Cloud</h4>
-                                <button type="button" class="help-icon" data-help-id="engine-chatterbox-cloud" aria-label="Help: Chatterbox Cloud">?</button>
+                                <button type="button" class="help-icon" data-help-id="engine-chatterbox-cloud"
+                                    aria-label="Help: Chatterbox Cloud">?</button>
                             </div>
-                            <p class="help-text" style="margin-top:0;">Cloud-hosted Chatterbox on Replicate. Requires API key.</p>
+                            <p class="help-text" style="margin-top:0;">Cloud-hosted Chatterbox on Replicate. Requires
+                                API key.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="chatterbox-turbo-replicate-model">Model Version</label>
-                                    <input type="text" id="chatterbox-turbo-replicate-model" placeholder="resemble-ai/chatterbox-turbo:...">
+                                    <input type="text" id="chatterbox-turbo-replicate-model"
+                                        placeholder="resemble-ai/chatterbox-turbo:...">
                                 </div>
                                 <div class="form-group">
                                     <label for="chatterbox-turbo-replicate-voice">Default Voice</label>
-                                    <input type="text" id="chatterbox-turbo-replicate-voice" placeholder="Andy, Madison...">
+                                    <input type="text" id="chatterbox-turbo-replicate-voice"
+                                        placeholder="Andy, Madison...">
                                 </div>
                             </div>
                             <div class="settings-subsection" style="margin-top:16px;">
@@ -780,23 +881,28 @@
                                 <div class="settings-form-grid">
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-replicate-temperature">Temperature</label>
-                                        <input type="number" id="chatterbox-turbo-replicate-temperature" min="0.05" max="2" step="0.05">
+                                        <input type="number" id="chatterbox-turbo-replicate-temperature" min="0.05"
+                                            max="2" step="0.05">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-replicate-top-p">Top P</label>
-                                        <input type="number" id="chatterbox-turbo-replicate-top-p" min="0.1" max="1" step="0.01">
+                                        <input type="number" id="chatterbox-turbo-replicate-top-p" min="0.1" max="1"
+                                            step="0.01">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-replicate-top-k">Top K</label>
-                                        <input type="number" id="chatterbox-turbo-replicate-top-k" min="1" max="2000" step="1">
+                                        <input type="number" id="chatterbox-turbo-replicate-top-k" min="1" max="2000"
+                                            step="1">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-replicate-rep-penalty">Rep. Penalty</label>
-                                        <input type="number" id="chatterbox-turbo-replicate-rep-penalty" min="1" max="2" step="0.05">
+                                        <input type="number" id="chatterbox-turbo-replicate-rep-penalty" min="1" max="2"
+                                            step="0.05">
                                     </div>
                                     <div class="form-group">
                                         <label for="chatterbox-turbo-replicate-seed">Seed</label>
-                                        <input type="number" id="chatterbox-turbo-replicate-seed" min="0" step="1" placeholder="Random">
+                                        <input type="number" id="chatterbox-turbo-replicate-seed" min="0" step="1"
+                                            placeholder="Random">
                                     </div>
                                 </div>
                             </div>
@@ -806,9 +912,11 @@
                         <div class="engine-panel" id="engine-panel-voxcpm">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>VoxCPM 1.5</h4>
-                                <button type="button" class="help-icon" data-help-id="engine-voxcpm" aria-label="Help: VoxCPM">?</button>
+                                <button type="button" class="help-icon" data-help-id="engine-voxcpm"
+                                    aria-label="Help: VoxCPM">?</button>
                             </div>
-                            <p class="help-text" style="margin-top:0;">VoxCPM 1.5 for expressive speech and voice cloning. Uses same prompts as Chatterbox.</p>
+                            <p class="help-text" style="margin-top:0;">VoxCPM 1.5 for expressive speech and voice
+                                cloning. Uses same prompts as Chatterbox.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="voxcpm-local-model-id">Model ID</label>
@@ -816,7 +924,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="voxcpm-chunk-size">Chunk Size (chars)</label>
-                                    <input type="number" id="voxcpm-chunk-size" min="100" max="1000" step="50" value="550">
+                                    <input type="number" id="voxcpm-chunk-size" min="100" max="1000" step="50"
+                                        value="550">
                                     <small>Character limit per chunk (recommended 400–600).</small>
                                 </div>
                                 <div class="form-group">
@@ -831,7 +940,8 @@
                             </div>
                             <div class="form-group" style="margin-top:12px;">
                                 <label for="voxcpm-local-prompt-text">Prompt Transcript</label>
-                                <input type="text" id="voxcpm-local-prompt-text" placeholder="Transcript of reference audio (auto-generated if blank)">
+                                <input type="text" id="voxcpm-local-prompt-text"
+                                    placeholder="Transcript of reference audio (auto-generated if blank)">
                                 <small>VoxCPM auto-transcribes reference audio. Manual entry optional.</small>
                             </div>
                             <div class="settings-subsection" style="margin-top:16px;">
@@ -866,7 +976,8 @@
                             <div class="section-title-inline settings-panel-title">
                                 <h4>Pocket TTS</h4>
                             </div>
-                            <p class="help-text" style="margin-top:0;">CPU-only Pocket TTS with voice prompts (.wav/.mp3 or .safetensors). Built-in voices run faster than cloning prompts.</p>
+                            <p class="help-text" style="margin-top:0;">CPU-only Pocket TTS with voice prompts (.wav/.mp3
+                                or .safetensors). Built-in voices run faster than cloning prompts.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="pocket-tts-model-variant">Model Variant</label>
@@ -874,7 +985,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="pocket-tts-chunk-size">Chunk Size (chars)</label>
-                                    <input type="number" id="pocket-tts-chunk-size" min="100" max="1000" step="50" value="450">
+                                    <input type="number" id="pocket-tts-chunk-size" min="100" max="1000" step="50"
+                                        value="450">
                                     <small>Character limit per chunk (recommended 300–500).</small>
                                 </div>
                                 <div class="form-group">
@@ -887,7 +999,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="pocket-tts-noise-clamp">Noise Clamp (optional)</label>
-                                    <input type="number" id="pocket-tts-noise-clamp" step="0.1" placeholder="Leave blank">
+                                    <input type="number" id="pocket-tts-noise-clamp" step="0.1"
+                                        placeholder="Leave blank">
                                 </div>
                                 <div class="form-group">
                                     <label for="pocket-tts-eos">EOS Threshold</label>
@@ -895,7 +1008,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="pocket-tts-default-prompt">Default Voice Prompt</label>
-                                    <input type="text" id="pocket-tts-default-prompt" placeholder="data/voice_prompts/sample.wav">
+                                    <input type="text" id="pocket-tts-default-prompt"
+                                        placeholder="data/voice_prompts/sample.wav">
                                 </div>
                                 <div class="form-group">
                                     <label>
@@ -905,12 +1019,14 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="pocket-tts-num-threads">CPU Threads</label>
-                                    <input type="number" id="pocket-tts-num-threads" min="1" max="64" step="1" placeholder="Auto">
+                                    <input type="number" id="pocket-tts-num-threads" min="1" max="64" step="1"
+                                        placeholder="Auto">
                                     <small>Controls Torch CPU threads (leave blank for auto).</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="pocket-tts-interop-threads">Interop Threads</label>
-                                    <input type="number" id="pocket-tts-interop-threads" min="1" max="64" step="1" placeholder="Auto">
+                                    <input type="number" id="pocket-tts-interop-threads" min="1" max="64" step="1"
+                                        placeholder="Auto">
                                     <small>Controls Torch interop threads.</small>
                                 </div>
                             </div>
@@ -921,15 +1037,21 @@
                             <div class="section-title-inline settings-panel-title">
                                 <h4>KittenTTS</h4>
                             </div>
-                            <p class="help-text" style="margin-top:0;">Ultra-lightweight (&lt;25MB) CPU-only TTS. No GPU required. Install: <code>pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl</code></p>
+                            <p class="help-text" style="margin-top:0;">Ultra-lightweight (&lt;25MB) CPU-only TTS. No GPU
+                                required. Install:
+                                <code>pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl</code>
+                            </p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="kitten-tts-model-id">Model ID</label>
                                     <select id="kitten-tts-model-id">
-                                        <option value="KittenML/kitten-tts-mini-0.8">kitten-tts-mini-0.8 (recommended)</option>
+                                        <option value="KittenML/kitten-tts-mini-0.8">kitten-tts-mini-0.8 (recommended)
+                                        </option>
                                         <option value="KittenML/kitten-tts-micro-0.8">kitten-tts-micro-0.8</option>
-                                        <option value="KittenML/kitten-tts-nano-0.8-fp32">kitten-tts-nano-0.8 (fp32)</option>
-                                        <option value="KittenML/kitten-tts-nano-0.8-int8">kitten-tts-nano-0.8 (int8, experimental)</option>
+                                        <option value="KittenML/kitten-tts-nano-0.8-fp32">kitten-tts-nano-0.8 (fp32)
+                                        </option>
+                                        <option value="KittenML/kitten-tts-nano-0.8-int8">kitten-tts-nano-0.8 (int8,
+                                            experimental)</option>
                                     </select>
                                     <small>Smaller models are faster but may have lower quality.</small>
                                 </div>
@@ -949,7 +1071,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="kitten-tts-chunk-size">Chunk Size (chars)</label>
-                                    <input type="number" id="kitten-tts-chunk-size" min="50" max="600" step="25" value="300">
+                                    <input type="number" id="kitten-tts-chunk-size" min="50" max="600" step="25"
+                                        value="300">
                                     <small>Character limit per chunk (recommended 150–350 for CPU speed).</small>
                                 </div>
                             </div>
@@ -960,7 +1083,9 @@
                             <div class="section-title-inline settings-panel-title">
                                 <h4>IndexTTS</h4>
                             </div>
-                            <p class="help-text" style="margin-top:0;">Zero-shot voice cloning by Bilibili. Requires an isolated venv under <code>engines/index-tts/</code>. Uses the existing Voice Prompts library for reference audio.</p>
+                            <p class="help-text" style="margin-top:0;">Zero-shot voice cloning by Bilibili. Requires an
+                                isolated venv under <code>engines/index-tts/</code>. Uses the existing Voice Prompts
+                                library for reference audio.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="index-tts-model-version">Model Version</label>
@@ -969,11 +1094,13 @@
                                         <option value="IndexTTS-1.5">IndexTTS-1.5 (stable, English-improved)</option>
                                         <option value="IndexTTS">IndexTTS-1.0 (legacy)</option>
                                     </select>
-                                    <small>Model weights must be downloaded to <code>engines/index-tts/checkpoints/</code>.</small>
+                                    <small>Model weights must be downloaded to
+                                        <code>engines/index-tts/checkpoints/</code>.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-chunk-size">Chunk Size (chars)</label>
-                                    <input type="number" id="index-tts-chunk-size" min="100" max="1000" step="50" value="400">
+                                    <input type="number" id="index-tts-chunk-size" min="100" max="1000" step="50"
+                                        value="400">
                                     <small>Character limit per synthesis chunk (recommended 300&ndash;500).</small>
                                 </div>
                                 <div class="form-group">
@@ -983,48 +1110,65 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-default-prompt">Default Voice Prompt</label>
-                                    <input type="text" id="index-tts-default-prompt" placeholder="data/voice_prompts/...">
+                                    <input type="text" id="index-tts-default-prompt"
+                                        placeholder="data/voice_prompts/...">
                                     <small>Fallback reference audio when no per-speaker prompt is assigned.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-num-beams">Beam Search Width</label>
                                     <input type="number" id="index-tts-num-beams" min="1" max="10" step="1" value="1">
-                                    <small><strong>1 = fastest</strong> (greedy/sampling). 3 = default quality. Higher = slower GPT stage with marginal quality gain.</small>
+                                    <small><strong>1 = fastest</strong> (greedy/sampling). 3 = default quality. Higher =
+                                        slower GPT stage with marginal quality gain.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-diffusion-steps">Diffusion Steps</label>
-                                    <input type="number" id="index-tts-diffusion-steps" min="5" max="50" step="5" value="12">
-                                    <small><strong>10&ndash;15 = fast</strong>, good quality. 25 = default. 50 = max quality. Affects the s2mel stage (biggest bottleneck).</small>
+                                    <input type="number" id="index-tts-diffusion-steps" min="5" max="50" step="5"
+                                        value="12">
+                                    <small><strong>10&ndash;15 = fast</strong>, good quality. 25 = default. 50 = max
+                                        quality. Affects the s2mel stage (biggest bottleneck).</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-temperature">Temperature</label>
-                                    <input type="number" id="index-tts-temperature" min="0.1" max="2.0" step="0.05" value="0.8">
-                                    <small>GPT sampling randomness. <strong>0.5&ndash;0.7</strong> = consistent/stable. <strong>0.8</strong> = default. <strong>1.0+</strong> = more expressive/varied delivery.</small>
+                                    <input type="number" id="index-tts-temperature" min="0.1" max="2.0" step="0.05"
+                                        value="0.8">
+                                    <small>GPT sampling randomness. <strong>0.5&ndash;0.7</strong> = consistent/stable.
+                                        <strong>0.8</strong> = default. <strong>1.0+</strong> = more expressive/varied
+                                        delivery.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-top-p">Top-P (Nucleus Sampling)</label>
-                                    <input type="number" id="index-tts-top-p" min="0.1" max="1.0" step="0.05" value="0.8">
-                                    <small>Limits sampling to the top cumulative probability mass. Lower = more conservative token choices. Default: 0.8.</small>
+                                    <input type="number" id="index-tts-top-p" min="0.1" max="1.0" step="0.05"
+                                        value="0.8">
+                                    <small>Limits sampling to the top cumulative probability mass. Lower = more
+                                        conservative token choices. Default: 0.8.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-top-k">Top-K</label>
                                     <input type="number" id="index-tts-top-k" min="1" max="200" step="1" value="30">
-                                    <small>Limits sampling to the top K tokens at each step. Default: 30. Higher = more variety.</small>
+                                    <small>Limits sampling to the top K tokens at each step. Default: 30. Higher = more
+                                        variety.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-repetition-penalty">Repetition Penalty</label>
-                                    <input type="number" id="index-tts-repetition-penalty" min="1.0" max="20.0" step="0.5" value="10.0">
-                                    <small>Penalises repeated mel tokens. Raise if you hear <strong>stuttering or looping</strong> artifacts. Default: 10.0.</small>
+                                    <input type="number" id="index-tts-repetition-penalty" min="1.0" max="20.0"
+                                        step="0.5" value="10.0">
+                                    <small>Penalises repeated mel tokens. Raise if you hear <strong>stuttering or
+                                            looping</strong> artifacts. Default: 10.0.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-max-mel-tokens">Max Mel Tokens</label>
-                                    <input type="number" id="index-tts-max-mel-tokens" min="200" max="4000" step="100" value="1500">
-                                    <small>Hard cap on output length per chunk (~22 tokens/sec). <strong>1500 &asymp; 68s</strong>. Raise for very long sentences; lower to speed up short chunks.</small>
+                                    <input type="number" id="index-tts-max-mel-tokens" min="200" max="4000" step="100"
+                                        value="1500">
+                                    <small>Hard cap on output length per chunk (~22 tokens/sec). <strong>1500 &asymp;
+                                            68s</strong>. Raise for very long sentences; lower to speed up short
+                                        chunks.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="index-tts-max-text-tokens-per-segment">Max Text Tokens / Segment</label>
-                                    <input type="number" id="index-tts-max-text-tokens-per-segment" min="20" max="300" step="10" value="120">
-                                    <small>How many text tokens the model processes per internal pass before splitting. Smaller = faster but may affect prosody at split points. Default: 120.</small>
+                                    <input type="number" id="index-tts-max-text-tokens-per-segment" min="20" max="300"
+                                        step="10" value="120">
+                                    <small>How many text tokens the model processes per internal pass before splitting.
+                                        Smaller = faster but may affect prosody at split points. Default: 120.</small>
                                 </div>
                                 <div class="form-group">
                                     <label>Options</label>
@@ -1038,7 +1182,8 @@
                                     </label>
                                     <label class="checkbox-label">
                                         <input type="checkbox" id="index-tts-use-torch-compile" checked>
-                                        Use torch.compile &mdash; JIT-compiles s2mel diffusion model. <strong>First run slow</strong>, subsequent runs faster.
+                                        Use torch.compile &mdash; JIT-compiles s2mel diffusion model. <strong>First run
+                                            slow</strong>, subsequent runs faster.
                                     </label>
                                     <label class="checkbox-label">
                                         <input type="checkbox" id="index-tts-use-accel" checked>
@@ -1052,18 +1197,23 @@
                         <div class="engine-panel" id="engine-panel-qwen3">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>Qwen3-TTS</h4>
-                                <button type="button" class="help-icon" data-help-id="engine-qwen3" aria-label="Help: Qwen3-TTS">?</button>
+                                <button type="button" class="help-icon" data-help-id="engine-qwen3"
+                                    aria-label="Help: Qwen3-TTS">?</button>
                             </div>
-                            <p class="help-text" style="margin-top:0;">Qwen3-TTS CustomVoice with built-in speakers and instruction control.</p>
-                            <p class="help-text">For faster GPU inference, install Microsoft Visual C++ Build Tools and select “Desktop development with C++” to enable flash-attn.</p>
+                            <p class="help-text" style="margin-top:0;">Qwen3-TTS CustomVoice with built-in speakers and
+                                instruction control.</p>
+                            <p class="help-text">For faster GPU inference, install Microsoft Visual C++ Build Tools and
+                                select “Desktop development with C++” to enable flash-attn.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="qwen3-custom-model-id">Model ID</label>
-                                    <input type="text" id="qwen3-custom-model-id" placeholder="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice">
+                                    <input type="text" id="qwen3-custom-model-id"
+                                        placeholder="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice">
                                 </div>
                                 <div class="form-group">
                                     <label for="qwen3-chunk-size">Chunk Size (chars)</label>
-                                    <input type="number" id="qwen3-chunk-size" min="100" max="1000" step="50" value="500">
+                                    <input type="number" id="qwen3-chunk-size" min="100" max="1000" step="50"
+                                        value="500">
                                     <small>Applies to both CustomVoice and Voice Clone modes.</small>
                                 </div>
                                 <div class="form-group">
@@ -1093,7 +1243,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="qwen3-custom-instruct">Default Instruction</label>
-                                    <input type="text" id="qwen3-custom-instruct" placeholder="e.g., calm, warm narration">
+                                    <input type="text" id="qwen3-custom-instruct"
+                                        placeholder="e.g., calm, warm narration">
                                 </div>
                             </div>
                             <div class="settings-subsection" style="margin-top:16px;">
@@ -1101,7 +1252,8 @@
                                 <div class="settings-form-grid">
                                     <div class="form-group">
                                         <label for="qwen3-clone-model-id">Model ID</label>
-                                        <input type="text" id="qwen3-clone-model-id" placeholder="Qwen/Qwen3-TTS-12Hz-1.7B-Base">
+                                        <input type="text" id="qwen3-clone-model-id"
+                                            placeholder="Qwen/Qwen3-TTS-12Hz-1.7B-Base">
                                     </div>
                                     <div class="form-group">
                                         <label for="qwen3-clone-device">Device</label>
@@ -1135,7 +1287,8 @@
                                 </div>
                                 <div class="form-group" style="margin-top:12px;">
                                     <label for="qwen3-clone-prompt-text">Prompt Transcript</label>
-                                    <input type="text" id="qwen3-clone-prompt-text" placeholder="Transcript of reference audio (auto-generated if blank)">
+                                    <input type="text" id="qwen3-clone-prompt-text"
+                                        placeholder="Transcript of reference audio (auto-generated if blank)">
                                     <small>Leave blank to auto-transcribe the reference prompt.</small>
                                 </div>
                             </div>
@@ -1145,13 +1298,16 @@
                         <div class="engine-panel" id="engine-panel-api-keys">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>API Keys</h4>
-                                <button type="button" class="help-icon" data-help-id="engine-api-keys" aria-label="Help: API Keys">?</button>
+                                <button type="button" class="help-icon" data-help-id="engine-api-keys"
+                                    aria-label="Help: API Keys">?</button>
                             </div>
                             <p class="help-text" style="margin-top:0;">API keys for cloud-based engines.</p>
                             <div class="form-group">
                                 <label for="kokoro-replicate-api-key">Replicate API Token</label>
-                                <input type="password" id="kokoro-replicate-api-key" placeholder="r8_..." autocomplete="new-password">
-                                <small>Used by Kokoro Replicate and Chatterbox Replicate. Get key from <a href="https://replicate.com" target="_blank">replicate.com</a></small>
+                                <input type="password" id="kokoro-replicate-api-key" placeholder="r8_..."
+                                    autocomplete="new-password">
+                                <small>Used by Kokoro Replicate and Chatterbox Replicate. Get key from <a
+                                        href="https://replicate.com" target="_blank">replicate.com</a></small>
                             </div>
                         </div>
                     </div>
@@ -1162,7 +1318,8 @@
                     <div class="settings-group-header" data-toggle="settings-group">
                         <div class="section-title-inline">
                             <h3><span class="group-icon">🎬</span> Audio & Generation</h3>
-                            <button type="button" class="help-icon" data-help-id="settings-audio" aria-label="Help: Audio & Generation">?</button>
+                            <button type="button" class="help-icon" data-help-id="settings-audio"
+                                aria-label="Help: Audio & Generation">?</button>
                         </div>
                         <span class="collapse-icon">▼</span>
                     </div>
@@ -1217,12 +1374,14 @@
                     <div class="settings-group-header" data-toggle="settings-group">
                         <div class="section-title-inline">
                             <h3><span class="group-icon">🤖</span> LLM Pre-Processing</h3>
-                            <button type="button" class="help-icon" data-help-id="settings-llm" aria-label="Help: LLM Pre-Processing">?</button>
+                            <button type="button" class="help-icon" data-help-id="settings-llm"
+                                aria-label="Help: LLM Pre-Processing">?</button>
                         </div>
                         <span class="collapse-icon">▼</span>
                     </div>
                     <div class="settings-group-content">
-                        <p class="help-text" style="margin-top:0;">Use Gemini or a local LLM (LM Studio / Ollama) to clean up or enhance text before TTS.</p>
+                        <p class="help-text" style="margin-top:0;">Use Gemini or a local LLM (LM Studio / Ollama) to
+                            clean up or enhance text before TTS.</p>
                         <div class="settings-form-grid">
                             <div class="form-group">
                                 <label for="llm-provider">LLM Provider</label>
@@ -1233,7 +1392,8 @@
                             </div>
                             <div class="form-group" id="llm-gemini-chunk-group">
                                 <label for="llm-gemini-chunk-size">Gemini chunk size (words)</label>
-                                <input type="number" id="llm-gemini-chunk-size" min="50" max="5000" step="50" value="500">
+                                <input type="number" id="llm-gemini-chunk-size" min="50" max="5000" step="50"
+                                    value="500">
                                 <small>Applies when Gemini is the prep provider.</small>
                             </div>
                             <div class="form-group" id="llm-gemini-chunk-chapters-group">
@@ -1245,7 +1405,8 @@
                             </div>
                             <div class="form-group" id="llm-local-chunk-group">
                                 <label for="llm-local-chunk-size">Local LLM chunk size (words)</label>
-                                <input type="number" id="llm-local-chunk-size" min="50" max="5000" step="50" value="500">
+                                <input type="number" id="llm-local-chunk-size" min="50" max="5000" step="50"
+                                    value="500">
                                 <small>Applies when LM Studio/Ollama is the prep provider.</small>
                             </div>
                             <div class="form-group" id="llm-local-chunk-chapters-group">
@@ -1258,7 +1419,8 @@
                             <div class="form-group" id="gemini-credentials">
                                 <label for="gemini-api-key">Gemini API Key</label>
                                 <input type="password" id="gemini-api-key" placeholder="AIza...">
-                                <small><a href="https://makersuite.google.com/app/apikey" target="_blank">Get key</a></small>
+                                <small><a href="https://makersuite.google.com/app/apikey" target="_blank">Get
+                                        key</a></small>
                             </div>
                             <div class="form-group" id="gemini-model-group">
                                 <label for="gemini-model">Model</label>
@@ -1270,7 +1432,8 @@
                             </div>
                         </div>
                         <div class="button-group" style="margin-top: 10px;" id="gemini-models-actions">
-                            <button type="button" id="fetch-gemini-models-btn" class="btn btn-secondary btn-sm">Fetch Models</button>
+                            <button type="button" id="fetch-gemini-models-btn" class="btn btn-secondary btn-sm">Fetch
+                                Models</button>
                             <span id="gemini-models-status" class="help-text" style="margin-left:10px;"></span>
                         </div>
                         <div class="settings-form-grid" id="llm-local-settings" style="margin-top: 12px;">
@@ -1284,7 +1447,8 @@
                             <div class="form-group">
                                 <label for="llm-local-base-url">Base URL</label>
                                 <input type="text" id="llm-local-base-url" placeholder="http://localhost:1234/v1">
-                                <small>LM Studio uses <code>/v1</code>. Ollama uses <code>http://localhost:11434</code>.</small>
+                                <small>LM Studio uses <code>/v1</code>. Ollama uses
+                                    <code>http://localhost:11434</code>.</small>
                             </div>
                             <div class="form-group">
                                 <label for="llm-local-model">Model</label>
@@ -1302,7 +1466,8 @@
                             </div>
                         </div>
                         <div class="button-group" style="margin-top: 10px;" id="local-llm-models-actions">
-                            <button type="button" id="fetch-local-llm-models-btn" class="btn btn-secondary btn-sm">Fetch Local Models</button>
+                            <button type="button" id="fetch-local-llm-models-btn" class="btn btn-secondary btn-sm">Fetch
+                                Local Models</button>
                             <span id="local-llm-models-status" class="help-text" style="margin-left:10px;"></span>
                         </div>
                         <div class="settings-subsection" style="margin-top:16px;">
@@ -1310,7 +1475,8 @@
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="llm-local-temperature">Temperature</label>
-                                    <input type="number" id="llm-local-temperature" min="0" max="2" step="0.05" value="0.2">
+                                    <input type="number" id="llm-local-temperature" min="0" max="2" step="0.05"
+                                        value="0.2">
                                 </div>
                                 <div class="form-group">
                                     <label for="llm-local-top-p">Top P</label>
@@ -1322,11 +1488,13 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="llm-local-repeat-penalty">Repeat Penalty</label>
-                                    <input type="number" id="llm-local-repeat-penalty" min="0.5" max="2" step="0.05" value="1">
+                                    <input type="number" id="llm-local-repeat-penalty" min="0.5" max="2" step="0.05"
+                                        value="1">
                                 </div>
                                 <div class="form-group">
                                     <label for="llm-local-max-tokens">Max Tokens</label>
-                                    <input type="number" id="llm-local-max-tokens" min="0" max="8192" step="1" value="0">
+                                    <input type="number" id="llm-local-max-tokens" min="0" max="8192" step="1"
+                                        value="0">
                                 </div>
                                 <div class="form-group">
                                     <label style="display:flex;align-items:center;gap:8px;">
@@ -1339,29 +1507,36 @@
                         </div>
                         <div class="form-group" style="margin-top:16px;">
                             <label for="gemini-prompt">Prompt Prefix</label>
-                            <textarea id="gemini-prompt" rows="3" placeholder="Instructions prepended to each chapter..."></textarea>
+                            <textarea id="gemini-prompt" rows="3"
+                                placeholder="Instructions prepended to each chapter..."></textarea>
                         </div>
                         <div class="form-group" style="margin-top:16px;">
                             <label for="gemini-speaker-profile-prompt">Speaker Profile Prompt</label>
-                            <textarea id="gemini-speaker-profile-prompt" rows="4" placeholder="Voice guide prompt used after speaker detection..."></textarea>
+                            <textarea id="gemini-speaker-profile-prompt" rows="4"
+                                placeholder="Voice guide prompt used after speaker detection..."></textarea>
                         </div>
                         <div class="settings-subsection" style="margin-top:16px;">
                             <h4>Prompt Presets</h4>
-                            <div id="gemini-preset-list" class="gemini-preset-list" data-empty-text="No presets yet."></div>
+                            <div id="gemini-preset-list" class="gemini-preset-list" data-empty-text="No presets yet.">
+                            </div>
                             <div class="gemini-preset-form" style="margin-top:12px;">
                                 <div class="settings-form-grid">
                                     <div class="form-group">
                                         <label for="gemini-preset-title">Preset Name</label>
-                                        <input id="gemini-preset-title" type="text" placeholder="e.g., Narrator Cleanup">
+                                        <input id="gemini-preset-title" type="text"
+                                            placeholder="e.g., Narrator Cleanup">
                                     </div>
                                 </div>
                                 <div class="form-group" style="margin-top:8px;">
                                     <label for="gemini-preset-text">Preset Prompt</label>
-                                    <textarea id="gemini-preset-text" rows="2" placeholder="Full instructions..."></textarea>
+                                    <textarea id="gemini-preset-text" rows="2"
+                                        placeholder="Full instructions..."></textarea>
                                 </div>
                                 <div class="gemini-preset-form-actions" style="margin-top:8px;">
-                                    <button type="button" id="save-gemini-preset-btn" class="btn btn-primary btn-sm">Save Preset</button>
-                                    <button type="button" id="reset-gemini-preset-btn" class="btn btn-ghost btn-sm">Clear</button>
+                                    <button type="button" id="save-gemini-preset-btn"
+                                        class="btn btn-primary btn-sm">Save Preset</button>
+                                    <button type="button" id="reset-gemini-preset-btn"
+                                        class="btn btn-ghost btn-sm">Clear</button>
                                 </div>
                             </div>
                         </div>
@@ -1384,7 +1559,8 @@
                 <button class="modal-close" id="speaker-batch-modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="help-text">Add an optional prefix to prepend to every speaker name when creating Qwen voice samples.</p>
+                <p class="help-text">Add an optional prefix to prepend to every speaker name when creating Qwen voice
+                    samples.</p>
                 <div class="form-group">
                     <label for="speaker-batch-prefix">Name prefix</label>
                     <input type="text" id="speaker-batch-prefix" placeholder="e.g., Dracula">
@@ -1416,7 +1592,8 @@
                 <button class="modal-close" id="auto-assign-modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="help-text">Each detected speaker is matched to the closest voice sample by name. Adjust the threshold — only matches at or above it are auto-selected.</p>
+                <p class="help-text">Each detected speaker is matched to the closest voice sample by name. Adjust the
+                    threshold — only matches at or above it are auto-selected.</p>
                 <div class="auto-assign-threshold-row">
                     <label for="auto-assign-threshold-slider">Match threshold:</label>
                     <input type="range" id="auto-assign-threshold-slider" min="10" max="100" step="1" value="80">
@@ -1425,7 +1602,8 @@
                 <div id="auto-assign-no-voices" class="help-text hidden" style="color: var(--warning-color, #f0a500);">
                     No voice samples are available. Upload or generate voice samples first.
                 </div>
-                <div id="auto-assign-no-speakers" class="help-text hidden" style="color: var(--warning-color, #f0a500);">
+                <div id="auto-assign-no-speakers" class="help-text hidden"
+                    style="color: var(--warning-color, #f0a500);">
                     No detected speakers found. Run Analyze Text first.
                 </div>
                 <table id="auto-assign-table" class="auto-assign-table hidden">
@@ -1482,7 +1660,8 @@
             <div class="modal-header">
                 <div class="section-title-inline">
                     <h3 id="speaker-edit-modal-title">Edit Speaker</h3>
-                    <button type="button" class="help-icon" data-help-id="speaker-edit" aria-label="Help: Edit Speaker">?</button>
+                    <button type="button" class="help-icon" data-help-id="speaker-edit"
+                        aria-label="Help: Edit Speaker">?</button>
                 </div>
                 <button class="modal-close" id="speaker-edit-modal-close">&times;</button>
             </div>
@@ -1624,7 +1803,8 @@
                     </div>
                     <div class="form-group">
                         <label for="custom-voice-notes">Notes (optional)</label>
-                        <textarea id="custom-voice-notes" rows="3" placeholder="Describe the blend or who it’s for..."></textarea>
+                        <textarea id="custom-voice-notes" rows="3"
+                            placeholder="Describe the blend or who it’s for..."></textarea>
                     </div>
                 </form>
             </div>
@@ -1715,7 +1895,8 @@
                         </thead>
                         <tbody id="awr-table-body">
                             <tr id="awr-empty-row">
-                                <td colspan="4" class="awr-empty">No entries yet. Click <strong>＋ Add Entry</strong> to get started.</td>
+                                <td colspan="4" class="awr-empty">No entries yet. Click <strong>＋ Add Entry</strong> to
+                                    get started.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1738,11 +1919,13 @@
                 <div class="awr-entry-fields">
                     <div class="awr-field-row">
                         <label class="awr-label" for="awr-original-input">Original word / phrase</label>
-                        <input type="text" id="awr-original-input" class="awr-text-input" placeholder="e.g. Worcestershire">
+                        <input type="text" id="awr-original-input" class="awr-text-input"
+                            placeholder="e.g. Worcestershire">
                     </div>
                     <div class="awr-field-row">
                         <label class="awr-label" for="awr-replacement-input">Replacement word / phrase</label>
-                        <input type="text" id="awr-replacement-input" class="awr-text-input" placeholder="e.g. Wooster-sher">
+                        <input type="text" id="awr-replacement-input" class="awr-text-input"
+                            placeholder="e.g. Wooster-sher">
                     </div>
                     <div class="awr-preview-section">
                         <div class="awr-preview-row">
@@ -1767,8 +1950,10 @@
                             </div>
                         </div>
                         <div class="awr-preview-buttons">
-                            <button class="btn btn-sm btn-secondary" id="awr-play-original" disabled>▶ Play Original</button>
-                            <button class="btn btn-sm btn-secondary" id="awr-play-replacement" disabled>▶ Play Replacement</button>
+                            <button class="btn btn-sm btn-secondary" id="awr-play-original" disabled>▶ Play
+                                Original</button>
+                            <button class="btn btn-sm btn-secondary" id="awr-play-replacement" disabled>▶ Play
+                                Replacement</button>
                             <span class="awr-preview-status" id="awr-preview-status"></span>
                         </div>
                     </div>
@@ -1787,4 +1972,5 @@
     <script src="/static/js/voice-manager.js?v=12"></script>
     <script src="/static/js/settings.js?v=7"></script>
 </body>
+
 </html>

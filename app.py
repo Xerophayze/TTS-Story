@@ -20,6 +20,7 @@ import queue
 import re
 import shutil
 import sqlite3
+import socket
 import stat
 import subprocess
 import tempfile
@@ -125,6 +126,7 @@ DEFAULT_LLM_PROVIDER = "gemini"
 LIBRARY_CACHE_TTL = 5  # seconds
 MIN_CHATTERBOX_PROMPT_SECONDS = 5.0
 DEFAULT_CONFIG = {
+    "server_port": 5000,
     "replicate_api_key": "",
     "chunk_size": 500,
     "kokoro_chunk_size": 500,
@@ -827,6 +829,10 @@ library_cache = {
     "items": None,
     "timestamp": 0.0,
 }
+ACTIVE_SERVER_PORT: Optional[int] = None
+PREFERRED_SERVER_PORT: Optional[int] = None
+SERVER_PORT_SOURCE = "default"
+SERVER_PORT_FALLBACK_ACTIVE = False
 
 
 def _job_dir_from_entry(job_id: str, job_entry: Dict[str, Any]) -> Path:
@@ -4022,6 +4028,7 @@ def load_config():
                 config.update({k: v for k, v in data.items() if k in DEFAULT_CONFIG})
         except Exception as exc:
             logger.warning(f"Failed to load config.json, using defaults: {exc}")
+    config["server_port"] = _coerce_port(config.get("server_port"), fallback=DEFAULT_CONFIG["server_port"])
     return config
 
 
@@ -4030,6 +4037,7 @@ def save_config(config):
     merged = DEFAULT_CONFIG.copy()
     if isinstance(config, dict):
         merged.update({k: v for k, v in config.items() if k in DEFAULT_CONFIG})
+    merged["server_port"] = _coerce_port(merged.get("server_port"), fallback=DEFAULT_CONFIG["server_port"])
     with open(CONFIG_FILE, 'w') as f:
         json.dump(merged, f, indent=2)
 
@@ -8512,6 +8520,11 @@ def health_check():
     return jsonify({
         "success": True,
         "tts_engine": config.get('tts_engine', 'kokoro'),
+        "server_port": ACTIVE_SERVER_PORT or _resolve_server_port(),
+        "preferred_server_port": PREFERRED_SERVER_PORT or config.get("server_port", DEFAULT_CONFIG["server_port"]),
+        "server_port_source": SERVER_PORT_SOURCE,
+        "server_port_fallback_active": SERVER_PORT_FALLBACK_ACTIVE,
+        "server_port_overridden_by_env": SERVER_PORT_SOURCE == "environment",
         "kokoro_available": KOKORO_AVAILABLE,
         "qwen3_available": QWEN3_AVAILABLE,
         "pocket_tts_available": POCKET_TTS_AVAILABLE,
@@ -8694,22 +8707,73 @@ def _cleanup_orphaned_regen_folders():
         logger.info("Cleaned up %d orphaned chunk regen temp folders", cleaned)
 
 
-def _resolve_server_port() -> int:
-    raw_port = (
-        os.environ.get("TTS_STORY_PORT")
-        or os.environ.get("PORT")
-        or "5000"
-    ).strip()
+def _coerce_port(value: Any, fallback: int = 5000) -> int:
     try:
-        port = int(raw_port)
+        port = int(value)
     except (TypeError, ValueError):
-        logger.warning("Invalid port value '%s'; falling back to 5000", raw_port)
-        return 5000
+        port = fallback
 
     if not (1 <= port <= 65535):
-        logger.warning("Port %s is out of range; falling back to 5000", port)
-        return 5000
+        return fallback
     return port
+
+
+def _is_port_available(port: int) -> bool:
+    addresses: List[Tuple[socket.AddressFamily, str]] = [
+        (socket.AF_INET, "0.0.0.0"),
+    ]
+    if socket.has_ipv6:
+        addresses.append((socket.AF_INET6, "::"))
+
+    for family, host in addresses:
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((host, port))
+        except OSError:
+            return False
+    return True
+
+
+def _find_available_port(start_port: int = 5001, max_port: int = 5100) -> Optional[int]:
+    lower_bound = max(1, int(start_port))
+    upper_bound = min(65535, int(max_port))
+    for port in range(lower_bound, upper_bound + 1):
+        if _is_port_available(port):
+            return port
+    return None
+
+
+def _resolve_server_port() -> int:
+    env_port = os.environ.get("TTS_STORY_PORT") or os.environ.get("PORT")
+    if env_port is not None:
+        port = _coerce_port(env_port, fallback=DEFAULT_CONFIG["server_port"])
+        if str(port) != str(env_port).strip():
+            logger.warning("Invalid port value '%s'; falling back to %s", env_port, DEFAULT_CONFIG["server_port"])
+        return port
+
+    config = load_config()
+    return _coerce_port(config.get("server_port"), fallback=DEFAULT_CONFIG["server_port"])
+
+
+def _resolve_runtime_server_port() -> Tuple[int, int, str, bool]:
+    preferred_port = _resolve_server_port()
+    env_override = bool(os.environ.get("TTS_STORY_PORT") or os.environ.get("PORT"))
+    source = "environment" if env_override else "config"
+
+    if env_override or _is_port_available(preferred_port):
+        return preferred_port, preferred_port, source, False
+
+    fallback_port = _find_available_port(max(preferred_port + 1, 5001), 5100)
+    if fallback_port is None:
+        return preferred_port, preferred_port, source, False
+
+    logger.warning(
+        "Preferred port %s is already in use; falling back to port %s for this session",
+        preferred_port,
+        fallback_port,
+    )
+    return fallback_port, preferred_port, source, True
 
 
 if __name__ == '__main__':
@@ -8721,7 +8785,11 @@ if __name__ == '__main__':
     _cleanup_orphaned_chatterbox_voices()
     _auto_register_voice_prompt_files()
     _cleanup_orphaned_regen_folders()
-    server_port = _resolve_server_port()
+    server_port, preferred_port, port_source, fallback_active = _resolve_runtime_server_port()
+    ACTIVE_SERVER_PORT = server_port
+    PREFERRED_SERVER_PORT = preferred_port
+    SERVER_PORT_SOURCE = port_source
+    SERVER_PORT_FALLBACK_ACTIVE = fallback_active
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{server_port}")).start()
     app.run(host='0.0.0.0', port=server_port, debug=True, use_reloader=False)
