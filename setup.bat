@@ -532,7 +532,7 @@ echo 1. If espeak-ng is not installed, install it now
 echo 2. Run: run.bat
 echo 3. Open browser to: http://localhost:5000
 echo.
-goto :EOF
+exit /b 0
 
 :FindPython311Dir
 set "PY_DIR="

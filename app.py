@@ -67,7 +67,10 @@ from src.engines.chatterbox_turbo_local_engine import (
 from src.engines.voxcpm_local_engine import VOXCPM_AVAILABLE
 from src.engines.qwen3_custom_voice_engine import QWEN3_AVAILABLE
 from src.engines.qwen3_voice_clone_engine import QWEN3_AVAILABLE as QWEN3_CLONE_AVAILABLE
-from src.engines.omnivoice_clone_engine import OMNIVOICE_AVAILABLE
+from src.engines.omnivoice_clone_engine import (
+    OMNIVOICE_AVAILABLE,
+    _OMNIVOICE_UNAVAILABLE_REASON as OMNIVOICE_UNAVAILABLE_REASON,
+)
 from src.engines.omnivoice_design_engine import OMNIVOICE_AVAILABLE as OMNIVOICE_DESIGN_AVAILABLE
 from src.engines.pocket_tts_engine import POCKET_TTS_AVAILABLE
 from src.engines.kitten_tts_engine import (
@@ -2113,7 +2116,7 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
 
     if engine_name == "omnivoice_clone":
         if not OMNIVOICE_AVAILABLE:
-            raise ImportError(f"OmniVoice engine not available. {_OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment.")
+            raise ImportError(f"OmniVoice engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment.")
         return get_engine(
             "omnivoice_clone",
             device=(config.get("omnivoice_clone_device") or "auto").strip() or "auto",
@@ -2127,7 +2130,7 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
 
     if engine_name == "omnivoice_design":
         if not OMNIVOICE_DESIGN_AVAILABLE:
-            raise ImportError("omnivoice is not installed. Run: pip install omnivoice")
+            raise ImportError(f"OmniVoice design engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment.")
         return get_engine(
             "omnivoice_design",
             device=(config.get("omnivoice_design_device") or "auto").strip() or "auto",
@@ -9575,7 +9578,7 @@ def omnivoice_voice_design_preview():
     if not OMNIVOICE_DESIGN_AVAILABLE:
         return jsonify({
             "success": False,
-            "error": "omnivoice is not installed. Run: pip install omnivoice"
+            "error": f"OmniVoice design engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment."
         }), 400
     payload = request.get_json(silent=True) or {}
     text = (payload.get("text") or "").strip()
@@ -9593,7 +9596,7 @@ def omnivoice_voice_design_save():
     if not OMNIVOICE_DESIGN_AVAILABLE:
         return jsonify({
             "success": False,
-            "error": "omnivoice is not installed. Run: pip install omnivoice"
+            "error": f"OmniVoice design engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment."
         }), 400
     payload = request.get_json(silent=True) or {}
     name = (payload.get("name") or "").strip()
