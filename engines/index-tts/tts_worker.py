@@ -39,6 +39,7 @@ or on error:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import sys
@@ -55,6 +56,15 @@ _MODEL_REPO_MAP = {
     "IndexTTS-1.5": "IndexTeam/IndexTTS-1.5",
     "IndexTTS":     "IndexTeam/IndexTTS",
 }
+
+
+def _flash_attn_available() -> bool:
+    return importlib.util.find_spec("flash_attn") is not None
+
+
+def _flash_attn_error(error: str) -> bool:
+    lowered = error.lower()
+    return "flash_attn" in lowered or "flash-attention" in lowered
 
 
 def _ensure_model(model_dir: str, model_version: str) -> None:
@@ -116,6 +126,17 @@ def main() -> None:
     device = job.get("device") or None
     chunks = job.get("chunks", [])
 
+    if not _flash_attn_available() and (use_fp16 or use_deepspeed or use_accel):
+        print(
+            "[worker] flash_attn is not installed; disabling IndexTTS fp16, "
+            "DeepSpeed, and acceleration for compatibility.",
+            file=sys.stderr,
+            flush=True,
+        )
+        use_fp16 = False
+        use_deepspeed = False
+        use_accel = False
+
     try:
         _ensure_model(model_dir, model_version)
     except Exception:
@@ -125,16 +146,38 @@ def main() -> None:
     try:
         from indextts.infer_v2 import IndexTTS2  # type: ignore
 
-        tts = IndexTTS2(
-            cfg_path=cfg_path,
-            model_dir=model_dir,
-            use_fp16=use_fp16,
-            use_deepspeed=use_deepspeed,
-            use_torch_compile=use_torch_compile,
-            use_accel=use_accel,
-            device=device,
-            use_cuda_kernel=None,
-        )
+        try:
+            tts = IndexTTS2(
+                cfg_path=cfg_path,
+                model_dir=model_dir,
+                use_fp16=use_fp16,
+                use_deepspeed=use_deepspeed,
+                use_torch_compile=use_torch_compile,
+                use_accel=use_accel,
+                device=device,
+                use_cuda_kernel=None,
+            )
+        except Exception:
+            error = traceback.format_exc()
+            if _flash_attn_error(error) and (use_fp16 or use_deepspeed or use_accel):
+                print(
+                    "[worker] IndexTTS requested flash_attn. Retrying with "
+                    "fp16, DeepSpeed, and acceleration disabled.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                tts = IndexTTS2(
+                    cfg_path=cfg_path,
+                    model_dir=model_dir,
+                    use_fp16=False,
+                    use_deepspeed=False,
+                    use_torch_compile=use_torch_compile,
+                    use_accel=False,
+                    device=device,
+                    use_cuda_kernel=False,
+                )
+            else:
+                raise
     except Exception:
         _fail(traceback.format_exc())
         return

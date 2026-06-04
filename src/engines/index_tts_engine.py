@@ -77,7 +77,7 @@ class IndexTTSEngine(TtsEngineBase):
         *,
         engine_root: Optional[str] = None,
         model_version: str = INDEX_TTS_DEFAULT_MODEL_VERSION,
-        use_fp16: bool = True,
+        use_fp16: bool = False,
         use_deepspeed: bool = False,
         use_torch_compile: bool = False,
         use_accel: bool = False,
