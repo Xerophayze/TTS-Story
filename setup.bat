@@ -190,7 +190,7 @@ python -m pip install --upgrade pip --quiet
 set "SKIP_MAIN_DEPS=0"
 set "MAIN_DEPS_STAMP=venv\.main_deps_stamp"
 set "MAIN_DEPS_SIGNATURE="
-for /f "delims=" %%H in ('powershell -NoLogo -NoProfile -Command "$h=(Get-FileHash 'requirements.txt' -Algorithm SHA256).Hash; Write-Output ($h + '|main-deps-v1|torch:%TORCH_VERSION%|torchvision:%TORCHVISION_VERSION%|torchaudio:%TORCHAUDIO_VERSION%|blackwell:%BLACKWELL_TORCH_VERSION%')" 2^>nul') do set "MAIN_DEPS_SIGNATURE=%%H"
+for /f "delims=" %%H in ('powershell -NoLogo -NoProfile -Command "$h=(Get-FileHash 'requirements.txt' -Algorithm SHA256).Hash; Write-Output ($h + ';main-deps-v2;torch=%TORCH_VERSION%;torchvision=%TORCHVISION_VERSION%;torchaudio=%TORCHAUDIO_VERSION%;blackwell=%BLACKWELL_TORCH_VERSION%')" 2^>nul') do set "MAIN_DEPS_SIGNATURE=%%H"
 if "%UPDATE_MODE%"=="1" (
     if exist "%MAIN_DEPS_STAMP%" (
         set /p EXISTING_MAIN_DEPS_SIGNATURE=<"%MAIN_DEPS_STAMP%"
@@ -367,7 +367,7 @@ if errorlevel 1 (
     echo WARNING: Failed to install voxcpm - VoxCPM engine will not be available
 )
 if defined MAIN_DEPS_SIGNATURE (
-    >"%MAIN_DEPS_STAMP%" echo %MAIN_DEPS_SIGNATURE%
+    >"%MAIN_DEPS_STAMP%" echo(!MAIN_DEPS_SIGNATURE!
 )
 :AfterMainDependencyInstall
 
