@@ -23,73 +23,97 @@ set "BLACKWELL_TORCH_VERSION=2.8.0"
 set "BLACKWELL_TORCHVISION_VERSION=0.23.0"
 set "BLACKWELL_TORCHAUDIO_VERSION=2.8.0"
 
-REM Check Python installation (must be exactly 3.11.9)
+REM Check Python installation. Prefer an existing project venv during updates,
+REM because Pinokio may invoke setup.bat from a Conda base Python.
 echo [1/12] Checking Python installation...
+set "PYTHON_CMD=python"
+set "USE_EXISTING_VENV=0"
+set "VENV_PYTHON=venv\Scripts\python.exe"
+set "VENV_PY_MM="
+if exist "%VENV_PYTHON%" (
+    for /f "delims=" %%V in ('"%VENV_PYTHON%" -c "import sys; print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))" 2^>nul') do set "VENV_PY_MM=%%V"
+    if "!VENV_PY_MM!"=="3.11" (
+        set "USE_EXISTING_VENV=1"
+        echo Found existing project venv Python 3.11. Reusing it for update.
+        goto :PythonReady
+    ) else (
+        echo Existing venv Python is not 3.11 ^(detected: !VENV_PY_MM!^). Recreating venv.
+        rmdir /s /q venv >nul 2>&1
+    )
+)
+
 set "PYTHON_VERSION="
+set "PYTHON_MM="
 python --version >nul 2>&1
 if errorlevel 1 (
     set "PYTHON_VERSION="
 ) else (
     for /f "tokens=2" %%i in ('python --version 2^>^&1') do set "PYTHON_VERSION=%%i"
+    for /f "delims=" %%i in ('python -c "import sys; print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))" 2^>nul') do set "PYTHON_MM=%%i"
 )
 
-if not "%PYTHON_VERSION%"=="3.11.9" (
-    if "%PYTHON_VERSION%"=="" (
-        echo Python not found. Installing Python 3.11.9...
-    ) else (
-        echo Detected Python %PYTHON_VERSION%. Installing required Python 3.11.9...
-    )
-    powershell -NoLogo -NoProfile -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $url='%PYTHON_INSTALLER_URL%'; try { Invoke-WebRequest -Uri $url -OutFile '%PYTHON_INSTALLER%' -UseBasicParsing -ErrorAction Stop } catch { try { Start-BitsTransfer -Source $url -Destination '%PYTHON_INSTALLER%' -ErrorAction Stop } catch { Write-Error $_.Exception.Message; exit 1 } }"
-    if errorlevel 1 (
-        echo ERROR: Failed to download Python installer.
-        pause
-        exit /b 1
-    )
-    "%PYTHON_INSTALLER%" /quiet InstallAllUsers=0 PrependPath=0 Include_test=0
-    if errorlevel 1 (
-        echo ERROR: Python installer failed.
-        pause
-        exit /b 1
-    )
+if "%PYTHON_MM%"=="3.11" goto :FoundPythonCommand
+
+py -3.11 --version >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_CMD=py -3.11"
+    for /f "tokens=2" %%i in ('py -3.11 --version 2^>^&1') do set "PYTHON_VERSION=%%i"
+    goto :FoundPythonCommand
 )
 
-set "PY_DIR="
-if exist "%LocalAppData%\Programs\Python\Python311" set "PY_DIR=%LocalAppData%\Programs\Python\Python311"
-if not defined PY_DIR if exist "%ProgramFiles%\Python311" set "PY_DIR=%ProgramFiles%\Python311"
-if not defined PY_DIR (
-    for /f "delims=" %%D in ('dir /b /ad /o-n "%LocalAppData%\Programs\Python\Python311*" 2^>nul') do (
-        set "PY_DIR=%LocalAppData%\Programs\Python\%%D"
-        goto :FoundPython311
-    )
-    for /f "delims=" %%D in ('dir /b /ad /o-n "%ProgramFiles%\Python311*" 2^>nul') do (
-        set "PY_DIR=%ProgramFiles%\%%D"
-        goto :FoundPython311
-    )
+call :FindPython311Dir
+if defined PY_DIR (
+    set "PATH=%PY_DIR%;%PY_DIR%\Scripts;%PATH%"
+    goto :FoundPythonCommand
 )
-:FoundPython311
+
+if "%PYTHON_VERSION%"=="" (
+    echo Python not found. Installing Python 3.11.9...
+) else (
+    echo Detected Python %PYTHON_VERSION%. Installing required Python 3.11.9...
+)
+powershell -NoLogo -NoProfile -Command "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $url='%PYTHON_INSTALLER_URL%'; try { Invoke-WebRequest -Uri $url -OutFile '%PYTHON_INSTALLER%' -UseBasicParsing -ErrorAction Stop } catch { try { Start-BitsTransfer -Source $url -Destination '%PYTHON_INSTALLER%' -ErrorAction Stop } catch { Write-Error $_.Exception.Message; exit 1 } }"
+if errorlevel 1 (
+    echo ERROR: Failed to download Python installer.
+    echo If this is a Pinokio update and venv already exists, delete only an incomplete venv and rerun Update.
+    pause
+    exit /b 1
+)
+"%PYTHON_INSTALLER%" /quiet InstallAllUsers=0 PrependPath=0 Include_test=0
+if errorlevel 1 (
+    echo ERROR: Python installer failed.
+    pause
+    exit /b 1
+)
+call :FindPython311Dir
 if not defined PY_DIR (
-    echo ERROR: Python 3.11.9 installed but install path not found.
-    echo Please restart your terminal or install Python 3.11.9 manually.
+    echo ERROR: Python 3.11 installed but install path not found.
+    echo Please restart your terminal or install Python 3.11 manually.
     pause
     exit /b 1
 )
 set "PATH=%PY_DIR%;%PY_DIR%\Scripts;%PATH%"
-python --version >nul 2>&1
+
+:FoundPythonCommand
+%PYTHON_CMD% --version >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Python 3.11.9 installed but still not found in PATH.
+    echo ERROR: Python 3.11 installed but still not found.
     echo Please restart your terminal and rerun setup.bat.
     pause
     exit /b 1
 )
 
-for /f "tokens=2" %%i in ('python --version 2^>^&1') do set "PYTHON_VERSION=%%i"
-if not "%PYTHON_VERSION%"=="3.11.9" (
-    echo ERROR: Python 3.11.9 is required. Current: %PYTHON_VERSION%
-    echo Please ensure Python 3.11.9 is installed and rerun setup.bat.
+set "PYTHON_MM="
+for /f "tokens=2" %%i in ('%PYTHON_CMD% --version 2^>^&1') do set "PYTHON_VERSION=%%i"
+for /f "delims=" %%i in ('%PYTHON_CMD% -c "import sys; print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))" 2^>nul') do set "PYTHON_MM=%%i"
+if not "%PYTHON_MM%"=="3.11" (
+    echo ERROR: Python 3.11 is required. Current: %PYTHON_VERSION%
+    echo Please ensure Python 3.11 is installed and rerun setup.bat.
     pause
     exit /b 1
 )
 echo Found Python %PYTHON_VERSION%
+:PythonReady
 
 set "HAS_NVIDIA=0"
 set "GPU_NAME="
@@ -116,10 +140,12 @@ if defined GPU_NAME (
 REM Create virtual environment
 echo.
 echo [2/12] Creating virtual environment...
-if exist venv (
+if "%USE_EXISTING_VENV%"=="1" (
+    echo Virtual environment already exists, skipping...
+) else if exist venv (
     echo Virtual environment already exists, skipping...
 ) else (
-    python -m venv venv
+    %PYTHON_CMD% -m venv venv
     if errorlevel 1 (
         echo ERROR: Failed to create virtual environment
         pause
@@ -507,6 +533,24 @@ echo 2. Run: run.bat
 echo 3. Open browser to: http://localhost:5000
 echo.
 goto :EOF
+
+:FindPython311Dir
+set "PY_DIR="
+if exist "%LocalAppData%\Programs\Python\Python311" set "PY_DIR=%LocalAppData%\Programs\Python\Python311"
+if not defined PY_DIR if exist "%ProgramFiles%\Python311" set "PY_DIR=%ProgramFiles%\Python311"
+if not defined PY_DIR (
+    for /f "delims=" %%D in ('dir /b /ad /o-n "%LocalAppData%\Programs\Python\Python311*" 2^>nul') do (
+        set "PY_DIR=%LocalAppData%\Programs\Python\%%D"
+        exit /b 0
+    )
+)
+if not defined PY_DIR (
+    for /f "delims=" %%D in ('dir /b /ad /o-n "%ProgramFiles%\Python311*" 2^>nul') do (
+        set "PY_DIR=%ProgramFiles%\%%D"
+        exit /b 0
+    )
+)
+exit /b 0
 
 :RunUvSync
 REM Subroutine: cd into %1 and run uv sync --all-extras, return errorlevel
