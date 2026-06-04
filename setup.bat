@@ -123,7 +123,7 @@ for /f "delims=" %%G in ('powershell -NoLogo -NoProfile -Command "$g=(Get-CimIns
 if defined GPU_NAME (
     set "HAS_NVIDIA=1"
     echo NVIDIA GPU detected: !GPU_NAME!
-    for /f "delims=" %%C in ('nvidia-smi --query-gpu^=compute_cap --format^=csv,noheader 2^>nul') do (
+    for /f "tokens=1 delims=," %%C in ('nvidia-smi --query-gpu^=compute_cap --format^=csv 2^>nul ^| findstr /R "^[0-9]"') do (
         if not defined GPU_COMPUTE_CAP set "GPU_COMPUTE_CAP=%%C"
     )
     if defined GPU_COMPUTE_CAP echo NVIDIA compute capability: !GPU_COMPUTE_CAP!
