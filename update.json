@@ -9,7 +9,8 @@
     {
       "method": "shell.run",
       "params": {
-        "message": "{{os.platform() === 'win32' ? 'setup.bat && exit' : 'chmod +x setup.sh && ./setup.sh && exit'}}"
+        "message": "{{os.platform() === 'win32' ? 'setup.bat' : 'chmod +x setup.sh && ./setup.sh'}}",
+        "on": [{ "event": "/Setup Complete/", "done": true }]
       }
     }
   ]
