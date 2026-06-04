@@ -42,6 +42,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import sys
 import traceback
 
@@ -65,6 +66,44 @@ def _flash_attn_available() -> bool:
 def _flash_attn_error(error: str) -> bool:
     lowered = error.lower()
     return "flash_attn" in lowered or "flash-attention" in lowered
+
+
+def _unused_model_kwargs(error: str) -> list[str]:
+    match = re.search(r"model_kwargs.*?\[(.*?)\]", error, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return []
+    return re.findall(r"['\"]([^'\"]+)['\"]", match.group(1))
+
+
+def _infer_with_compatible_kwargs(tts, *, spk_audio_prompt: str, text: str, output_path: str, kwargs: dict) -> None:
+    try:
+        tts.infer(
+            spk_audio_prompt=spk_audio_prompt,
+            text=text,
+            output_path=output_path,
+            verbose=False,
+            **kwargs,
+        )
+        return
+    except Exception:
+        error = traceback.format_exc()
+        unused = [key for key in _unused_model_kwargs(error) if key in kwargs]
+        if not unused:
+            raise
+        for key in unused:
+            kwargs.pop(key, None)
+        print(
+            f"[worker] IndexTTS ignored unsupported generation args {unused}; retrying without them.",
+            file=sys.stderr,
+            flush=True,
+        )
+        tts.infer(
+            spk_audio_prompt=spk_audio_prompt,
+            text=text,
+            output_path=output_path,
+            verbose=False,
+            **kwargs,
+        )
 
 
 def _ensure_model(model_dir: str, model_version: str) -> None:
@@ -193,19 +232,22 @@ def main() -> None:
             continue
 
         try:
-            tts.infer(
+            generation_kwargs = {
+                "num_beams": num_beams,
+                "diffusion_steps": diffusion_steps,
+                "temperature": temperature,
+                "top_p": top_p,
+                "top_k": top_k,
+                "repetition_penalty": repetition_penalty,
+                "max_mel_tokens": max_mel_tokens,
+                "max_text_tokens_per_segment": max_text_tokens_per_segment,
+            }
+            _infer_with_compatible_kwargs(
+                tts,
                 spk_audio_prompt=spk_audio_prompt,
                 text=text,
                 output_path=output_path,
-                verbose=False,
-                num_beams=num_beams,
-                diffusion_steps=diffusion_steps,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                repetition_penalty=repetition_penalty,
-                max_mel_tokens=max_mel_tokens,
-                max_text_tokens_per_segment=max_text_tokens_per_segment,
+                kwargs=generation_kwargs,
             )
             files.append(output_path)
             print(f"[CHUNK_DONE] {output_path}", file=sys.stderr, flush=True)
