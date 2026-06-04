@@ -68,6 +68,19 @@ def _flash_attn_error(error: str) -> bool:
     return "flash_attn" in lowered or "flash-attention" in lowered
 
 
+def _torch_compile_available() -> bool:
+    if os.environ.get("INDEXTTS_ALLOW_TORCH_COMPILE") == "1":
+        return importlib.util.find_spec("triton") is not None
+    if os.name == "nt":
+        return False
+    return importlib.util.find_spec("triton") is not None
+
+
+def _torch_compile_error(error: str) -> bool:
+    lowered = error.lower()
+    return "tritonmissing" in lowered or "working triton installation" in lowered
+
+
 def _unused_model_kwargs(error: str) -> list[str]:
     match = re.search(r"model_kwargs.*?\[(.*?)\]", error, flags=re.IGNORECASE | re.DOTALL)
     if not match:
@@ -176,6 +189,15 @@ def main() -> None:
         use_deepspeed = False
         use_accel = False
 
+    if use_torch_compile and not _torch_compile_available():
+        print(
+            "[worker] Triton is not available; disabling IndexTTS torch_compile "
+            "for compatibility.",
+            file=sys.stderr,
+            flush=True,
+        )
+        use_torch_compile = False
+
     try:
         _ensure_model(model_dir, model_version)
     except Exception:
@@ -212,6 +234,24 @@ def main() -> None:
                     use_deepspeed=False,
                     use_torch_compile=use_torch_compile,
                     use_accel=False,
+                    device=device,
+                    use_cuda_kernel=False,
+                )
+            elif _torch_compile_error(error) and use_torch_compile:
+                print(
+                    "[worker] IndexTTS torch_compile failed because Triton is "
+                    "unavailable. Retrying with torch_compile disabled.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                use_torch_compile = False
+                tts = IndexTTS2(
+                    cfg_path=cfg_path,
+                    model_dir=model_dir,
+                    use_fp16=use_fp16,
+                    use_deepspeed=use_deepspeed,
+                    use_torch_compile=False,
+                    use_accel=use_accel,
                     device=device,
                     use_cuda_kernel=False,
                 )
