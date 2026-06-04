@@ -308,6 +308,62 @@ echo "- hf_xet (faster Hugging Face downloads)"
 
 pip install hf_xet || echo "WARNING: hf_xet install failed. Hugging Face downloads may be slower."
 
+# 9a/12 Setup OmniVoice isolated environment
+echo
+echo "[9a/12] Setting up OmniVoice isolated environment..."
+echo "OmniVoice requires torch 2.8, so it runs in its own isolated venv."
+OMNIVOICE_DIR="$(pwd)/engines/omnivoice"
+OMNIVOICE_PYTHON="$OMNIVOICE_DIR/.venv/bin/python"
+if [ ! -x "$OMNIVOICE_PYTHON" ] && [ -x "$OMNIVOICE_DIR/.venv/bin/python3" ]; then
+    OMNIVOICE_PYTHON="$OMNIVOICE_DIR/.venv/bin/python3"
+fi
+OMNIVOICE_READY=0
+if [ -f "$OMNIVOICE_DIR/.omnivoice_ready" ]; then
+    if [ -f "$OMNIVOICE_DIR/omnivoice_worker.py" ] && { [ -x "$OMNIVOICE_DIR/.venv/bin/python" ] || [ -x "$OMNIVOICE_DIR/.venv/bin/python3" ]; }; then
+        OMNIVOICE_READY=1
+    else
+        echo "OmniVoice setup marker is stale or incomplete. Repairing OmniVoice setup..."
+        rm -f "$OMNIVOICE_DIR/.omnivoice_ready"
+    fi
+fi
+
+if [ "$OMNIVOICE_READY" -eq 1 ]; then
+    echo "OmniVoice isolated environment already set up. Skipping."
+else
+    mkdir -p "$OMNIVOICE_DIR"
+    echo "Creating OmniVoice isolated virtual environment..."
+    if python -m venv "$OMNIVOICE_DIR/.venv"; then
+        OMNIVOICE_PYTHON="$OMNIVOICE_DIR/.venv/bin/python"
+        if [ ! -x "$OMNIVOICE_PYTHON" ]; then
+            OMNIVOICE_PYTHON="$OMNIVOICE_DIR/.venv/bin/python3"
+        fi
+        echo "Installing omnivoice package..."
+        if "$OMNIVOICE_PYTHON" -m pip install omnivoice; then
+            if [ "$HAS_NVIDIA" -eq 1 ]; then
+                echo "Upgrading OmniVoice torch to CUDA 12.8 build for GPU acceleration..."
+                "$OMNIVOICE_PYTHON" -m pip install "torch==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128 || \
+                    echo "WARNING: CUDA torch install failed, OmniVoice will run on CPU."
+            fi
+            echo "Installing OmniVoice helper packages..."
+            if "$OMNIVOICE_PYTHON" -m pip install soundfile huggingface-hub; then
+                echo "Verifying OmniVoice isolated environment..."
+                if "$OMNIVOICE_PYTHON" -c "import omnivoice, soundfile, huggingface_hub"; then
+                    touch "$OMNIVOICE_DIR/.omnivoice_ready"
+                    echo "OmniVoice isolated environment ready."
+                else
+                    echo "WARNING: OmniVoice verification failed. OmniVoice will not be available."
+                fi
+            else
+                echo "WARNING: Failed to install OmniVoice helper packages. OmniVoice will not be available."
+            fi
+        else
+            echo "WARNING: Failed to install omnivoice in isolated venv. OmniVoice will not be available."
+        fi
+    else
+        echo "WARNING: Failed to create OmniVoice venv. OmniVoice will not be available."
+    fi
+fi
+
 # 9b/12 Setup IndexTTS isolated environment (optional)
 echo
 echo "[9b/12] Setting up IndexTTS isolated environment (optional)..."

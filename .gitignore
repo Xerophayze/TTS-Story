@@ -84,3 +84,4 @@ tools/rubberband/
 engines/index-tts/
 !engines/index-tts/tts_worker.py
 engines/omnivoice/.venv
+engines/omnivoice/.omnivoice_ready

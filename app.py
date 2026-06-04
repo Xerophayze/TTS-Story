@@ -4263,7 +4263,7 @@ def process_qwen3_voice_design_save_task(job_data: Dict[str, Any]) -> None:
 def _generate_omnivoice_design_preview(payload: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """Generate an OmniVoice voice-design preview clip and return base64 audio."""
     if not OMNIVOICE_DESIGN_AVAILABLE:
-        raise ImportError("omnivoice is not installed. Run: pip install omnivoice")
+        raise ImportError(f"OmniVoice design engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment.")
     instruct = (payload.get("instruct") or "").strip()
     text = (payload.get("text") or "").strip()
     if not instruct:

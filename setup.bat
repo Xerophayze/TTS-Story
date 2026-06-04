@@ -331,8 +331,14 @@ echo OmniVoice requires torch==2.8 which conflicts with main deps, so it runs in
 set "OMNIVOICE_DIR=%~dp0engines\omnivoice"
 if "%OMNIVOICE_DIR:~-1%"=="\" set "OMNIVOICE_DIR=%OMNIVOICE_DIR:~0,-1%"
 if exist "%OMNIVOICE_DIR%\.omnivoice_ready" (
-    echo OmniVoice isolated environment already set up. Skipping.
-    goto :AfterOmniVoice
+    if exist "%OMNIVOICE_DIR%\omnivoice_worker.py" (
+        if exist "%OMNIVOICE_DIR%\.venv\Scripts\python.exe" (
+            echo OmniVoice isolated environment already set up. Skipping.
+            goto :AfterOmniVoice
+        )
+    )
+    echo OmniVoice setup marker is stale or incomplete. Repairing OmniVoice setup...
+    del "%OMNIVOICE_DIR%\.omnivoice_ready" >nul 2>&1
 )
 if not exist "%OMNIVOICE_DIR%" mkdir "%OMNIVOICE_DIR%"
 echo Creating OmniVoice isolated virtual environment...
@@ -359,7 +365,14 @@ if "%HAS_NVIDIA%"=="1" (
 echo Installing soundfile and huggingface-hub in OmniVoice venv...
 "%OMNIVOICE_DIR%\.venv\Scripts\pip.exe" install soundfile huggingface-hub
 if errorlevel 1 (
-    echo WARNING: Failed to install OmniVoice helper packages.
+    echo WARNING: Failed to install OmniVoice helper packages. OmniVoice will not be available.
+    goto :AfterOmniVoice
+)
+echo Verifying OmniVoice isolated environment...
+"%OMNIVOICE_DIR%\.venv\Scripts\python.exe" -c "import omnivoice, soundfile, huggingface_hub"
+if errorlevel 1 (
+    echo WARNING: OmniVoice verification failed. OmniVoice will not be available.
+    goto :AfterOmniVoice
 )
 type nul > "%OMNIVOICE_DIR%\.omnivoice_ready"
 echo OmniVoice isolated environment ready.
