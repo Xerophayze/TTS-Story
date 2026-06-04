@@ -355,8 +355,16 @@ set "INDEX_TTS_DIR=%~dp0engines\index-tts"
 REM Strip trailing backslash if present
 if "%INDEX_TTS_DIR:~-1%"=="\" set "INDEX_TTS_DIR=%INDEX_TTS_DIR:~0,-1%"
 if exist "%INDEX_TTS_DIR%\.indextts_ready" (
-    echo IndexTTS already set up. Skipping clone and sync.
-    goto :AfterIndexTTS
+    if exist "%INDEX_TTS_DIR%\tts_worker.py" (
+        if exist "%INDEX_TTS_DIR%\pyproject.toml" (
+            if exist "%INDEX_TTS_DIR%\.venv\Scripts\python.exe" (
+                echo IndexTTS already set up. Skipping clone and sync.
+                goto :AfterIndexTTS
+            )
+        )
+    )
+    echo IndexTTS setup marker is stale or incomplete. Repairing IndexTTS setup...
+    del "%INDEX_TTS_DIR%\.indextts_ready" >nul 2>&1
 )
 where git >nul 2>&1
 if errorlevel 1 (
@@ -408,6 +416,11 @@ if not exist "%INDEX_TTS_DIR%\pyproject.toml" (
     set "GIT_LFS_SKIP_SMUDGE=1"
     git -C "%INDEX_TTS_DIR%" pull --ff-only >nul 2>&1
     set "GIT_LFS_SKIP_SMUDGE=0"
+)
+if not exist "%INDEX_TTS_DIR%\tts_worker.py" (
+    echo WARNING: IndexTTS worker file is missing: %INDEX_TTS_DIR%\tts_worker.py
+    echo Run git pull from the TTS-Story repository, then rerun setup.bat.
+    goto :AfterIndexTTS
 )
 echo Installing IndexTTS dependencies (this may take several minutes)...
 echo Note: Skipping deepspeed extra - it cannot build on Windows without special CUDA tooling.

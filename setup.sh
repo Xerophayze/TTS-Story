@@ -308,6 +308,80 @@ echo "- hf_xet (faster Hugging Face downloads)"
 
 pip install hf_xet || echo "WARNING: hf_xet install failed. Hugging Face downloads may be slower."
 
+# 9b/12 Setup IndexTTS isolated environment (optional)
+echo
+echo "[9b/12] Setting up IndexTTS isolated environment (optional)..."
+echo "IndexTTS uses its own isolated venv to avoid dependency conflicts."
+INDEX_TTS_DIR="$(pwd)/engines/index-tts"
+INDEX_TTS_READY=0
+if [ -f "$INDEX_TTS_DIR/.indextts_ready" ]; then
+    if [ -f "$INDEX_TTS_DIR/tts_worker.py" ] && [ -f "$INDEX_TTS_DIR/pyproject.toml" ] && { [ -x "$INDEX_TTS_DIR/.venv/bin/python" ] || [ -x "$INDEX_TTS_DIR/.venv/bin/python3" ]; }; then
+        INDEX_TTS_READY=1
+    else
+        echo "IndexTTS setup marker is stale or incomplete. Repairing IndexTTS setup..."
+        rm -f "$INDEX_TTS_DIR/.indextts_ready"
+    fi
+fi
+
+if [ "$INDEX_TTS_READY" -eq 1 ]; then
+    echo "IndexTTS already set up. Skipping clone and sync."
+else
+    if ! command -v git >/dev/null 2>&1; then
+        echo "WARNING: git not found. Skipping IndexTTS setup."
+        echo "To install IndexTTS manually:"
+        echo "  git clone https://github.com/index-tts/index-tts.git engines/index-tts"
+        echo "  cd engines/index-tts && uv sync"
+    else
+        if command -v uv >/dev/null 2>&1; then
+            UV_CMD=(uv)
+        elif python -m uv --version >/dev/null 2>&1; then
+            UV_CMD=(python -m uv)
+        else
+            echo "uv not found. Installing uv package manager..."
+            if pip install -U uv --quiet; then
+                UV_CMD=(python -m uv)
+            else
+                echo "WARNING: Failed to install uv. Skipping IndexTTS setup."
+                UV_CMD=()
+            fi
+        fi
+
+        if [ "${#UV_CMD[@]}" -gt 0 ]; then
+            if [ ! -f "$INDEX_TTS_DIR/pyproject.toml" ]; then
+                echo "Cloning IndexTTS repository (skipping LFS audio examples)..."
+                INDEX_TTS_CLONE_TMP="$(mktemp -d)"
+                GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/index-tts/index-tts.git "$INDEX_TTS_CLONE_TMP"
+                if [ ! -f "$INDEX_TTS_CLONE_TMP/pyproject.toml" ]; then
+                    echo "WARNING: Failed to clone IndexTTS (pyproject.toml missing). Skipping IndexTTS setup."
+                else
+                    mkdir -p "$INDEX_TTS_DIR"
+                    cp -a "$INDEX_TTS_CLONE_TMP"/. "$INDEX_TTS_DIR"/
+                    echo "IndexTTS cloned successfully."
+                fi
+                rm -rf "$INDEX_TTS_CLONE_TMP"
+            else
+                echo "IndexTTS already cloned. Pulling latest changes..."
+                GIT_LFS_SKIP_SMUDGE=1 git -C "$INDEX_TTS_DIR" pull --ff-only >/dev/null 2>&1 || true
+            fi
+
+            if [ ! -f "$INDEX_TTS_DIR/tts_worker.py" ]; then
+                echo "WARNING: IndexTTS worker file is missing: $INDEX_TTS_DIR/tts_worker.py"
+                echo "Run git pull from the TTS-Story repository, then rerun setup.sh."
+            elif [ -f "$INDEX_TTS_DIR/pyproject.toml" ]; then
+                echo "Installing IndexTTS dependencies (this may take several minutes)..."
+                if (cd "$INDEX_TTS_DIR" && "${UV_CMD[@]}" sync); then
+                    touch "$INDEX_TTS_DIR/.indextts_ready"
+                    echo "IndexTTS environment ready."
+                    echo "Model weights will be downloaded automatically on first use (~2-4 GB)."
+                else
+                    echo "WARNING: IndexTTS dependency install failed."
+                    echo "Try manually: cd engines/index-tts && uv sync"
+                fi
+            fi
+        fi
+    fi
+fi
+
 # Ensure voice prompts directory exists
 echo
 echo "[10/12] Creating data directories..."

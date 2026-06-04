@@ -50,6 +50,9 @@ def _check_index_tts_available(engine_root: Path) -> tuple[bool, str]:
     """Return (available, reason) for the IndexTTS isolated environment."""
     if not engine_root.exists():
         return False, f"IndexTTS directory not found: {engine_root}. Run setup.bat to install."
+    worker = engine_root / "tts_worker.py"
+    if not worker.is_file():
+        return False, f"IndexTTS worker not found: {worker}. Run setup.bat to repair the IndexTTS install."
     python = _find_venv_python(engine_root)
     if python is None:
         return False, f"IndexTTS venv not found under {engine_root}. Run setup.bat to install."

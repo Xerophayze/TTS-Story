@@ -3,7 +3,31 @@
     {
       "method": "fs.rm",
       "params": {
-        "path": "env"
+        "path": "venv"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
+        "path": "engines/index-tts/.venv"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
+        "path": "engines/index-tts/.indextts_ready"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
+        "path": "engines/omnivoice/.venv"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
+        "path": "engines/omnivoice/.omnivoice_ready"
       }
     },
     {
