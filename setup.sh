@@ -390,6 +390,13 @@ else
             if "$OMNIVOICE_PYTHON" -m pip install soundfile huggingface-hub; then
                 echo "Verifying OmniVoice isolated environment..."
                 if "$OMNIVOICE_PYTHON" -c "import omnivoice, torch, torchaudio, soundfile, huggingface_hub; print('OmniVoice torch:', torch.__version__, 'torchaudio:', torchaudio.__version__)"; then
+                    if [ "${PREFETCH_OMNIVOICE_MODEL:-1}" != "0" ]; then
+                        echo "Prefetching OmniVoice model cache (set PREFETCH_OMNIVOICE_MODEL=0 to skip)..."
+                        "$OMNIVOICE_PYTHON" "$OMNIVOICE_DIR/omnivoice_worker.py" --prefetch-model --model-id "k2-fsa/OmniVoice" || \
+                            echo "WARNING: OmniVoice model prefetch failed. First generation will retry the download."
+                    else
+                        echo "PREFETCH_OMNIVOICE_MODEL=0 set. Skipping OmniVoice model prefetch."
+                    fi
                     touch "$OMNIVOICE_DIR/.omnivoice_ready"
                     echo "OmniVoice isolated environment ready."
                 else

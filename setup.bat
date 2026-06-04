@@ -437,6 +437,15 @@ if errorlevel 1 (
     echo WARNING: OmniVoice verification failed. OmniVoice will not be available.
     goto :AfterOmniVoice
 )
+if not "%PREFETCH_OMNIVOICE_MODEL%"=="0" (
+    echo Prefetching OmniVoice model cache ^(set PREFETCH_OMNIVOICE_MODEL=0 to skip^)...
+    "%OMNIVOICE_DIR%\.venv\Scripts\python.exe" "%OMNIVOICE_DIR%\omnivoice_worker.py" --prefetch-model --model-id "k2-fsa/OmniVoice"
+    if errorlevel 1 (
+        echo WARNING: OmniVoice model prefetch failed. First generation will retry the download.
+    )
+) else (
+    echo PREFETCH_OMNIVOICE_MODEL=0 set. Skipping OmniVoice model prefetch.
+)
 type nul > "%OMNIVOICE_DIR%\.omnivoice_ready"
 echo OmniVoice isolated environment ready.
 :AfterOmniVoice

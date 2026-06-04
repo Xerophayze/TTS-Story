@@ -48,6 +48,8 @@ import soundfile as sf
 import torch
 from omnivoice import OmniVoice  # type: ignore
 
+DEFAULT_MODEL_ID = "k2-fsa/OmniVoice"
+
 
 def _resolve_device(device: str) -> str:
     d = (device or "auto").strip().lower()
@@ -83,15 +85,38 @@ def _ensure_model(model_id: str) -> str:
     return str(model_path)
 
 
+def _friendly_download_error(model_id: str, exc: Exception) -> str:
+    return (
+        f"OmniVoice model '{model_id}' is not cached locally and could not be "
+        "downloaded from Hugging Face. Check internet/DNS access from Pinokio, "
+        "or download the model during setup while online. "
+        f"Original error: {type(exc).__name__}: {exc}"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--job-file", required=True)
+    parser.add_argument("--job-file")
+    parser.add_argument("--prefetch-model", action="store_true")
+    parser.add_argument("--model-id", default=DEFAULT_MODEL_ID)
     args = parser.parse_args()
+
+    if args.prefetch_model:
+        try:
+            model_path = _ensure_model(args.model_id)
+        except Exception as exc:
+            print(_friendly_download_error(args.model_id, exc), file=sys.stderr)
+            sys.exit(2)
+        print(f"[omnivoice_worker] Model cached at {model_path}", file=sys.stderr)
+        return
+
+    if not args.job_file:
+        parser.error("--job-file is required unless --prefetch-model is used")
 
     with open(args.job_file, "r", encoding="utf-8") as f:
         job = json.load(f)
 
-    model_id = job.get("model_id") or "k2-fsa/OmniVoice"
+    model_id = job.get("model_id") or DEFAULT_MODEL_ID
     device = _resolve_device(job.get("device") or "auto")
     dtype = _resolve_dtype(job.get("dtype") or "float16")
     num_step = int(job.get("num_step") or 32)
@@ -99,7 +124,11 @@ def main() -> None:
     post_process = job.get("post_process", True)
     mode = job.get("mode") or "clone"
 
-    model_path = _ensure_model(model_id)
+    try:
+        model_path = _ensure_model(model_id)
+    except Exception as exc:
+        print(_friendly_download_error(model_id, exc), file=sys.stderr)
+        sys.exit(2)
     print(f"[omnivoice_worker] Loading model from {model_path} (device={device})", file=sys.stderr)
 
     model = OmniVoice.from_pretrained(
