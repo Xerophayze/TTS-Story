@@ -8,7 +8,10 @@ Thank you — it genuinely means a lot! 🙏
 
 ---
 
-# Current Updates and Notes - updated 04-22-2026
+# Current Updates and Notes - updated 06-04-2026
+- **Pinokio support update**: We gave the Pinokio install/update path a bunch of love and fixed a lot of setup, update, isolated-environment, and model-download issues. TTS-Story should now install, update, and run properly through Pinokio. If you still run into problems, please report them on the GitHub issues page so they can be tracked and fixed.
+
+### Previous Updates
 - **Audio quality improvement**: MP3 to WAV conversion for voice prompts — added automatic conversion of MP3 voice prompts to WAV format before processing across all TTS engines (VoxCPM, Pocket TTS, Chatterbox local, Qwen3 Voice Clone, OmniVoice Clone, Index TTS, Chatterbox Turbo Replicate) to prevent audio artifacts from lossy compression when using audio processing tools like SoX.
 - **Bug fix**: SoX path resolution — fixed SOX_PATH calculation in `audio_effects.py` to correctly prioritize the local `tools/sox` directory, ensuring SoX post-processing is applied consistently across all engines.
 - **Bug fix**: Pocket TTS config parameter handling — fixed parameter order to prioritize `variant` over `config` when loading Pocket TTS models, preventing errors when the library expects a YAML file path for the `config` parameter.
@@ -18,7 +21,6 @@ Thank you — it genuinely means a lot! 🙏
 - Added **parallel AAC encoding** for M4B export — chapters are encoded to AAC format in parallel using a thread pool before concatenation, significantly reducing M4B export time for multi-chapter audiobooks.
 - Added **M4B audiobook export** for chapter-mode jobs — download audiobooks as M4B format with embedded chapter markers, cover art support, and configurable bitrate (64-192 kbps) and ACX compliance options for audiobook distribution platforms.
 
-### Previous Updates
 - **UI consolidation**: Simplified rebuild/repair workflow — consolidated multiple rebuild options (rebuild full story, recompile audio, repair) into a single "Rebuild" button in the library view. The new Rebuild button recompiles all chapter audio files from individual audio chunks and then recompiles the full audiobook from the chapter files, with a confirmation dialog before execution.
 - **Performance improvement**: Parallel chapter merging — applied ThreadPoolExecutor with dynamic worker allocation (based on `os.cpu_count()`) to all chapter merging operations including main generation, repair/rebuild, rebuild selected chapters, and rebuild all operations. This significantly reduces post-processing time for multi-chapter audiobooks by merging chapters concurrently.
 - **Bug fix**: Download filename now uses project name — download filenames now use the audiobook title from metadata (e.g., `{audiobook_title}_{job_id}.{format}`) instead of the hardcoded "kokoro_story" prefix, making downloads easier to identify.
