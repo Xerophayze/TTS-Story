@@ -12,6 +12,12 @@ echo "Quick Troubleshooting:"
 echo "  - If setup fails, delete the 'venv' folder and re-run setup.sh"
 echo "  - GPU users: update to the latest NVIDIA drivers"
 
+UPDATE_MODE=0
+if [ "${1:-}" = "--update" ]; then
+    UPDATE_MODE=1
+    echo "Pinokio update mode enabled. Existing environments will be reused when valid."
+fi
+
 # PyTorch versions (matching setup.bat)
 TORCH_VERSION="2.6.0"
 TORCHVISION_VERSION="0.21.0"
@@ -89,7 +95,14 @@ echo "python3-venv is available."
 echo
 echo "[2/12] Creating virtual environment..."
 if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
-    echo "Virtual environment already exists, skipping..."
+    VENV_MM="$(venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
+    if [ "$VENV_MM" = "3.11" ] || [ "$UPDATE_MODE" -eq 1 ]; then
+        echo "Virtual environment already exists, skipping..."
+    else
+        echo "Existing venv Python is not 3.11 (detected: ${VENV_MM:-unknown}). Recreating venv."
+        rm -rf venv
+        python3 -m venv venv
+    fi
 else
     python3 -m venv venv
 fi
@@ -231,6 +244,21 @@ fi
 # 6/12 Install other dependencies
 echo
 echo "[6/12] Installing other Python dependencies..."
+MAIN_DEPS_STAMP="venv/.main_deps_stamp"
+MAIN_DEPS_SIGNATURE="$(python - <<'PY'
+import hashlib
+from pathlib import Path
+payload = Path("requirements.txt").read_bytes() + b"|main-deps-v1"
+print(hashlib.sha256(payload).hexdigest())
+PY
+)"
+SKIP_MAIN_DEPS=0
+if [ "$UPDATE_MODE" -eq 1 ] && [ -f "$MAIN_DEPS_STAMP" ] && [ "$(cat "$MAIN_DEPS_STAMP")" = "$MAIN_DEPS_SIGNATURE" ]; then
+    SKIP_MAIN_DEPS=1
+fi
+if [ "$SKIP_MAIN_DEPS" -eq 1 ]; then
+    echo "Main Python dependencies are unchanged. Skipping dependency reinstall for update."
+else
 # Add scipy if not in requirements (needed for pocket-tts)
 if ! grep -qi "^scipy" requirements.txt 2>/dev/null; then
     echo "Adding scipy to requirements..."
@@ -241,6 +269,8 @@ grep -vi "^torch" requirements.txt > temp_requirements.txt 2>/dev/null || true
 grep -vi "^pyopenjtalk" temp_requirements.txt > temp_requirements_filtered.txt 2>/dev/null || true
 pip install -r temp_requirements_filtered.txt
 rm -f temp_requirements.txt temp_requirements_filtered.txt
+echo "$MAIN_DEPS_SIGNATURE" > "$MAIN_DEPS_STAMP"
+fi
 
 # Install pyopenjtalk if possible (requires compile tools)
 echo
@@ -320,7 +350,12 @@ fi
 OMNIVOICE_READY=0
 if [ -f "$OMNIVOICE_DIR/.omnivoice_ready" ]; then
     if [ -f "$OMNIVOICE_DIR/omnivoice_worker.py" ] && { [ -x "$OMNIVOICE_DIR/.venv/bin/python" ] || [ -x "$OMNIVOICE_DIR/.venv/bin/python3" ]; }; then
-        OMNIVOICE_READY=1
+        if "$OMNIVOICE_PYTHON" -c "import omnivoice, torch, torchaudio, soundfile, huggingface_hub" >/dev/null 2>&1; then
+            OMNIVOICE_READY=1
+        else
+            echo "OmniVoice setup marker is stale or incomplete. Repairing OmniVoice setup..."
+            rm -f "$OMNIVOICE_DIR/.omnivoice_ready"
+        fi
     else
         echo "OmniVoice setup marker is stale or incomplete. Repairing OmniVoice setup..."
         rm -f "$OMNIVOICE_DIR/.omnivoice_ready"
@@ -340,18 +375,26 @@ else
         echo "Installing omnivoice package..."
         if "$OMNIVOICE_PYTHON" -m pip install omnivoice; then
             if [ "$HAS_NVIDIA" -eq 1 ]; then
-                echo "Upgrading OmniVoice torch to CUDA 12.8 build for GPU acceleration..."
-                "$OMNIVOICE_PYTHON" -m pip install "torch==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128 || \
-                    echo "WARNING: CUDA torch install failed, OmniVoice will run on CPU."
+                echo "Installing matched OmniVoice torch/torchaudio CUDA 12.8 builds for GPU acceleration..."
+                if ! "$OMNIVOICE_PYTHON" -m pip install --upgrade --force-reinstall --no-deps "torch==2.8.0+cu128" "torchaudio==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128; then
+                    echo "WARNING: CUDA torch/torchaudio install failed. Trying matched CPU builds."
+                    "$OMNIVOICE_PYTHON" -m pip install --upgrade --force-reinstall --no-deps "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu || \
+                        echo "WARNING: CPU torch/torchaudio install failed. OmniVoice will not be available."
+                fi
+            else
+                echo "Installing matched OmniVoice torch/torchaudio CPU builds..."
+                "$OMNIVOICE_PYTHON" -m pip install --upgrade --force-reinstall --no-deps "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu || \
+                    echo "WARNING: CPU torch/torchaudio install failed. OmniVoice will not be available."
             fi
             echo "Installing OmniVoice helper packages..."
             if "$OMNIVOICE_PYTHON" -m pip install soundfile huggingface-hub; then
                 echo "Verifying OmniVoice isolated environment..."
-                if "$OMNIVOICE_PYTHON" -c "import omnivoice, soundfile, huggingface_hub"; then
+                if "$OMNIVOICE_PYTHON" -c "import omnivoice, torch, torchaudio, soundfile, huggingface_hub; print('OmniVoice torch:', torch.__version__, 'torchaudio:', torchaudio.__version__)"; then
                     touch "$OMNIVOICE_DIR/.omnivoice_ready"
                     echo "OmniVoice isolated environment ready."
                 else
                     echo "WARNING: OmniVoice verification failed. OmniVoice will not be available."
+                    rm -f "$OMNIVOICE_DIR/.omnivoice_ready"
                 fi
             else
                 echo "WARNING: Failed to install OmniVoice helper packages. OmniVoice will not be available."

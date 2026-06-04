@@ -22,6 +22,9 @@ set "TORCHAUDIO_VERSION=2.6.0"
 set "BLACKWELL_TORCH_VERSION=2.8.0"
 set "BLACKWELL_TORCHVISION_VERSION=0.23.0"
 set "BLACKWELL_TORCHAUDIO_VERSION=2.8.0"
+set "UPDATE_MODE=0"
+if /i "%~1"=="--update" set "UPDATE_MODE=1"
+if "%UPDATE_MODE%"=="1" echo Pinokio update mode enabled. Existing environments will be reused when valid.
 
 REM Check Python installation. Prefer an existing project venv during updates,
 REM because Pinokio may invoke setup.bat from a Conda base Python.
@@ -30,15 +33,30 @@ set "PYTHON_CMD=python"
 set "USE_EXISTING_VENV=0"
 set "VENV_PYTHON=venv\Scripts\python.exe"
 set "VENV_PY_MM="
+set "VENV_CFG_MM="
 if exist "%VENV_PYTHON%" (
     for /f "delims=" %%V in ('"%VENV_PYTHON%" -c "import sys; print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))" 2^>nul') do set "VENV_PY_MM=%%V"
+    if exist "venv\pyvenv.cfg" (
+        for /f "delims=" %%V in ('powershell -NoLogo -NoProfile -Command "$line=Get-Content 'venv\pyvenv.cfg' ^| Where-Object { $_ -match '^version\s*=' } ^| Select-Object -First 1; if ($line) { (($line -replace '.*=\s*','') -replace '^(\d+\.\d+).*','$1') }" 2^>nul') do set "VENV_CFG_MM=%%V"
+    )
     if "!VENV_PY_MM!"=="3.11" (
         set "USE_EXISTING_VENV=1"
         echo Found existing project venv Python 3.11. Reusing it for update.
         goto :PythonReady
-    ) else (
+    ) else if "!VENV_CFG_MM!"=="3.11" (
+        set "USE_EXISTING_VENV=1"
+        echo Found existing project venv pyvenv.cfg Python 3.11. Reusing it for update.
+        goto :PythonReady
+    ) else if defined VENV_PY_MM (
         echo Existing venv Python is not 3.11 ^(detected: !VENV_PY_MM!^). Recreating venv.
         rmdir /s /q venv >nul 2>&1
+    ) else if defined VENV_CFG_MM (
+        echo Existing venv Python is not 3.11 ^(pyvenv.cfg: !VENV_CFG_MM!^). Recreating venv.
+        rmdir /s /q venv >nul 2>&1
+    ) else (
+        echo Existing venv Python version could not be detected. Keeping it and validating after activation.
+        set "USE_EXISTING_VENV=1"
+        goto :PythonReady
     )
 )
 
@@ -157,11 +175,32 @@ REM Activate virtual environment
 echo.
 echo [3/12] Activating virtual environment...
 call venv\Scripts\activate.bat
+python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)" >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Virtual environment did not activate with Python 3.11.
+    echo Delete the "venv" folder and rerun setup.bat if this environment is corrupted.
+    exit /b 1
+)
 
 REM Upgrade pip
 echo.
 echo [4/12] Upgrading pip...
 python -m pip install --upgrade pip --quiet
+
+set "SKIP_MAIN_DEPS=0"
+set "MAIN_DEPS_STAMP=venv\.main_deps_stamp"
+set "MAIN_DEPS_SIGNATURE="
+for /f "delims=" %%H in ('powershell -NoLogo -NoProfile -Command "$h=(Get-FileHash 'requirements.txt' -Algorithm SHA256).Hash; Write-Output ($h + '|main-deps-v1|torch:%TORCH_VERSION%|torchvision:%TORCHVISION_VERSION%|torchaudio:%TORCHAUDIO_VERSION%|blackwell:%BLACKWELL_TORCH_VERSION%')" 2^>nul') do set "MAIN_DEPS_SIGNATURE=%%H"
+if "%UPDATE_MODE%"=="1" (
+    if exist "%MAIN_DEPS_STAMP%" (
+        set /p EXISTING_MAIN_DEPS_SIGNATURE=<"%MAIN_DEPS_STAMP%"
+        if defined MAIN_DEPS_SIGNATURE (
+            if "!EXISTING_MAIN_DEPS_SIGNATURE!"=="!MAIN_DEPS_SIGNATURE!" (
+                set "SKIP_MAIN_DEPS=1"
+            )
+        )
+    )
+)
 
 REM Install PyTorch (let pip/PyTorch auto-detect CUDA)
 echo.
@@ -280,6 +319,10 @@ if "%NEED_TORCH_INSTALL%"=="0" (
 REM Install other dependencies (excluding torch + chatterbox runtime handled separately)
 echo.
 echo [6/12] Installing other Python dependencies...
+if "%SKIP_MAIN_DEPS%"=="1" (
+    echo Main Python dependencies are unchanged. Skipping dependency reinstall for update.
+    goto :AfterMainDependencyInstall
+)
 findstr /v /i "torch" requirements.txt > temp_requirements.txt
 findstr /v /i "pyopenjtalk" temp_requirements.txt > temp_requirements_filtered.txt
 del temp_requirements.txt
@@ -323,6 +366,10 @@ pip install voxcpm --no-deps
 if errorlevel 1 (
     echo WARNING: Failed to install voxcpm - VoxCPM engine will not be available
 )
+if defined MAIN_DEPS_SIGNATURE (
+    >"%MAIN_DEPS_STAMP%" echo %MAIN_DEPS_SIGNATURE%
+)
+:AfterMainDependencyInstall
 
 REM Setup OmniVoice isolated environment
 echo.
@@ -333,8 +380,11 @@ if "%OMNIVOICE_DIR:~-1%"=="\" set "OMNIVOICE_DIR=%OMNIVOICE_DIR:~0,-1%"
 if exist "%OMNIVOICE_DIR%\.omnivoice_ready" (
     if exist "%OMNIVOICE_DIR%\omnivoice_worker.py" (
         if exist "%OMNIVOICE_DIR%\.venv\Scripts\python.exe" (
-            echo OmniVoice isolated environment already set up. Skipping.
-            goto :AfterOmniVoice
+            "%OMNIVOICE_DIR%\.venv\Scripts\python.exe" -c "import omnivoice, torch, torchaudio, soundfile, huggingface_hub; print('OmniVoice torch:', torch.__version__, 'torchaudio:', torchaudio.__version__)" >nul 2>&1
+            if not errorlevel 1 (
+                echo OmniVoice isolated environment already set up. Skipping.
+                goto :AfterOmniVoice
+            )
         )
     )
     echo OmniVoice setup marker is stale or incomplete. Repairing OmniVoice setup...
@@ -356,10 +406,23 @@ if errorlevel 1 (
     goto :AfterOmniVoice
 )
 if "%HAS_NVIDIA%"=="1" (
-    echo Upgrading torch to CUDA 12.8 build for GPU acceleration...
-    "%OMNIVOICE_DIR%\.venv\Scripts\pip.exe" install "torch==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128
+    echo Installing matched torch/torchaudio CUDA 12.8 builds for GPU acceleration...
+    "%OMNIVOICE_DIR%\.venv\Scripts\pip.exe" install --upgrade --force-reinstall --no-deps "torch==2.8.0+cu128" "torchaudio==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128
     if errorlevel 1 (
-        echo WARNING: CUDA torch install failed, OmniVoice will run on CPU.
+        echo WARNING: CUDA torch/torchaudio install failed. Trying matched CPU builds.
+        "%OMNIVOICE_DIR%\.venv\Scripts\pip.exe" install --upgrade --force-reinstall --no-deps "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu
+        if errorlevel 1 (
+            echo WARNING: CPU torch/torchaudio install failed. OmniVoice will not be available.
+            goto :AfterOmniVoice
+        )
+    )
+)
+if not "%HAS_NVIDIA%"=="1" (
+    echo Installing matched torch/torchaudio CPU builds...
+    "%OMNIVOICE_DIR%\.venv\Scripts\pip.exe" install --upgrade --force-reinstall --no-deps "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu
+    if errorlevel 1 (
+        echo WARNING: CPU torch/torchaudio install failed. OmniVoice will not be available.
+        goto :AfterOmniVoice
     )
 )
 echo Installing soundfile and huggingface-hub in OmniVoice venv...
@@ -369,7 +432,7 @@ if errorlevel 1 (
     goto :AfterOmniVoice
 )
 echo Verifying OmniVoice isolated environment...
-"%OMNIVOICE_DIR%\.venv\Scripts\python.exe" -c "import omnivoice, soundfile, huggingface_hub"
+"%OMNIVOICE_DIR%\.venv\Scripts\python.exe" -c "import omnivoice, torch, torchaudio, soundfile, huggingface_hub; print('OmniVoice torch:', torch.__version__, 'torchaudio:', torchaudio.__version__)"
 if errorlevel 1 (
     echo WARNING: OmniVoice verification failed. OmniVoice will not be available.
     goto :AfterOmniVoice
