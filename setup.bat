@@ -34,10 +34,13 @@ set "USE_EXISTING_VENV=0"
 set "VENV_PYTHON=venv\Scripts\python.exe"
 set "VENV_PY_MM="
 set "VENV_CFG_MM="
+set "VENV_CFG_VERSION="
 if exist "%VENV_PYTHON%" (
     for /f "delims=" %%V in ('"%VENV_PYTHON%" -c "import sys; print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))" 2^>nul') do set "VENV_PY_MM=%%V"
     if exist "venv\pyvenv.cfg" (
-        for /f "delims=" %%V in ('powershell -NoLogo -NoProfile -Command "$line=Get-Content 'venv\pyvenv.cfg' ^| Where-Object { $_ -match '^version\s*=' } ^| Select-Object -First 1; if ($line) { (($line -replace '.*=\s*','') -replace '^(\d+\.\d+).*','$1') }" 2^>nul') do set "VENV_CFG_MM=%%V"
+        for /f "tokens=2 delims==" %%V in ('findstr /B /C:"version" "venv\pyvenv.cfg" 2^>nul') do set "VENV_CFG_VERSION=%%V"
+        set "VENV_CFG_VERSION=!VENV_CFG_VERSION: =!"
+        set "VENV_CFG_MM=!VENV_CFG_VERSION:~0,4!"
     )
     if "!VENV_PY_MM!"=="3.11" (
         set "USE_EXISTING_VENV=1"
