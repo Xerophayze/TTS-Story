@@ -280,6 +280,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         }
 
         completed_paths: List[str] = []
+        _pending_exception: List[BaseException] = []  # shared across threads
 
         def _on_chunk_done(done_path: str) -> None:
             idx = len(completed_paths)
@@ -292,7 +293,12 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                     audio = self.post_processor.apply_post_pipeline(audio, self.sample_rate, fx)
                     sf.write(done_path, audio, self.sample_rate)
                 if callable(progress_cb):
-                    progress_cb()
+                    try:
+                        progress_cb()
+                    except Exception as _exc:
+                        # JobPaused or other cancellation - capture and signal subprocess to stop
+                        _pending_exception.append(_exc)
+                        raise  # propagates up into _read_stderr which will exit its loop
                 if callable(chunk_cb):
                     chunk_cb(
                         meta["chunk_index"],
@@ -302,7 +308,15 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                         done_path,
                     )
 
-        self._run_worker(job, chunk_done_cb=_on_chunk_done, cancel_cb=cancel_cb)
+        def _cancel_or_pause_cb() -> bool:
+            return bool(_pending_exception) or (callable(cancel_cb) and cancel_cb())
+
+        try:
+            self._run_worker(job, chunk_done_cb=_on_chunk_done, cancel_cb=_cancel_or_pause_cb)
+        except RuntimeError:
+            # If we have a pending exception (pause/cancel), ignore the worker exit error
+            if not _pending_exception:
+                raise
 
         # Clean up temp prompt files
         seen_temps: set = set()
@@ -311,6 +325,10 @@ class OmniVoiceCloneEngine(TtsEngineBase):
             if tp and tp not in seen_temps:
                 seen_temps.add(tp)
                 Path(tp).unlink(missing_ok=True)
+
+        # Re-raise any exception captured from the stderr thread (e.g. JobPaused)
+        if _pending_exception:
+            raise _pending_exception[0]
 
         files: List[Optional[str]] = [None] * total_chunks_count
         for path in completed_paths:
@@ -352,12 +370,16 @@ class OmniVoiceCloneEngine(TtsEngineBase):
 
             def _read_stderr() -> None:
                 assert proc.stderr is not None
-                for line in proc.stderr:
-                    line = line.rstrip()
-                    stderr_lines.append(line)
-                    logger.info("[omnivoice worker] %s", line)
-                    if line.startswith("[CHUNK_DONE] ") and callable(chunk_done_cb):
-                        chunk_done_cb(line[len("[CHUNK_DONE] "):])
+                try:
+                    for line in proc.stderr:
+                        line = line.rstrip()
+                        stderr_lines.append(line)
+                        logger.info("[omnivoice worker] %s", line)
+                        if line.startswith("[CHUNK_DONE] ") and callable(chunk_done_cb):
+                            chunk_done_cb(line[len("[CHUNK_DONE] "):])
+                except Exception:
+                    # JobPaused or other exceptions - let the main thread handle it
+                    pass
 
             def _poll_cancel() -> None:
                 while proc.poll() is None:

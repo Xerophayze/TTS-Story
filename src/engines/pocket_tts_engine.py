@@ -268,7 +268,11 @@ class PocketTTSEngine(TtsEngineBase):
         sf.write(str(output_path), audio, self.sample_rate)
         output_path_str = str(output_path)
         if callable(progress_cb):
-            progress_cb()
+            try:
+                progress_cb()
+            except Exception:
+                # JobPaused or other cancellation exception - re-raise so caller handles it
+                raise
         if callable(chunk_cb):
             chunk_meta = {
                 "speaker": task["speaker"],

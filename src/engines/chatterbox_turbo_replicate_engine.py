@@ -238,7 +238,11 @@ class ChatterboxTurboReplicateEngine(TtsEngineBase):
                     
                     # Callbacks
                     if callable(progress_cb):
-                        progress_cb()
+                        try:
+                            progress_cb()
+                        except Exception:
+                            # JobPaused or other cancellation exception - re-raise so caller handles it
+                            raise
                     if callable(chunk_cb):
                         chunk_meta = {
                             "speaker": chunk_info["speaker"],
@@ -295,7 +299,11 @@ class ChatterboxTurboReplicateEngine(TtsEngineBase):
             results[global_idx] = str(output_path)
             
             if callable(progress_cb):
-                progress_cb()
+                try:
+                    progress_cb()
+                except Exception:
+                    # JobPaused or other cancellation exception - re-raise so caller handles it
+                    raise
             if callable(chunk_cb):
                 chunk_meta = {
                     "speaker": chunk_info["speaker"],

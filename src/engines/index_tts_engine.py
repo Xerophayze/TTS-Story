@@ -270,7 +270,13 @@ class IndexTTSEngine(TtsEngineBase):
                                 proc.terminate()
                                 return
                             if callable(progress_cb):
-                                progress_cb()
+                                try:
+                                    progress_cb()
+                                except Exception:
+                                    # JobPaused or other cancellation exception - signal to stop
+                                    paused_early.set()
+                                    proc.terminate()
+                                    return
                             if callable(chunk_cb):
                                 chunk_cb(
                                     meta["chunk_index"],
@@ -369,7 +375,11 @@ class IndexTTSEngine(TtsEngineBase):
             # Only fire callbacks if this chunk wasn't already reported live
             if file_path not in already_reported:
                 if callable(progress_cb):
-                    progress_cb()
+                    try:
+                        progress_cb()
+                    except Exception:
+                        # JobPaused or other cancellation exception - re-raise so caller handles it
+                        raise
                 if callable(chunk_cb):
                     chunk_cb(
                         meta["chunk_index"],
@@ -488,7 +498,13 @@ class IndexTTSEngine(TtsEngineBase):
                                 proc.terminate()
                                 return
                             if callable(progress_cb):
-                                progress_cb()
+                                try:
+                                    progress_cb()
+                                except Exception:
+                                    # JobPaused or other cancellation exception - signal to stop
+                                    paused_early.set()
+                                    proc.terminate()
+                                    return
                             if callable(chunk_cb):
                                 chunk_cb(
                                     meta["chunk_index"],
@@ -573,7 +589,11 @@ class IndexTTSEngine(TtsEngineBase):
 
             if file_path not in already_reported:
                 if callable(progress_cb):
-                    progress_cb()
+                    try:
+                        progress_cb()
+                    except Exception:
+                        # JobPaused or other cancellation exception - re-raise so caller handles it
+                        raise
                 if callable(chunk_cb):
                     chunk_cb(
                         meta["chunk_index"],

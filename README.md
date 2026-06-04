@@ -226,6 +226,7 @@ The installer will clone or update the repository, then run the setup script whi
 - ✅ Create a Python virtual environment
 - ✅ Detect your NVIDIA GPU and CUDA version
 - ✅ Install PyTorch with appropriate CUDA support (or CPU-only if no GPU)
+- ✅ Install a CUDA 12.8 PyTorch build for Blackwell / RTX 50-series GPUs
 - ✅ Download and install espeak-ng automatically
 - ✅ Install all other required dependencies
 - ✅ Download the Rubber Band CLI and wire it up for high-quality pitch/tempo FX
@@ -235,6 +236,12 @@ The installer will clone or update the repository, then run the setup script whi
 - CUDA 12.9, 12.8, 12.6, 12.4, 12.1
 - CUDA 11.8
 - CPU-only (automatic fallback if no GPU detected)
+
+**Blackwell / RTX 50-series note:** these GPUs require a PyTorch build compiled
+with `sm_120` support. The installer detects compute capability `12.x` or RTX
+50-series GPU names and installs the stable PyTorch CUDA 12.8 wheel. If stable
+PyTorch wheels ever lag a new GPU architecture, rerun setup with
+`USE_TORCH_NIGHTLY=1` to opt into PyTorch nightly CUDA 12.8 wheels.
 
 3. **Start the application**
 ```bash
@@ -266,11 +273,22 @@ venv\Scripts\activate
 
 3. **Install PyTorch with CUDA support**
 ```bash
-# For CUDA 12.1 (most common)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# For Blackwell / RTX 50-series GPUs
+pip install torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128
+
+# For CUDA 12.4 GPUs
+pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 torchaudio==2.6.0+cu124 --index-url https://download.pytorch.org/whl/cu124
 
 # For CPU only
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+
+After installing PyTorch, verify that the wheel supports your GPU:
+```bash
+python scripts/torch_cuda_probe.py --test-cuda
+
+# Blackwell / RTX 50-series should include sm_120
+python scripts/torch_cuda_probe.py --require-arch sm_120 --test-cuda
 ```
 
 4. **Install other dependencies**

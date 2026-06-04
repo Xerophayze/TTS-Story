@@ -19,6 +19,9 @@ set "PYTHON_INSTALLER=%TEMP%\python-installer.exe"
 set "TORCH_VERSION=2.6.0"
 set "TORCHVISION_VERSION=0.21.0"
 set "TORCHAUDIO_VERSION=2.6.0"
+set "BLACKWELL_TORCH_VERSION=2.8.0"
+set "BLACKWELL_TORCHVISION_VERSION=0.23.0"
+set "BLACKWELL_TORCHAUDIO_VERSION=2.8.0"
 
 REM Check Python installation (must be exactly 3.11.9)
 echo [1/12] Checking Python installation...
@@ -90,10 +93,22 @@ echo Found Python %PYTHON_VERSION%
 
 set "HAS_NVIDIA=0"
 set "GPU_NAME="
+set "GPU_COMPUTE_CAP="
+set "NEEDS_BLACKWELL_TORCH=0"
 for /f "delims=" %%G in ('powershell -NoLogo -NoProfile -Command "$g=(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match 'NVIDIA' } | Select-Object -First 1).Name; if ($g) { $g }"') do set "GPU_NAME=%%G"
 if defined GPU_NAME (
     set "HAS_NVIDIA=1"
     echo NVIDIA GPU detected: !GPU_NAME!
+    for /f "delims=" %%C in ('nvidia-smi --query-gpu^=compute_cap --format^=csv,noheader 2^>nul') do (
+        if not defined GPU_COMPUTE_CAP set "GPU_COMPUTE_CAP=%%C"
+    )
+    if defined GPU_COMPUTE_CAP echo NVIDIA compute capability: !GPU_COMPUTE_CAP!
+    if "!GPU_COMPUTE_CAP:~0,3!"=="12." set "NEEDS_BLACKWELL_TORCH=1"
+    powershell -NoLogo -NoProfile -Command "if ('!GPU_NAME!' -match 'RTX 50|Blackwell') { exit 0 } else { exit 1 }" >nul 2>&1
+    if not errorlevel 1 set "NEEDS_BLACKWELL_TORCH=1"
+    if "!NEEDS_BLACKWELL_TORCH!"=="1" (
+        echo Blackwell GPU detected. PyTorch CUDA 12.8 build with sm_120 support is required.
+    )
 ) else (
     echo No NVIDIA GPU detected. Using CPU-only installs.
 )
@@ -160,8 +175,24 @@ if "%SKIP_TORCH_INSTALL%"=="1" (
 ) else if defined TORCH_INSTALLED (
     if "%HAS_NVIDIA%"=="1" (
         if /i "%TORCH_CUDA%"=="cuda" (
-            echo Detected existing CUDA torch: %TORCH_INSTALLED%
-            set "NEED_TORCH_INSTALL=0"
+            if "%NEEDS_BLACKWELL_TORCH%"=="1" (
+                echo Detected existing CUDA torch: %TORCH_INSTALLED%
+                echo Checking for Blackwell sm_120 support...
+                python scripts\torch_cuda_probe.py --require-arch sm_120 --test-cuda >nul 2>&1
+                if errorlevel 1 (
+                    echo Existing CUDA torch does not support this GPU. Reinstalling PyTorch CUDA 12.8 build.
+                ) else (
+                    set "NEED_TORCH_INSTALL=0"
+                )
+            ) else (
+                echo Detected existing CUDA torch: %TORCH_INSTALLED%
+                python scripts\torch_cuda_probe.py --test-cuda >nul 2>&1
+                if errorlevel 1 (
+                    echo Existing CUDA torch failed a runtime test. Reinstalling PyTorch.
+                ) else (
+                    set "NEED_TORCH_INSTALL=0"
+                )
+            )
         )
     ) else (
         if /i "%TORCH_CUDA%"=="cpu" (
@@ -176,14 +207,36 @@ if "%NEED_TORCH_INSTALL%"=="0" (
 ) else (
 
     if "%HAS_NVIDIA%"=="1" (
-        REM Install PyTorch with CUDA 12.4 (available for torch 2.6.0)
-        echo Installing PyTorch with CUDA 12.4 support...
-        pip install torch==%TORCH_VERSION%+cu124 torchvision==%TORCHVISION_VERSION%+cu124 torchaudio==%TORCHAUDIO_VERSION%+cu124 --index-url https://download.pytorch.org/whl/cu124
+        if "%NEEDS_BLACKWELL_TORCH%"=="1" (
+            if "%USE_TORCH_NIGHTLY%"=="1" (
+                echo Installing PyTorch nightly with CUDA 12.8 support for Blackwell...
+                pip install --pre --upgrade --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+            ) else (
+                echo Installing PyTorch CUDA 12.8 support for Blackwell...
+                pip install --upgrade --force-reinstall torch==%BLACKWELL_TORCH_VERSION% torchvision==%BLACKWELL_TORCHVISION_VERSION% torchaudio==%BLACKWELL_TORCHAUDIO_VERSION% --index-url https://download.pytorch.org/whl/cu128
+            )
+            if errorlevel 1 (
+                echo.
+                echo PyTorch CUDA 12.8 installation failed. Set USE_TORCH_NIGHTLY=1 and rerun setup.bat if stable wheels do not support your GPU yet.
+                exit /b 1
+            )
+            python scripts\torch_cuda_probe.py --require-arch sm_120 --test-cuda
+            if errorlevel 1 (
+                echo.
+                echo ERROR: Installed PyTorch still cannot run on this Blackwell GPU.
+                echo Try updating NVIDIA drivers, then rerun setup.bat. As a fallback, set USE_TORCH_NIGHTLY=1.
+                exit /b 1
+            )
+        ) else (
+            REM Install PyTorch with CUDA 12.4 (available for torch 2.6.0)
+            echo Installing PyTorch with CUDA 12.4 support...
+            pip install torch==%TORCH_VERSION%+cu124 torchvision==%TORCHVISION_VERSION%+cu124 torchaudio==%TORCHAUDIO_VERSION%+cu124 --index-url https://download.pytorch.org/whl/cu124
 
-        if errorlevel 1 (
-            echo.
-            echo PyTorch installation failed, trying CPU version...
-            pip install torch torchvision torchaudio
+            if errorlevel 1 (
+                echo.
+                echo PyTorch installation failed, trying CPU version...
+                pip install torch torchvision torchaudio
+            )
         )
     ) else (
         echo Installing CPU-only PyTorch...
@@ -409,13 +462,25 @@ echo ========================================
 echo Verifying Installation
 echo ========================================
 echo.
-python -c "import torch; print('PyTorch Version:', torch.__version__); print('CUDA Available:', torch.cuda.is_available()); print('CUDA Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU-only')" >nul 2>&1
+if "%NEEDS_BLACKWELL_TORCH%"=="1" (
+    python scripts\torch_cuda_probe.py --require-arch sm_120 --test-cuda >nul 2>&1
+) else if "%HAS_NVIDIA%"=="1" (
+    python scripts\torch_cuda_probe.py --test-cuda >nul 2>&1
+) else (
+    python scripts\torch_cuda_probe.py >nul 2>&1
+)
 if errorlevel 1 (
     echo WARNING: PyTorch verification failed.
     echo If this is a CPU-only system, rerun setup.bat to reinstall the CPU-only torch build.
     echo If you have an NVIDIA GPU, ensure the NVIDIA driver is installed and rerun setup.bat.
 ) else (
-    python -c "import torch; print('PyTorch Version:', torch.__version__); print('CUDA Available:', torch.cuda.is_available()); print('CUDA Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU-only')"
+    if "%NEEDS_BLACKWELL_TORCH%"=="1" (
+        python scripts\torch_cuda_probe.py --require-arch sm_120 --test-cuda
+    ) else if "%HAS_NVIDIA%"=="1" (
+        python scripts\torch_cuda_probe.py --test-cuda
+    ) else (
+        python scripts\torch_cuda_probe.py
+    )
 )
 
 echo.

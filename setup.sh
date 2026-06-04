@@ -16,6 +16,9 @@ echo "  - GPU users: update to the latest NVIDIA drivers"
 TORCH_VERSION="2.6.0"
 TORCHVISION_VERSION="0.21.0"
 TORCHAUDIO_VERSION="2.6.0"
+BLACKWELL_TORCH_VERSION="2.8.0"
+BLACKWELL_TORCHVISION_VERSION="0.23.0"
+BLACKWELL_TORCHAUDIO_VERSION="2.8.0"
 
 # 1/12 Check Python installation
 echo
@@ -111,8 +114,11 @@ echo
 # Detect NVIDIA GPU
 HAS_NVIDIA=0
 GPU_NAME=""
+GPU_COMPUTE_CAP=""
+NEEDS_BLACKWELL_TORCH=0
 if command -v nvidia-smi >/dev/null 2>&1; then
     GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "")
+    GPU_COMPUTE_CAP=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 || echo "")
     if [ -n "$GPU_NAME" ]; then
         HAS_NVIDIA=1
     fi
@@ -120,6 +126,15 @@ fi
 
 if [ "$HAS_NVIDIA" -eq 0 ]; then
     echo "No NVIDIA GPU detected. Using CPU-only installs."
+else
+    echo "NVIDIA GPU detected: $GPU_NAME"
+    if [ -n "$GPU_COMPUTE_CAP" ]; then
+        echo "NVIDIA compute capability: $GPU_COMPUTE_CAP"
+    fi
+    if [[ "$GPU_COMPUTE_CAP" == 12.* ]] || echo "$GPU_NAME" | grep -Eiq "RTX 50|Blackwell"; then
+        NEEDS_BLACKWELL_TORCH=1
+        echo "Blackwell GPU detected. PyTorch CUDA 12.8 build with sm_120 support is required."
+    fi
 fi
 
 # Check if PyTorch is already installed
@@ -137,7 +152,18 @@ if python -c "import torch" 2>/dev/null; then
     
     if [ "$HAS_NVIDIA" -eq 1 ] && [ "$TORCH_CUDA" = "cuda" ]; then
         echo "Detected existing CUDA torch: $TORCH_INSTALLED"
-        NEED_TORCH_INSTALL=0
+        if [ "$NEEDS_BLACKWELL_TORCH" -eq 1 ]; then
+            echo "Checking for Blackwell sm_120 support..."
+            if python scripts/torch_cuda_probe.py --require-arch sm_120 --test-cuda >/dev/null 2>&1; then
+                NEED_TORCH_INSTALL=0
+            else
+                echo "Existing CUDA torch does not support this GPU. Reinstalling PyTorch CUDA 12.8 build."
+            fi
+        elif python scripts/torch_cuda_probe.py --test-cuda >/dev/null 2>&1; then
+            NEED_TORCH_INSTALL=0
+        else
+            echo "Existing CUDA torch failed a runtime test. Reinstalling PyTorch."
+        fi
     elif [ "$HAS_NVIDIA" -eq 0 ] && [ "$TORCH_CUDA" = "cpu" ]; then
         echo "Detected existing CPU torch: $TORCH_INSTALLED"
         NEED_TORCH_INSTALL=0
@@ -148,23 +174,49 @@ if [ "$NEED_TORCH_INSTALL" -eq 0 ]; then
     echo "Skipping torch install - compatible build already present."
 else
     if [ "$HAS_NVIDIA" -eq 1 ]; then
-        # Try CUDA 12.4 first (most stable), then fall back
-        echo "Installing PyTorch with CUDA 12.4 support..."
-        if pip install torch==${TORCH_VERSION}+cu124 torchvision==${TORCHVISION_VERSION}+cu124 torchaudio==${TORCHAUDIO_VERSION}+cu124 --index-url https://download.pytorch.org/whl/cu124 2>/dev/null; then
-            echo "PyTorch CUDA 12.4 installed successfully!"
-        else
-            # Try CUDA 12.1
-            echo "CUDA 12.4 failed, trying CUDA 12.1..."
-            if pip install torch==${TORCH_VERSION}+cu121 torchvision==${TORCHVISION_VERSION}+cu121 torchaudio==${TORCHAUDIO_VERSION}+cu121 --index-url https://download.pytorch.org/whl/cu121 2>/dev/null; then
-                echo "PyTorch CUDA 12.1 installed successfully!"
+        if [ "$NEEDS_BLACKWELL_TORCH" -eq 1 ]; then
+            if [ "${USE_TORCH_NIGHTLY:-0}" = "1" ]; then
+                echo "Installing PyTorch nightly with CUDA 12.8 support for Blackwell..."
+                if ! pip install --pre --upgrade --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128; then
+                    echo "ERROR: PyTorch nightly CUDA 12.8 installation failed."
+                    exit 1
+                fi
             else
-                # Try CUDA 12.6
-                echo "CUDA 12.1 failed, trying CUDA 12.6..."
-                if pip install torch==${TORCH_VERSION}+cu126 torchvision==${TORCHVISION_VERSION}+cu126 torchaudio==${TORCHAUDIO_VERSION}+cu126 --index-url https://download.pytorch.org/whl/cu126 2>/dev/null; then
-                    echo "PyTorch CUDA 12.6 installed successfully!"
+                echo "Installing PyTorch CUDA 12.8 support for Blackwell..."
+                if ! pip install --upgrade --force-reinstall \
+                    torch==${BLACKWELL_TORCH_VERSION} \
+                    torchvision==${BLACKWELL_TORCHVISION_VERSION} \
+                    torchaudio==${BLACKWELL_TORCHAUDIO_VERSION} \
+                    --index-url https://download.pytorch.org/whl/cu128; then
+                    echo "ERROR: PyTorch CUDA 12.8 installation failed."
+                    echo "Set USE_TORCH_NIGHTLY=1 and rerun setup.sh if stable wheels do not support your GPU yet."
+                    exit 1
+                fi
+            fi
+            if ! python scripts/torch_cuda_probe.py --require-arch sm_120 --test-cuda; then
+                echo "ERROR: Installed PyTorch still cannot run on this Blackwell GPU."
+                echo "Try updating NVIDIA drivers, then rerun setup.sh. As a fallback, set USE_TORCH_NIGHTLY=1."
+                exit 1
+            fi
+        else
+            # Try CUDA 12.4 first (most stable), then fall back
+            echo "Installing PyTorch with CUDA 12.4 support..."
+            if pip install torch==${TORCH_VERSION}+cu124 torchvision==${TORCHVISION_VERSION}+cu124 torchaudio==${TORCHAUDIO_VERSION}+cu124 --index-url https://download.pytorch.org/whl/cu124 2>/dev/null; then
+                echo "PyTorch CUDA 12.4 installed successfully!"
+            else
+                # Try CUDA 12.1
+                echo "CUDA 12.4 failed, trying CUDA 12.1..."
+                if pip install torch==${TORCH_VERSION}+cu121 torchvision==${TORCHVISION_VERSION}+cu121 torchaudio==${TORCHAUDIO_VERSION}+cu121 --index-url https://download.pytorch.org/whl/cu121 2>/dev/null; then
+                    echo "PyTorch CUDA 12.1 installed successfully!"
                 else
-                    echo "WARNING: CUDA PyTorch install failed, trying CPU version..."
-                    pip install torch torchvision torchaudio
+                    # Try CUDA 12.6
+                    echo "CUDA 12.1 failed, trying CUDA 12.6..."
+                    if pip install torch==${TORCH_VERSION}+cu126 torchvision==${TORCHVISION_VERSION}+cu126 torchaudio==${TORCHAUDIO_VERSION}+cu126 --index-url https://download.pytorch.org/whl/cu126 2>/dev/null; then
+                        echo "PyTorch CUDA 12.6 installed successfully!"
+                    else
+                        echo "WARNING: CUDA PyTorch install failed, trying CPU version..."
+                        pip install torch torchvision torchaudio
+                    fi
                 fi
             fi
         fi
@@ -341,15 +393,13 @@ echo "[12/12] Verifying Installation..."
 echo "========================================"
 echo
 
-python - << 'EOF'
-import torch
-print("PyTorch Version:", torch.__version__)
-print("CUDA Available:", torch.cuda.is_available())
-if torch.cuda.is_available():
-    print("CUDA Device:", torch.cuda.get_device_name(0))
-else:
-    print("CUDA Device: CPU-only")
-EOF
+if [ "$NEEDS_BLACKWELL_TORCH" -eq 1 ]; then
+    python scripts/torch_cuda_probe.py --require-arch sm_120 --test-cuda
+elif [ "$HAS_NVIDIA" -eq 1 ]; then
+    python scripts/torch_cuda_probe.py --test-cuda
+else
+    python scripts/torch_cuda_probe.py
+fi
 
 echo
 echo "========================================"

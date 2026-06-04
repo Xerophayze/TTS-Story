@@ -168,7 +168,11 @@ class OmniVoiceDesignEngine(TtsEngineBase):
                 files.append(str(output_path))
                 chunk_index += 1
                 if callable(progress_cb):
-                    progress_cb()
+                    try:
+                        progress_cb()
+                    except Exception:
+                        # JobPaused or other cancellation exception - re-raise so caller handles it
+                        raise
                 if callable(chunk_cb):
                     chunk_cb(chunk_idx, {
                         "speaker": speaker,
