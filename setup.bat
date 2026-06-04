@@ -456,7 +456,18 @@ echo [10/12] Installing KittenTTS runtime (optional, CPU-only)...
 pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl
 if errorlevel 1 (
     echo WARNING: Failed to install kittentts - KittenTTS engine will not be available
+    goto :AfterKittenTTS
 )
+if not "%PREFETCH_KITTEN_TTS_MODEL%"=="0" (
+    echo Prefetching KittenTTS model cache ^(set PREFETCH_KITTEN_TTS_MODEL=0 to skip^)...
+    powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$p=Start-Process -FilePath '%~dp0venv\Scripts\python.exe' -ArgumentList @('%~dp0scripts\prefetch_kitten_tts.py','--model-id','KittenML/kitten-tts-mini-0.8') -NoNewWindow -PassThru; if (-not $p.WaitForExit(300000)) { Write-Host 'KittenTTS prefetch timed out after 300 seconds.'; try { $p.Kill() } catch {}; exit 124 }; exit $p.ExitCode"
+    if errorlevel 1 (
+        echo WARNING: KittenTTS model prefetch failed. First generation will retry the download.
+    )
+) else (
+    echo PREFETCH_KITTEN_TTS_MODEL=0 set. Skipping KittenTTS model prefetch.
+)
+:AfterKittenTTS
 
 REM Setup IndexTTS isolated environment (optional)
 echo.

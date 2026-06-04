@@ -6,6 +6,7 @@ Install: pip install https://github.com/KittenML/KittenTTS/releases/download/0.8
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -20,7 +21,19 @@ logger = logging.getLogger(__name__)
 KITTEN_TTS_BUILTIN_VOICES = {"Bella", "Jasper", "Luna", "Bruno", "Rosie", "Hugo", "Kiki", "Leo"}
 KITTEN_TTS_DEFAULT_MODEL = "KittenML/kitten-tts-mini-0.8"
 KITTEN_TTS_SAMPLE_RATE = 24000
+KITTEN_TTS_CACHE_DIR = Path(__file__).resolve().parents[2] / "models" / "kitten_tts"
 
+
+def _configure_huggingface_downloads() -> None:
+    """Keep first-use model downloads bounded and Pinokio-friendly."""
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+    os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "20")
+    os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "60")
+    os.environ.setdefault("KITTEN_TTS_CACHE_DIR", str(KITTEN_TTS_CACHE_DIR))
+
+
+_configure_huggingface_downloads()
 try:
     from kittentts import KittenTTS as _KittenTTS  # type: ignore
 
@@ -56,9 +69,19 @@ class KittenTTSEngine(TtsEngineBase):
         self.model_id = model_id
         self.default_voice = default_voice if default_voice in KITTEN_TTS_BUILTIN_VOICES else "Jasper"
         self.post_processor = AudioPostProcessor()
+        cache_dir = Path(os.environ.get("KITTEN_TTS_CACHE_DIR") or KITTEN_TTS_CACHE_DIR)
+        cache_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info("Loading KittenTTS model: %s", model_id)
-        self._model = _KittenTTS(model_id)
+        logger.info("Loading KittenTTS model: %s (cache: %s)", model_id, cache_dir)
+        try:
+            self._model = _KittenTTS(model_id, cache_dir=str(cache_dir))
+        except Exception as exc:
+            raise RuntimeError(
+                "KittenTTS model download/load failed. Check network access to Hugging Face, "
+                "then rerun setup.bat to prefetch the model cache. "
+                "Set PREFETCH_KITTEN_TTS_MODEL=0 to skip setup prefetch if needed. "
+                f"Model: {model_id}; cache: {cache_dir}; error: {exc}"
+            ) from exc
         logger.info("KittenTTS model loaded (default voice: %s)", self.default_voice)
 
     @property

@@ -338,9 +338,27 @@ echo "- hf_xet (faster Hugging Face downloads)"
 
 pip install hf_xet || echo "WARNING: hf_xet install failed. Hugging Face downloads may be slower."
 
-# 9a/12 Setup OmniVoice isolated environment
+# 9a/12 Install KittenTTS runtime (optional, CPU-only)
 echo
-echo "[9a/12] Setting up OmniVoice isolated environment..."
+echo "[9a/12] Installing KittenTTS runtime (optional, CPU-only)..."
+if pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl; then
+    if [ "${PREFETCH_KITTEN_TTS_MODEL:-1}" != "0" ]; then
+        echo "Prefetching KittenTTS model cache (set PREFETCH_KITTEN_TTS_MODEL=0 to skip)..."
+        if command -v timeout >/dev/null 2>&1; then
+            timeout 300 python scripts/prefetch_kitten_tts.py --model-id "KittenML/kitten-tts-mini-0.8" || echo "WARNING: KittenTTS model prefetch failed. First generation will retry the download."
+        else
+            python scripts/prefetch_kitten_tts.py --model-id "KittenML/kitten-tts-mini-0.8" || echo "WARNING: KittenTTS model prefetch failed. First generation will retry the download."
+        fi
+    else
+        echo "PREFETCH_KITTEN_TTS_MODEL=0 set. Skipping KittenTTS model prefetch."
+    fi
+else
+    echo "WARNING: Failed to install kittentts - KittenTTS engine will not be available"
+fi
+
+# 9b/12 Setup OmniVoice isolated environment
+echo
+echo "[9b/12] Setting up OmniVoice isolated environment..."
 echo "OmniVoice requires torch 2.8, so it runs in its own isolated venv."
 OMNIVOICE_DIR="$(pwd)/engines/omnivoice"
 OMNIVOICE_PYTHON="$OMNIVOICE_DIR/.venv/bin/python"
@@ -414,9 +432,9 @@ else
     fi
 fi
 
-# 9b/12 Setup IndexTTS isolated environment (optional)
+# 9c/12 Setup IndexTTS isolated environment (optional)
 echo
-echo "[9b/12] Setting up IndexTTS isolated environment (optional)..."
+echo "[9c/12] Setting up IndexTTS isolated environment (optional)..."
 echo "IndexTTS uses its own isolated venv to avoid dependency conflicts."
 INDEX_TTS_DIR="$(pwd)/engines/index-tts"
 INDEX_TTS_READY=0
