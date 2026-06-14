@@ -402,6 +402,7 @@ function formatEngineName(engine) {
         'qwen3_clone': 'Qwen3-TTS (Voice Clone)',
         'omnivoice_clone': 'OmniVoice (Voice Clone)',
         'omnivoice_design': 'OmniVoice (Voice Design)',
+        'dots_tts': 'Dot.TTS (Voice Clone)',
     };
     return engineMap[engine] || engine;
 }
@@ -2315,6 +2316,7 @@ function wireChunkReviewEvents(jobId, chunks, engine) {
                 || normalizedEngine.includes('pockettts')
                 || (normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone'))
                 || (normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone'))
+                || normalizedEngine.includes('dotstts')
             ) {
                 libraryChunkVoiceOverrides[chunkId] = { audio_prompt_path: value };
             } else {
@@ -2469,7 +2471,8 @@ async function initLibraryVoiceFilters(engine) {
     const usesPrompts = normalizedEngine.includes('chatterbox')
         || normalizedEngine.includes('voxcpm')
         || normalizedEngine.includes('pockettts')
-        || (normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone'));
+        || (normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone'))
+        || normalizedEngine.replace(/[_-]/g, '').includes('dotstts');
     if (!usesPrompts) return;
     
     const genderFilter = document.getElementById('library-voice-filter-gender');
@@ -2541,9 +2544,10 @@ async function populateLibraryVoiceSelects(engine) {
     const isQwen = normalizedEngine.includes('qwen3');
     const isQwenClone = normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone');
     const isOmniClone = normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone');
+    const isDotsTts = normalizedEngine.includes('dotstts');
     const isPocketPreset = normalizedEngine.includes('pocketttspreset');
     const isPocket = normalizedEngine.includes('pockettts') && !isPocketPreset;
-    const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isPocket;
+    const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isDotsTts || isPocket;
 
     let voices = [];
     try {
@@ -2780,7 +2784,8 @@ async function populateLibraryVoiceSelects(engine) {
         const usesPrompts = engineName.includes('chatterbox')
             || engineName.includes('voxcpm')
             || (engineName.includes('pockettts') && !isPocketPreset)
-            || (engineName.includes('qwen3') && engineName.includes('clone'));
+            || (engineName.includes('qwen3') && engineName.includes('clone'))
+            || engineName.includes('dotstts');
         const isQwenEngine = engineName.includes('qwen3');
         const minDuration = getMinDuration(engineName);
         const activeFilters = filters || libraryVoiceFilters;
@@ -2901,7 +2906,8 @@ async function populateLibraryVoiceSelects(engine) {
         const usesPrompts = engineName.includes('chatterbox')
             || engineName.includes('voxcpm')
             || (engineName.includes('pockettts') && !isPocketPreset)
-            || (engineName.includes('qwen3') && engineName.includes('clone'));
+            || (engineName.includes('qwen3') && engineName.includes('clone'))
+            || engineName.includes('dotstts');
         const isQwenEngine = engineName.includes('qwen3');
         const minDuration = getMinDuration(engineName);
         const activeFilters = filters || libraryVoiceFilters;
@@ -3031,6 +3037,7 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="qwen3_clone">Qwen3-TTS · Voice Clone</option>
             <option value="omnivoice_clone">OmniVoice · Voice Clone</option>
             <option value="omnivoice_design">OmniVoice · Voice Design</option>
+            <option value="dots_tts">Dot.TTS · Voice Clone</option>
         `;
         if (normalizedCurrentEngine) {
             Array.from(select.options).forEach(option => {
@@ -3061,7 +3068,8 @@ async function populateLibraryVoiceSelects(engine) {
             || normalizedEngineValue.includes('voxcpm')
             || (normalizedEngineValue.includes('pockettts') && !normalizedEngineValue.includes('pocketttspreset'))
             || (normalizedEngineValue.includes('qwen3') && normalizedEngineValue.includes('clone'))
-            || (normalizedEngineValue.includes('omnivoice') && normalizedEngineValue.includes('clone'));
+            || (normalizedEngineValue.includes('omnivoice') && normalizedEngineValue.includes('clone'))
+            || normalizedEngineValue.replace(/[_-]/g, '').includes('dotstts');
         if (promptFilters) {
             promptFilters.style.display = usesPrompts ? 'block' : 'none';
             if (usesPrompts) {
@@ -3130,7 +3138,8 @@ async function populateLibraryVoiceSelects(engine) {
             const usesPrompts = normalizedSelectedEngine.includes('chatterbox')
                 || normalizedSelectedEngine.includes('voxcpm')
                 || (normalizedSelectedEngine.includes('pockettts') && !normalizedSelectedEngine.includes('pocketttspreset'))
-                || (normalizedSelectedEngine.includes('qwen3') && normalizedSelectedEngine.includes('clone'));
+                || (normalizedSelectedEngine.includes('qwen3') && normalizedSelectedEngine.includes('clone'))
+                || normalizedSelectedEngine.replace(/[_-]/g, '').includes('dotstts');
             if (promptFilters) {
                 promptFilters.style.display = usesPrompts ? 'block' : 'none';
                 if (usesPrompts) {
@@ -3165,6 +3174,7 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="qwen3_clone">Qwen3-TTS · Voice Clone</option>
             <option value="omnivoice_clone">OmniVoice · Voice Clone</option>
             <option value="omnivoice_design">OmniVoice · Voice Design</option>
+            <option value="dots_tts">Dot.TTS · Voice Clone</option>
         `;
         
         // When engine changes, repopulate the voice dropdown for this speaker and show/hide Qwen3 options
@@ -3189,7 +3199,8 @@ async function populateLibraryVoiceSelects(engine) {
             const usesPrompts = normalizedSelectedEngine.includes('chatterbox')
                 || normalizedSelectedEngine.includes('voxcpm')
                 || (normalizedSelectedEngine.includes('qwen3') && normalizedSelectedEngine.includes('clone'))
-                || (normalizedSelectedEngine.includes('omnivoice') && normalizedSelectedEngine.includes('clone'));
+                || (normalizedSelectedEngine.includes('omnivoice') && normalizedSelectedEngine.includes('clone'))
+                || normalizedSelectedEngine.replace(/[_-]/g, '').includes('dotstts');
             if (promptFilters) {
                 promptFilters.style.display = usesPrompts ? 'block' : 'none';
                 if (usesPrompts) {
@@ -3227,7 +3238,8 @@ async function populateLibraryVoiceSelects(engine) {
             || normalizedEngine.includes('voxcpm')
             || (normalizedEngine.includes('pockettts') && !normalizedEngine.includes('pocketttspreset'))
             || (normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone'))
-            || (normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone'));
+            || (normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone'))
+            || normalizedEngine.replace(/[_-]/g, '').includes('dotstts');
         if (promptFilters) {
             promptFilters.style.display = usesPrompts ? 'block' : 'none';
             if (usesPrompts) {
@@ -3313,7 +3325,8 @@ async function triggerBulkSpeakerRegen(jobId, speaker, chunks, engine, button) {
     const isQwenEngine = normalizedEngine.includes('qwen3');
     const isQwenClone = normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone');
     const isOmniClone = normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone');
-    const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone;
+    const isDotsTts = normalizedEngine.includes('dotstts');
+    const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isDotsTts;
 
     // Build voice payload based on engine type
     const voiceData = libraryVoiceMap.get(voiceValue || '');
@@ -3460,7 +3473,8 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
     const isQwenEngine = normalizedEngine.includes('qwen3');
     const isQwenClone = normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone');
     const isOmniClone = normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone');
-    const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone;
+    const isDotsTts = normalizedEngine.includes('dotstts');
+    const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isDotsTts;
     const voiceData = libraryVoiceMap.get(voiceValue);
 
     if (usesVoicePrompts) {
@@ -4170,7 +4184,8 @@ async function _libAwrPopulateVoices(engineName) {
     const norm = (engineName || '').toLowerCase().replace(/[_-]/g, '');
     const usesPrompts = norm.includes('chatterbox') || norm.includes('voxcpm')
         || (norm.includes('pockettts') && !norm.includes('pocketttspreset'))
-        || (norm.includes('qwen3') && norm.includes('clone'));
+        || (norm.includes('qwen3') && norm.includes('clone'))
+        || norm.includes('dotstts');
     const isQwen = norm.includes('qwen3') && !norm.includes('clone');
     const isPocketPreset = norm.includes('pocketttspreset');
 

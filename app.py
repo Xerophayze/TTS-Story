@@ -83,6 +83,11 @@ from src.engines.index_tts_engine import (
     INDEX_TTS_UNAVAILABLE_REASON,
     INDEX_TTS_SAMPLE_RATE,
 )
+from src.engines.dots_tts_engine import (
+    DOTS_TTS_AVAILABLE,
+    DOTS_TTS_UNAVAILABLE_REASON,
+    DotsTTSEngine,
+)
 from src.engines.chatterbox_turbo_replicate_engine import (
     DEFAULT_CHATTERBOX_TURBO_REPLICATE_MODEL,
     DEFAULT_CHATTERBOX_TURBO_REPLICATE_VOICE,
@@ -239,6 +244,20 @@ DEFAULT_CONFIG = {
     "index_tts_device": "auto",
     "index_tts_default_prompt": "",
     "index_tts_chunk_size": 400,
+    "dots_tts_model_id": "rednote-hilab/dots.tts-soar",
+    "dots_tts_precision": "auto",
+    "dots_tts_optimize": False,
+    "dots_tts_num_steps": 10,
+    "dots_tts_guidance_scale": 1.2,
+    "dots_tts_speaker_scale": 1.5,
+    "dots_tts_seed": 42,
+    "dots_tts_language": "none",
+    "dots_tts_normalize_text": False,
+    "dots_tts_device": "auto",
+    "dots_tts_default_prompt": "",
+    "dots_tts_default_prompt_text": "",
+    "dots_tts_allow_xvector_only": False,
+    "dots_tts_chunk_size": 250,
     "parallel_chunks": 3,
     "group_chunks_by_speaker": False,
     "cleanup_vram_after_job": False,
@@ -305,6 +324,22 @@ POCKET_TTS_SETTING_KEYS = {
     "pocket_tts_num_threads",
     "pocket_tts_interop_threads",
 }
+DOTS_TTS_SETTING_KEYS = {
+    "dots_tts_model_id",
+    "dots_tts_precision",
+    "dots_tts_optimize",
+    "dots_tts_num_steps",
+    "dots_tts_guidance_scale",
+    "dots_tts_speaker_scale",
+    "dots_tts_seed",
+    "dots_tts_language",
+    "dots_tts_normalize_text",
+    "dots_tts_device",
+    "dots_tts_default_prompt",
+    "dots_tts_default_prompt_text",
+    "dots_tts_allow_xvector_only",
+    "dots_tts_chunk_size",
+}
 CHATTERBOX_TURBO_LOCAL_OPTION_ALIASES = {
     "default_prompt": "chatterbox_turbo_local_default_prompt",
     "prompt": "chatterbox_turbo_local_default_prompt",
@@ -361,6 +396,26 @@ POCKET_TTS_OPTION_ALIASES = {
     "prompt_truncate": "pocket_tts_prompt_truncate",
     "num_threads": "pocket_tts_num_threads",
     "interop_threads": "pocket_tts_interop_threads",
+}
+DOTS_TTS_OPTION_ALIASES = {
+    "model": "dots_tts_model_id",
+    "model_id": "dots_tts_model_id",
+    "model_name_or_path": "dots_tts_model_id",
+    "precision": "dots_tts_precision",
+    "optimize": "dots_tts_optimize",
+    "num_steps": "dots_tts_num_steps",
+    "steps": "dots_tts_num_steps",
+    "guidance_scale": "dots_tts_guidance_scale",
+    "speaker_scale": "dots_tts_speaker_scale",
+    "seed": "dots_tts_seed",
+    "language": "dots_tts_language",
+    "normalize_text": "dots_tts_normalize_text",
+    "device": "dots_tts_device",
+    "default_prompt": "dots_tts_default_prompt",
+    "prompt": "dots_tts_default_prompt",
+    "prompt_text": "dots_tts_default_prompt_text",
+    "allow_xvector_only": "dots_tts_allow_xvector_only",
+    "chunk_size": "dots_tts_chunk_size",
 }
 CHATTERBOX_TURBO_LOCAL_BOOLEAN_SETTINGS = {
     "chatterbox_turbo_local_norm_loudness",
@@ -511,6 +566,8 @@ def _normalize_engine_options(engine_name: str, options: Dict[str, Any]) -> Dict
         return _normalize_kitten_tts_options(options)
     if engine_name == "index_tts":
         return _normalize_index_tts_options(options)
+    if engine_name == "dots_tts":
+        return _normalize_dots_tts_options(options)
     return {}
 
 
@@ -639,6 +696,42 @@ def _normalize_index_tts_options(options: Dict[str, Any]) -> Dict[str, Any]:
             result[key] = (value or "").strip()
         elif key == "index_tts_chunk_size":
             result[key] = _coerce_int(value, minimum=100, maximum=1000, fallback=400)
+    return result
+
+
+def _normalize_dots_tts_options(options: Dict[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    for raw_key, value in options.items():
+        if raw_key is None:
+            continue
+        key = str(raw_key).strip().lower()
+        canonical = DOTS_TTS_OPTION_ALIASES.get(key)
+        if not canonical and key in DOTS_TTS_SETTING_KEYS:
+            canonical = key
+        if canonical and canonical in DOTS_TTS_SETTING_KEYS:
+            normalized[canonical] = value
+
+    result: Dict[str, Any] = {}
+    for key, value in normalized.items():
+        if key in {"dots_tts_optimize", "dots_tts_normalize_text", "dots_tts_allow_xvector_only"}:
+            result[key] = _coerce_bool(value)
+        elif key == "dots_tts_num_steps":
+            result[key] = _coerce_int(value, minimum=1, maximum=64, fallback=10)
+        elif key == "dots_tts_guidance_scale":
+            result[key] = _coerce_float(value, minimum=0.1, maximum=5.0, fallback=1.2)
+        elif key == "dots_tts_speaker_scale":
+            result[key] = _coerce_float(value, minimum=0.1, maximum=3.0, fallback=1.5)
+        elif key == "dots_tts_seed":
+            result[key] = None if value in (None, "") else _coerce_int(value, minimum=0, maximum=2147483647, fallback=42)
+        elif key == "dots_tts_chunk_size":
+            result[key] = _coerce_int(value, minimum=100, maximum=1000, fallback=250)
+        elif key == "dots_tts_precision":
+            v = (value or "auto").strip().lower()
+            result[key] = v if v in {"auto", "bfloat16", "bf16", "float16", "fp16", "float32", "fp32"} else "auto"
+        elif key == "dots_tts_language":
+            result[key] = (value or "none").strip() or "none"
+        else:
+            result[key] = (value or "").strip() if isinstance(value, str) else value
     return result
 
 
@@ -802,8 +895,16 @@ SECTION_HEADING_KEYWORDS = [
     "section",
     "letter",
     "part",
+    "introduction",
+    "intro",
     "prologue",
+    "preface",
+    "foreword",
     "epilogue",
+    "afterword",
+    "appendix",
+    "author note",
+    "author's note",
 ]
 
 def _parse_section_headings_from_db(custom_heading: Optional[str]) -> Optional[Any]:
@@ -1136,6 +1237,11 @@ def _validate_voice_assignments_for_engine(
 
         if engine_name == "index_tts":
             default_prompt = (config.get("index_tts_default_prompt") or "").strip()
+            if not prompt and not default_prompt:
+                missing_prompts.append(speaker)
+
+        if engine_name == "dots_tts":
+            default_prompt = (config.get("dots_tts_default_prompt") or "").strip()
             if not prompt and not default_prompt:
                 missing_prompts.append(speaker)
 
@@ -1510,6 +1616,9 @@ def _serialize_job_payload(job_entry: Dict[str, Any]) -> Dict[str, Any]:
         value = job_entry.get(key)
         if value is not None:
             payload[key] = value
+    word_replacements = job_entry.get("word_replacements")
+    if word_replacements is not None:
+        payload["word_replacements"] = word_replacements
     return payload
 
 
@@ -1669,7 +1778,7 @@ def _load_jobs_from_db() -> Dict[str, Dict[str, Any]]:
             "regen_tasks": {},
         }
         _extra = loaded[job_id]["job_payload"]
-        for key in ("timing_metrics", "started_at", "completed_at"):
+        for key in ("timing_metrics", "started_at", "completed_at", "word_replacements"):
             if key in _extra:
                 loaded[job_id][key] = _extra[key]
     return loaded
@@ -1746,6 +1855,7 @@ def _build_job_payload(job_id: str, text: str, job_entry: Dict[str, Any]) -> Dic
         "section_headings": job_entry.get("section_headings"),
         "total_chunks": job_entry.get("total_chunks"),
         "engine": job_entry.get("engine"),
+        "word_replacements": job_entry.get("word_replacements") or [],
         "text_preview": (text or "")[:200],
     }
 
@@ -1768,6 +1878,7 @@ def _build_job_data_from_entry(job_id: str, job_entry: Dict[str, Any]) -> Dict[s
         "job_dir": job_entry.get("job_dir"),
         "section_headings": job_entry.get("section_headings"),
         "resume_from_chunk_index": job_entry.get("resume_from_chunk_index") or 0,
+        "word_replacements": payload.get("word_replacements") or job_entry.get("word_replacements") or [],
     }
 
 
@@ -1993,6 +2104,23 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             str(config.get("omnivoice_post_process", True)),
         )
         return f"{engine_name}::{'|'.join(parts)}"
+    if engine_name == "dots_tts":
+        parts = (
+            (config.get("dots_tts_model_id") or "").strip(),
+            (config.get("dots_tts_precision") or "").strip(),
+            str(bool(config.get("dots_tts_optimize", False))),
+            str(config.get("dots_tts_num_steps") or 10),
+            str(config.get("dots_tts_guidance_scale") or 1.2),
+            str(config.get("dots_tts_speaker_scale") or 1.5),
+            str(config.get("dots_tts_seed")),
+            (config.get("dots_tts_language") or "none").strip(),
+            str(bool(config.get("dots_tts_normalize_text", False))),
+            (config.get("dots_tts_device") or "auto").strip(),
+            (config.get("dots_tts_default_prompt") or "").strip(),
+            (config.get("dots_tts_default_prompt_text") or "").strip(),
+            str(bool(config.get("dots_tts_allow_xvector_only", False))),
+        )
+        return f"{engine_name}::{'|'.join(parts)}"
     if engine_name in {"pocket_tts", "pocket_tts_preset"}:
         parts = (
             (config.get("pocket_tts_model_variant") or "").strip(),
@@ -2139,6 +2267,30 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             num_step=int(config.get("omnivoice_design_num_step") or 32),
             default_instruct=(config.get("omnivoice_design_default_instruct") or "").strip() or None,
             post_process=bool(config.get("omnivoice_post_process", True)),
+        )
+
+    if engine_name == "dots_tts":
+        if not DOTS_TTS_AVAILABLE:
+            raise ImportError(
+                f"Dot.TTS is not available: {DOTS_TTS_UNAVAILABLE_REASON} "
+                "Please run setup.bat to set up the Dot.TTS isolated environment."
+            )
+        seed_value = config.get("dots_tts_seed", 42)
+        return get_engine(
+            "dots_tts",
+            device=(config.get("dots_tts_device") or "auto").strip() or "auto",
+            model_id=(config.get("dots_tts_model_id") or "rednote-hilab/dots.tts-soar").strip(),
+            precision=(config.get("dots_tts_precision") or "auto").strip(),
+            optimize=bool(config.get("dots_tts_optimize", False)),
+            num_steps=int(config.get("dots_tts_num_steps") or 10),
+            guidance_scale=float(config.get("dots_tts_guidance_scale") or 1.2),
+            speaker_scale=float(config.get("dots_tts_speaker_scale") or 1.5),
+            seed=None if seed_value in (None, "") else int(seed_value),
+            language=(config.get("dots_tts_language") or "none").strip() or "none",
+            normalize_text=bool(config.get("dots_tts_normalize_text", False)),
+            default_prompt=(config.get("dots_tts_default_prompt") or "").strip() or None,
+            default_prompt_text=(config.get("dots_tts_default_prompt_text") or "").strip() or None,
+            allow_xvector_only=bool(config.get("dots_tts_allow_xvector_only", False)),
         )
 
     if engine_name in {"pocket_tts", "pocket_tts_preset"}:
@@ -2437,6 +2589,7 @@ def _build_sections_from_matches(
 
     # Matches a closing speaker tag at the very start of a string (possibly after whitespace)
     _leading_close_tag_re = re.compile(r'^(\s*\[/([a-zA-Z0-9_\-]+)\])', re.DOTALL)
+    _leading_close_tags_re = re.compile(r'^(?:\s*\[/[a-zA-Z0-9_\-]+\]\s*)+', re.DOTALL)
     # Matches a lone opening speaker tag on its own line immediately before a heading
     _lone_open_tag_re = re.compile(r'\[([a-zA-Z0-9_\-]+)\]\s*$')
 
@@ -2469,6 +2622,10 @@ def _build_sections_from_matches(
         if _lone_open_tag_re.match(preceding_line.strip()):
             # Rewind start to the beginning of that opening-tag line
             start = len(preceding_stripped) - len(preceding_line.lstrip())
+
+        leading_close_tags = _leading_close_tags_re.match(text[start:end])
+        if leading_close_tags:
+            start += leading_close_tags.end()
 
         content = text[start:end].strip()
         if not content:
@@ -2889,6 +3046,16 @@ def _create_text_processor_for_engine(engine_name: str, chunk_size: int, config:
             chunk_strategy="characters",
             char_soft_limit=omnivoice_chunk_size,
             char_hard_limit=omnivoice_chunk_size + 50,
+        )
+    if _normalize_engine_name(engine_name) == "dots_tts":
+        dots_chunk_size = 250
+        if config:
+            dots_chunk_size = config.get("dots_tts_chunk_size", dots_chunk_size)
+        return TextProcessor(
+            chunk_strategy="characters",
+            char_soft_limit=dots_chunk_size,
+            char_hard_limit=dots_chunk_size + 50,
+            allow_sentence_overflow=True,
         )
     if _normalize_engine_name(engine_name) == "voxcpm_local":
         voxcpm_chunk_size = 550
@@ -3412,6 +3579,51 @@ def process_audio_job(job_data):
                 raise JobCancelled()
             return result
 
+        def _resolve_section_output_dir(
+            base_dir: Path,
+            section_title: Optional[str],
+            chapter_folder_idx: int,
+        ) -> tuple[Path, int, bool, str]:
+            title = (section_title or "").strip()
+            normalized = re.sub(r"\s+", " ", title).strip().lower()
+            if normalized == "title":
+                return base_dir / "title", chapter_folder_idx, True, "title"
+
+            non_chapter_sections = {
+                "introduction",
+                "intro",
+                "prologue",
+                "preface",
+                "foreword",
+                "afterword",
+                "epilogue",
+                "acknowledgment",
+                "acknowledgments",
+                "acknowledgement",
+                "acknowledgements",
+                "appendix",
+                "author note",
+                "authors note",
+                "author's note",
+            }
+            if normalized in non_chapter_sections:
+                fallback = normalized.replace("'", "").replace(" ", "-") or "section"
+                folder_name = slugify_filename(title, fallback).lower()
+                return base_dir / folder_name, chapter_folder_idx, False, folder_name
+
+            chapter_like = re.match(
+                r"^(chapter|book|part|section|letter)\b",
+                normalized,
+                flags=re.IGNORECASE,
+            )
+            if title and not chapter_like:
+                folder_name = slugify_filename(title, "section").lower()
+                return base_dir / folder_name, chapter_folder_idx, False, folder_name
+
+            folder_name = f"chapter_{chapter_folder_idx:02d}"
+            slug_default = f"chapter-{chapter_folder_idx:02d}"
+            return base_dir / folder_name, chapter_folder_idx + 1, False, slug_default
+
         def _apply_chunk_skip(segments: List[Dict[str, Any]], skip_count: int) -> tuple[List[Dict[str, Any]], int]:
             remaining = skip_count
             filtered: List[Dict[str, Any]] = []
@@ -3535,8 +3747,8 @@ def process_audio_job(job_data):
                     update_progress(1)
             return audio_files
 
-        def _prebuild_index_tts_all_chapters():
-            """Collect all chapter segments and run a single IndexTTS subprocess.
+        def _prebuild_subprocess_engine_all_chapters():
+            """Collect all chapter segments and run one worker subprocess.
 
             Eliminates per-chapter model-reload overhead (~30-60s each) by sending
             all chunks to one tts_worker.py process. Results cached in
@@ -3548,13 +3760,15 @@ def process_audio_job(job_data):
             if not split_by_chapter:
                 return
             from src.engines.index_tts_engine import IndexTTSEngine  # noqa: F401
-            if not isinstance(engine, IndexTTSEngine):
+            if not isinstance(engine, (IndexTTSEngine, DotsTTSEngine)):
                 return
 
-            logger.info("Job %s: IndexTTS batch mode — pre-collecting all chapters into one subprocess", job_id)
+            engine_label = getattr(engine, "name", engine.__class__.__name__)
+            logger.info("Job %s: %s batch mode — pre-collecting all chapters into one subprocess", job_id, engine_label)
 
             all_worker_chunks: List[Dict] = []
             all_chunk_meta: List[Dict] = []
+            temp_prompt_files: List[Path] = []
             global_order = 0
 
             # Build parallel lists: section texts and their target chunk dirs
@@ -3566,21 +3780,34 @@ def process_audio_job(job_data):
                     _ch_folder = 1
                     for chapter in (book.get("chapters") or []):
                         sections_to_process.append(chapter.get("content", ""))
-                        if (chapter.get("title") or "").strip().lower() == "title":
-                            _cdir = job_dir / f"book_{book_idx:02d}" / "title"
-                        else:
-                            _cdir = job_dir / f"book_{book_idx:02d}" / f"chapter_{_ch_folder:02d}"
-                            _ch_folder += 1
+                        _cdir, _ch_folder, _, _ = _resolve_section_output_dir(
+                            job_dir / f"book_{book_idx:02d}",
+                            chapter.get("title"),
+                            _ch_folder,
+                        )
+                        if job_log:
+                            job_log.info(
+                                "  prebuild section map: book=%d title='%s' -> %s",
+                                book_idx,
+                                chapter.get("title"),
+                                os.path.relpath(_cdir, job_dir),
+                            )
                         chapter_output_dirs.append(_cdir / "chunks")
             else:
                 _ch_folder = 1
                 for chapter in chapter_sections:
                     sections_to_process.append(chapter.get("content", ""))
-                    if (chapter.get("title") or "").strip().lower() == "title":
-                        _cdir = job_dir / "title"
-                    else:
-                        _cdir = job_dir / f"chapter_{_ch_folder:02d}"
-                        _ch_folder += 1
+                    _cdir, _ch_folder, _, _ = _resolve_section_output_dir(
+                        job_dir,
+                        chapter.get("title"),
+                        _ch_folder,
+                    )
+                    if job_log:
+                        job_log.info(
+                            "  prebuild section map: title='%s' -> %s",
+                            chapter.get("title"),
+                            os.path.relpath(_cdir, job_dir),
+                        )
                     chapter_output_dirs.append(_cdir / "chunks")
 
             _skip_remaining = int(job_data.get("resume_from_chunk_index") or 0)
@@ -3604,15 +3831,26 @@ def process_audio_job(job_data):
                 for seg_idx, segment in enumerate(segments):
                     speaker = segment.get("speaker")
                     assignment = engine._voice_assignment_for(voice_assignments, speaker)
-                    spk_prompt = engine._resolve_prompt(assignment)
                     for chunk_text in (segment.get("chunks") or []):
                         out_path = chunk_dir / f"chunk_{local_idx:04d}.wav"
-                        all_worker_chunks.append({
-                            "text": chunk_text,
-                            "spk_audio_prompt": spk_prompt,
-                            "output_path": str(out_path),
-                            "_order_index": global_order,
-                        })
+                        if hasattr(engine, "_build_worker_chunk"):
+                            worker_chunk, temp_prompt = engine._build_worker_chunk(
+                                chunk_text,
+                                str(out_path),
+                                assignment,
+                                global_order,
+                            )
+                            if temp_prompt:
+                                temp_prompt_files.append(temp_prompt)
+                            all_worker_chunks.append(worker_chunk)
+                        else:
+                            spk_prompt = engine._resolve_prompt(assignment)
+                            all_worker_chunks.append({
+                                "text": chunk_text,
+                                "spk_audio_prompt": spk_prompt,
+                                "output_path": str(out_path),
+                                "_order_index": global_order,
+                            })
                         all_chunk_meta.append({
                             "speaker": speaker,
                             "text": chunk_text,
@@ -3629,10 +3867,18 @@ def process_audio_job(job_data):
             if not all_worker_chunks:
                 return
 
+            chunk_lengths = [len(item.get("text") or "") for item in all_worker_chunks]
+            max_chunk_chars = max(chunk_lengths) if chunk_lengths else 0
+            avg_chunk_chars = (sum(chunk_lengths) / len(chunk_lengths)) if chunk_lengths else 0.0
             logger.info(
-                "Job %s: IndexTTS single-subprocess batch — %d total chunks across %d chapters",
-                job_id, len(all_worker_chunks), len(sections_to_process),
+                "Job %s: %s single-subprocess batch — %d total chunks across %d chapters; max_chars=%d avg_chars=%.1f",
+                job_id, engine_label, len(all_worker_chunks), len(sections_to_process), max_chunk_chars, avg_chunk_chars,
             )
+            if job_log:
+                job_log.info(
+                    "  %s prebuild chunks=%d max_chars=%d avg_chars=%.1f",
+                    engine_label, len(all_worker_chunks), max_chunk_chars, avg_chunk_chars,
+                )
 
             group_spk = bool(config.get("group_chunks_by_speaker", False))
 
@@ -3640,24 +3886,28 @@ def process_audio_job(job_data):
                 chapter_idx = segment.get("chapter_index", 0)
                 make_chunk_callback(chapter_idx)(chunk_idx, segment, file_path)
 
-            engine.generate_batch_prebuilt(
-                worker_chunks=all_worker_chunks,
-                chunk_meta=all_chunk_meta,
-                progress_cb=update_progress,
-                chunk_cb=_batch_chunk_cb,
-                pause_cb=pause_cb,
-                cancel_cb=lambda: bool(cancel_flags.get(job_id, False)),
-                group_by_speaker=group_spk,
-            )
+            try:
+                engine.generate_batch_prebuilt(
+                    worker_chunks=all_worker_chunks,
+                    chunk_meta=all_chunk_meta,
+                    progress_cb=update_progress,
+                    chunk_cb=_batch_chunk_cb,
+                    pause_cb=pause_cb,
+                    cancel_cb=lambda: bool(cancel_flags.get(job_id, False)),
+                    group_by_speaker=group_spk,
+                )
+            finally:
+                for temp_prompt in temp_prompt_files:
+                    temp_prompt.unlink(missing_ok=True)
 
             for item in all_worker_chunks:
                 p = item["output_path"]
                 if Path(p).exists():
                     _prebuilt_audio_cache[p] = p
 
-            logger.info("Job %s: IndexTTS pre-build complete — %d files cached", job_id, len(_prebuilt_audio_cache))
+            logger.info("Job %s: %s pre-build complete — %d files cached", job_id, engine_label, len(_prebuilt_audio_cache))
 
-        _prebuild_index_tts_all_chapters()
+        _prebuild_subprocess_engine_all_chapters()
 
         if cancel_flags.get(job_id, False):
             raise JobCancelled()
@@ -3683,12 +3933,11 @@ def process_audio_job(job_data):
                         book_chapter_indices = []
                         chapter_folder_idx = 1
                         for chapter_idx, chapter in enumerate(book.get("chapters") or [], start=1):
-                            # Skip "Title" sections (book number/title before first chapter)
-                            if chapter.get("title") == "Title":
-                                chapter_dir = book_dir / "title"
-                            else:
-                                chapter_dir = book_dir / f"chapter_{chapter_folder_idx:02d}"
-                                chapter_folder_idx += 1
+                            chapter_dir, chapter_folder_idx, _, _ = _resolve_section_output_dir(
+                                book_dir,
+                                chapter.get("title"),
+                                chapter_folder_idx,
+                            )
                             chunk_dir = chapter_dir / "chunks"
                             audio_files = generate_chunks(chapter_global_idx, chapter["content"], chunk_dir)
                             if not audio_files:
@@ -3786,13 +4035,17 @@ def process_audio_job(job_data):
                             raise JobCancelled()
 
                         section_title = (chapter.get("title") or "").strip()
-                        is_title_section = section_title.lower() == "title"
-                        if is_title_section:
-                            chapter_dir = job_dir / "title"
-                        else:
-                            chapter_dir = job_dir / f"chapter_{chapter_folder_idx:02d}"
-                            chapter_folder_idx += 1
+                        chapter_dir, chapter_folder_idx, is_title_section, slug_default = _resolve_section_output_dir(
+                            job_dir,
+                            section_title,
+                            chapter_folder_idx,
+                        )
                         chunk_dir = chapter_dir / "chunks"
+                        job_log.info(
+                            "Section folder map: title='%s' -> %s",
+                            section_title,
+                            os.path.relpath(chapter_dir, job_dir),
+                        )
                         job_log.info("Generating audio for chapter %d: '%s'", idx, chapter.get('title', ''))
                         audio_files = generate_chunks(idx - 1, chapter["content"], chunk_dir)
                         if not audio_files:
@@ -3805,10 +4058,6 @@ def process_audio_job(job_data):
                             all_full_story_chunks.extend(audio_files)
                             chunk_dirs_to_cleanup.append(chunk_dir)
 
-                        if is_title_section:
-                            slug_default = "title"
-                        else:
-                            slug_default = f"chapter-{chapter_folder_idx - 1:02d}"
                         slug = slugify_filename(chapter.get('title'), slug_default)
                         output_filename = f"{slug}.{output_format}"
                         output_path = chapter_dir / output_filename
@@ -4050,6 +4299,7 @@ def process_audio_job(job_data):
             "intro_silence_ms": int(max(0, config.get('intro_silence_ms', 0) or 0)),
             "inter_chunk_silence_ms": int(max(0, config.get('inter_chunk_silence_ms', 0) or 0)),
             "acx_compliance": bool(config.get('acx_compliance', False)),
+            "word_replacements": word_replacements,
         }
         save_job_metadata(job_dir, metadata)
         
@@ -6024,6 +6274,7 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
         "intro_silence_ms": int(max(0, merge_options.get("intro_silence_ms") or 0)),
         "inter_chunk_silence_ms": int(max(0, merge_options.get("inter_chunk_silence_ms") or 0)),
         "acx_compliance": bool(merge_options.get("acx_compliance", False)),
+        "word_replacements": job_entry.get("word_replacements") or [],
     }
     save_job_metadata(job_dir, metadata)
 
@@ -6183,6 +6434,7 @@ def preview_audio():
     _PROMPT_ENGINES = {
         "chatterbox_turbo_local", "chatterbox_turbo_replicate",
         "voxcpm_local", "pocket_tts", "qwen3_clone", "omnivoice_clone",
+        "dots_tts",
     }
     audio_prompt_path = data.get('audio_prompt_path') or None
     if engine_name in _PROMPT_ENGINES and voice and not audio_prompt_path:
@@ -9138,16 +9390,19 @@ def library_job_word_replacements(job_id):
             job_in_memory = True
     if job_in_memory:
         _persist_job_state(job_id, force=True)
-    # Persist to metadata.json so it survives server restarts
-    if metadata_path.exists():
-        try:
+    # Persist to metadata.json so it survives server restarts, even for older
+    # library items that were created before metadata.json was always written.
+    try:
+        meta = {}
+        if metadata_path.exists():
             with metadata_path.open("r", encoding="utf-8") as f:
                 meta = json.load(f)
-            meta["word_replacements"] = replacements
-            with metadata_path.open("w", encoding="utf-8") as f:
-                json.dump(meta, f, indent=2, ensure_ascii=False)
-        except Exception as exc:
-            logger.warning("Failed to persist word_replacements to metadata for %s: %s", job_id, exc)
+        meta["job_id"] = meta.get("job_id") or job_id
+        meta["word_replacements"] = replacements
+        with metadata_path.open("w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+    except Exception as exc:
+        logger.warning("Failed to persist word_replacements to metadata for %s: %s", job_id, exc)
     invalidate_library_cache()
     return jsonify({"success": True, "word_replacements": replacements})
 
@@ -9478,6 +9733,8 @@ def health_check():
         "kitten_tts_available": KITTEN_TTS_AVAILABLE,
         "index_tts_available": INDEX_TTS_AVAILABLE,
         "index_tts_unavailable_reason": INDEX_TTS_UNAVAILABLE_REASON if not INDEX_TTS_AVAILABLE else "",
+        "dots_tts_available": DOTS_TTS_AVAILABLE,
+        "dots_tts_unavailable_reason": DOTS_TTS_UNAVAILABLE_REASON if not DOTS_TTS_AVAILABLE else "",
         "cuda_available": False if not KOKORO_AVAILABLE else __import__('torch').cuda.is_available(),
         "vram": vram_info,
         "loaded_engines": list(tts_engine_instances.keys()),

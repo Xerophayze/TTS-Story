@@ -14,6 +14,7 @@ class TextProcessor:
         chunk_strategy: str = "words",
         char_soft_limit: int = 450,
         char_hard_limit: int = 500,
+        allow_sentence_overflow: bool = True,
     ):
         """
         Initialize text processor
@@ -23,11 +24,14 @@ class TextProcessor:
             chunk_strategy: 'words' or 'characters'
             char_soft_limit: Preferred max characters per chunk
             char_hard_limit: Hard ceiling per chunk
+            allow_sentence_overflow: If true, a long sentence may exceed the
+                hard limit to end on sentence punctuation.
         """
         self.chunk_size = chunk_size
         self.chunk_strategy = (chunk_strategy or "words").lower()
         self.char_soft_limit = max(1, char_soft_limit or 450)
         self.char_hard_limit = max(self.char_soft_limit, char_hard_limit or 500)
+        self.allow_sentence_overflow = bool(allow_sentence_overflow)
         # Support both [speakerN] and [name] formats (e.g., [narrator], [john], etc.)
         self.speaker_pattern = r'\[([a-zA-Z0-9_\-]+)\](.*?)\[/\1\]'
         # Emotion tag pattern: [emotion]...[/emotion]
@@ -207,15 +211,17 @@ class TextProcessor:
 
         while len(remaining) > hard_limit:
             boundary_idx = self._find_sentence_boundary_before_limit(remaining, hard_limit)
-            if boundary_idx is None:
+            if boundary_idx is None and self.allow_sentence_overflow:
                 # No sentence boundary before the hard limit — look ahead past it for
                 # the next .!? so we never cut mid-sentence.  Only fall back to
                 # whitespace / hard-char split when there is truly no terminator at all.
                 ahead_idx = self._find_next_sentence_boundary(remaining, hard_limit)
                 if ahead_idx is not None:
                     boundary_idx = ahead_idx
-                else:
-                    boundary_idx = self._find_whitespace_before_limit(remaining, hard_limit)
+            if boundary_idx is None:
+                boundary_idx = self._find_clause_boundary_before_limit(remaining, hard_limit)
+            if boundary_idx is None:
+                boundary_idx = self._find_whitespace_before_limit(remaining, hard_limit)
             if boundary_idx is None or boundary_idx <= 0:
                 boundary_idx = hard_limit
             chunks.append(remaining[:boundary_idx].strip())
@@ -254,6 +260,18 @@ class TextProcessor:
             if idx > 0:
                 return idx
         return None
+
+    @staticmethod
+    def _find_clause_boundary_before_limit(text: str, limit: int) -> int:
+        window = text[:max(1, limit)]
+        best_idx = None
+        for delimiter in ('\n\n', '\n', ';', ':', ',', '—', '-'):
+            idx = window.rfind(delimiter)
+            if idx > 0:
+                end_idx = idx + len(delimiter)
+                if best_idx is None or end_idx > best_idx:
+                    best_idx = end_idx
+        return best_idx
         
     def process_text(self, text: str) -> List[Dict]:
         """

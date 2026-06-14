@@ -1087,7 +1087,8 @@ function isTurboEngine(engineName) {
         || value === 'chatterbox_turbo_replicate'
         || value === 'voxcpm_local'
         || value === 'qwen3_clone'
-        || value === 'omnivoice_clone';
+        || value === 'omnivoice_clone'
+        || value === 'dots_tts';
 }
 
 function isPromptEngine(engineName) {
@@ -1127,6 +1128,10 @@ function isKittenEngine(engineName) {
 
 function isIndexTTSEngine(engineName) {
     return (engineName || '').toLowerCase() === 'index_tts';
+}
+
+function isDotsTTSEngine(engineName) {
+    return (engineName || '').toLowerCase() === 'dots_tts';
 }
 
 function isQwenCloneEngine(engineName) {
@@ -1237,6 +1242,7 @@ const ENGINE_MIN_DURATION = {
     'qwen3_clone': 0,
     'omnivoice_clone': 0,
     'omnivoice_design': 0,
+    'dots_tts': 0,
     'kokoro': 0,
     'kokoro_replicate': 0,
 };
@@ -3628,6 +3634,7 @@ const engineDisplayNames = {
     'pocket_tts_preset': 'Pocket TTS · Preset',
     'kitten_tts': 'KittenTTS',
     'index_tts': 'IndexTTS',
+    'dots_tts': 'Dot.TTS · Voice Clone',
     'omnivoice_clone': 'OmniVoice · Clone',
     'omnivoice_design': 'OmniVoice · Design'
 };
@@ -3638,7 +3645,7 @@ function updateModeIndicator(engineName) {
     if (!modeEl) return;
 
     const normalizedEngine = (engineName || 'kokoro').toLowerCase();
-    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone', 'pocket_tts', 'pocket_tts_preset', 'kitten_tts', 'index_tts']
+    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone', 'pocket_tts', 'pocket_tts_preset', 'kitten_tts', 'index_tts', 'dots_tts']
         .includes(normalizedEngine);
 
     modeEl.textContent = engineDisplayNames[normalizedEngine] || normalizedEngine;
@@ -4287,6 +4294,7 @@ function getProjectState() {
             if (speaker) acc[speaker] = input.value;
             return acc;
         }, {}),
+        word_replacements: getAltWordRegistry().filter(entry => entry.original && entry.replacement),
         fx_state: JSON.parse(JSON.stringify(voiceFxState || {})),
         ready_state: JSON.parse(JSON.stringify(speakerReadyState || {})),
         speaker_profiles: JSON.parse(JSON.stringify(speakerProfiles || {}))
@@ -4388,6 +4396,7 @@ async function applyProjectState(project) {
     const geminiPreset = document.getElementById('gemini-preset-select');
     if (geminiPreset) geminiPreset.value = project.gemini_preset || '';
     latestGeminiBookTitle = project.book_title || '';
+    setAltWordRegistry(project.word_replacements || project.alt_word_registry || []);
 
     Object.keys(voiceFxState).forEach(key => delete voiceFxState[key]);
     Object.assign(voiceFxState, project.fx_state || {});
@@ -4756,7 +4765,7 @@ function initInlineSampleHandlers() {
 // Populate voice select dropdowns
 function populateVoiceSelects() {
     const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
-    if (!window.availableVoices && !window.availablePocketTtsVoices && !isKittenEngine(engineName) && !isIndexTTSEngine(engineName)) return;
+    if (!window.availableVoices && !window.availablePocketTtsVoices && !isKittenEngine(engineName) && !isIndexTTSEngine(engineName) && !isDotsTTSEngine(engineName)) return;
     const isQwen = isQwenEngine(engineName);
     const isPocketPreset = isPocketPresetEngine(engineName);
     const isKitten = isKittenEngine(engineName);
@@ -6004,6 +6013,21 @@ function getAltWordRegistry() {
 }
 window.getAltWordRegistry = getAltWordRegistry;
 
+function setAltWordRegistry(entries) {
+    altWordRegistry = Array.isArray(entries)
+        ? entries
+            .filter(entry => entry && entry.original && entry.replacement)
+            .map(entry => ({
+                original: String(entry.original).trim(),
+                replacement: String(entry.replacement).trim()
+            }))
+            .filter(entry => entry.original && entry.replacement)
+        : [];
+    saveAltWordRegistry();
+    renderAltWordTable();
+}
+window.setAltWordRegistry = setAltWordRegistry;
+
 /** Count case-insensitive occurrences of `word` in `text` (whole-word match) */
 function countWordInstances(word, text) {
     if (!word || !text) return 0;
@@ -6088,7 +6112,8 @@ async function awrPopulateVoiceSelect(engineName) {
     const norm = (engineName || '').toLowerCase().replace(/[_-]/g, '');
     const usesPrompts = norm.includes('chatterbox') || norm.includes('voxcpm')
         || (norm.includes('pockettts') && !norm.includes('pocketttspreset'))
-        || (norm.includes('qwen3') && norm.includes('clone'));
+        || (norm.includes('qwen3') && norm.includes('clone'))
+        || norm.includes('dotstts');
     const isQwen = norm.includes('qwen3') && !norm.includes('clone');
     const isPocketPreset = norm.includes('pocketttspreset');
 

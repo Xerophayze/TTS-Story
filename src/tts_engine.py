@@ -15,6 +15,7 @@ from .engines.omnivoice_design_engine import OmniVoiceDesignEngine
 from .engines.pocket_tts_engine import PocketTTSEngine
 from .engines.kitten_tts_engine import KittenTTSEngine
 from .engines.index_tts_engine import IndexTTSEngine, INDEX_TTS_AVAILABLE, INDEX_TTS_UNAVAILABLE_REASON
+from .engines.dots_tts_engine import DotsTTSEngine, DOTS_TTS_AVAILABLE, DOTS_TTS_UNAVAILABLE_REASON
 from .engines.chatterbox_turbo_replicate_engine import ChatterboxTurboReplicateEngine
 from .engines.kokoro_engine import (
     DEFAULT_SAMPLE_RATE,
@@ -37,6 +38,7 @@ EngineRegistry: Dict[str, Type[TtsEngineBase]] = {
     "omnivoice_design": OmniVoiceDesignEngine,
     "kitten_tts": KittenTTSEngine,
     "index_tts": IndexTTSEngine,
+    "dots_tts": DotsTTSEngine,
 }
 AVAILABLE_ENGINES = tuple(EngineRegistry.keys())
 
@@ -72,4 +74,7 @@ __all__ = [
     "IndexTTSEngine",
     "INDEX_TTS_AVAILABLE",
     "INDEX_TTS_UNAVAILABLE_REASON",
+    "DotsTTSEngine",
+    "DOTS_TTS_AVAILABLE",
+    "DOTS_TTS_UNAVAILABLE_REASON",
 ]

@@ -566,6 +566,100 @@ echo WARNING: IndexTTS dependency install failed.
 echo Try manually: cd engines\index-tts ^&^& uv sync
 :AfterIndexTTS
 
+REM Setup Dot.TTS isolated environment (optional)
+echo.
+echo [10b/12] Setting up Dot.TTS isolated environment (optional)...
+echo Dot.TTS pins newer torch/transformers versions, so it runs in its own venv.
+set "DOTS_TTS_DIR=%~dp0engines\dots-tts"
+set "DOTS_TTS_REPO=%DOTS_TTS_DIR%\repo"
+if "%DOTS_TTS_DIR:~-1%"=="\" set "DOTS_TTS_DIR=%DOTS_TTS_DIR:~0,-1%"
+if exist "%DOTS_TTS_DIR%\.dots_tts_ready" (
+    if exist "%DOTS_TTS_DIR%\dots_tts_worker.py" (
+        if exist "%DOTS_TTS_REPO%\pyproject.toml" (
+            if exist "%DOTS_TTS_DIR%\.venv\Scripts\python.exe" (
+                "%DOTS_TTS_DIR%\.venv\Scripts\python.exe" "%DOTS_TTS_DIR%\dots_tts_worker.py" --check-env >nul 2>&1
+                if not errorlevel 1 (
+                    echo Dot.TTS isolated environment already set up. Skipping.
+                    goto :AfterDotsTTS
+                )
+            )
+        )
+    )
+    echo Dot.TTS setup marker is stale or incomplete. Repairing Dot.TTS setup...
+    del "%DOTS_TTS_DIR%\.dots_tts_ready" >nul 2>&1
+)
+where git >nul 2>&1
+if errorlevel 1 (
+    echo WARNING: git not found. Skipping Dot.TTS setup.
+    echo To install Dot.TTS manually:
+    echo   1. git clone https://github.com/rednote-hilab/dots.tts.git engines\dots-tts\repo
+    echo   2. python -m venv engines\dots-tts\.venv
+    echo   3. engines\dots-tts\.venv\Scripts\python.exe -m pip install -c engines\dots-tts\repo\constraints\recommended.txt torch torchaudio transformers huggingface-hub loguru "langcodes[data]" einops librosa soundfile numpy pydantic PyYAML safetensors torchdiffeq tqdm lingua-language-detector
+    echo   4. engines\dots-tts\.venv\Scripts\python.exe -m pip install -e engines\dots-tts\repo --no-deps
+    goto :AfterDotsTTS
+)
+if not exist "%DOTS_TTS_DIR%" mkdir "%DOTS_TTS_DIR%"
+if not exist "%DOTS_TTS_REPO%\pyproject.toml" (
+    echo Cloning Dot.TTS repository...
+    git clone https://github.com/rednote-hilab/dots.tts.git "%DOTS_TTS_REPO%"
+    if errorlevel 1 (
+        echo WARNING: Failed to clone Dot.TTS. Skipping Dot.TTS setup.
+        goto :AfterDotsTTS
+    )
+) else (
+    echo Dot.TTS already cloned. Pulling latest changes...
+    git -C "%DOTS_TTS_REPO%" pull --ff-only >nul 2>&1
+)
+if not exist "%DOTS_TTS_DIR%\.venv\Scripts\python.exe" (
+    echo Creating Dot.TTS isolated virtual environment...
+    python -m venv "%DOTS_TTS_DIR%\.venv"
+    if errorlevel 1 (
+        echo WARNING: Failed to create Dot.TTS venv. Dot.TTS will not be available.
+        goto :AfterDotsTTS
+    )
+)
+echo Installing Dot.TTS dependencies (this may take several minutes)...
+"%DOTS_TTS_DIR%\.venv\Scripts\python.exe" -m pip install --upgrade pip
+set "DOTS_TTS_TORCH_INSTALLED=0"
+if not "%DOTS_TTS_CUDA%"=="0" (
+    where nvidia-smi >nul 2>&1
+    if not errorlevel 1 (
+        echo Installing Dot.TTS CUDA torch/torchaudio builds...
+        "%DOTS_TTS_DIR%\.venv\Scripts\python.exe" -m pip install --upgrade --force-reinstall --no-deps "torch==2.8.0+cu128" "torchaudio==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128
+        if not errorlevel 1 set "DOTS_TTS_TORCH_INSTALLED=1"
+    )
+)
+if "%DOTS_TTS_TORCH_INSTALLED%"=="0" (
+    echo Installing Dot.TTS CPU torch/torchaudio builds...
+    "%DOTS_TTS_DIR%\.venv\Scripts\python.exe" -m pip install --upgrade --force-reinstall --no-deps "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu
+)
+"%DOTS_TTS_DIR%\.venv\Scripts\python.exe" -m pip install -c "%DOTS_TTS_REPO%\constraints\recommended.txt" transformers huggingface-hub loguru "langcodes[data]" einops librosa soundfile numpy pydantic PyYAML safetensors torchdiffeq tqdm lingua-language-detector
+if errorlevel 1 (
+    echo WARNING: Dot.TTS runtime dependency install failed. Dot.TTS will not be available.
+    goto :AfterDotsTTS
+)
+"%DOTS_TTS_DIR%\.venv\Scripts\python.exe" -m pip install -e "%DOTS_TTS_REPO%" --no-deps
+if errorlevel 1 (
+    echo WARNING: Dot.TTS dependency install failed. Dot.TTS will not be available.
+    goto :AfterDotsTTS
+)
+echo Verifying Dot.TTS isolated environment...
+"%DOTS_TTS_DIR%\.venv\Scripts\python.exe" "%DOTS_TTS_DIR%\dots_tts_worker.py" --check-env
+if errorlevel 1 (
+    echo WARNING: Dot.TTS verification failed. Dot.TTS will not be available.
+    goto :AfterDotsTTS
+)
+if "%PREFETCH_DOTS_TTS_MODEL%"=="1" (
+    echo Prefetching Dot.TTS model cache ^(set PREFETCH_DOTS_TTS_MODEL=0 to skip^)...
+    "%DOTS_TTS_DIR%\.venv\Scripts\python.exe" "%DOTS_TTS_DIR%\dots_tts_worker.py" --prefetch-model --model-id "rednote-hilab/dots.tts-soar"
+    if errorlevel 1 echo WARNING: Dot.TTS model prefetch failed. First generation will retry the download.
+) else (
+    echo Dot.TTS model prefetch is opt-in. Set PREFETCH_DOTS_TTS_MODEL=1 to download during setup.
+)
+type nul > "%DOTS_TTS_DIR%\.dots_tts_ready"
+echo Dot.TTS isolated environment ready.
+:AfterDotsTTS
+
 REM Optional performance extras (best-effort)
 echo.
 echo [11/12] Installing optional performance extras...

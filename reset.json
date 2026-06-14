@@ -33,6 +33,36 @@
     {
       "method": "fs.rm",
       "params": {
+        "path": "engines/dots-tts/.venv"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
+        "path": "engines/dots-tts/.dots_tts_ready"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
+        "path": "engines/dots-tts/repo"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
+        "path": "engines/dots-tts/models"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
+        "path": "engines/dots-tts/hf-cache"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
         "path": "output"
       }
     },

@@ -314,8 +314,10 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         try:
             self._run_worker(job, chunk_done_cb=_on_chunk_done, cancel_cb=_cancel_or_pause_cb)
         except RuntimeError:
-            # If we have a pending exception (pause/cancel), ignore the worker exit error
-            if not _pending_exception:
+            # If cancellation/pause was requested before the first chunk finished,
+            # there may be no pending exception yet; the poll thread terminates
+            # the worker and the app-level cancel flag is raised after this returns.
+            if not _pending_exception and not _cancel_or_pause_cb():
                 raise
 
         # Clean up temp prompt files

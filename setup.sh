@@ -506,6 +506,105 @@ else
     fi
 fi
 
+echo
+echo "[9d/12] Setting up Dot.TTS isolated environment (optional)..."
+echo "Dot.TTS pins newer torch/transformers versions, so it runs in its own venv."
+DOTS_TTS_DIR="$(pwd)/engines/dots-tts"
+DOTS_TTS_REPO="$DOTS_TTS_DIR/repo"
+DOTS_TTS_PYTHON="$DOTS_TTS_DIR/.venv/bin/python"
+if [ ! -x "$DOTS_TTS_PYTHON" ] && [ -x "$DOTS_TTS_DIR/.venv/bin/python3" ]; then
+    DOTS_TTS_PYTHON="$DOTS_TTS_DIR/.venv/bin/python3"
+fi
+DOTS_TTS_READY=0
+if [ -f "$DOTS_TTS_DIR/.dots_tts_ready" ]; then
+    if [ -f "$DOTS_TTS_DIR/dots_tts_worker.py" ] && [ -f "$DOTS_TTS_REPO/pyproject.toml" ] && [ -x "$DOTS_TTS_PYTHON" ]; then
+        if "$DOTS_TTS_PYTHON" "$DOTS_TTS_DIR/dots_tts_worker.py" --check-env >/dev/null 2>&1; then
+            DOTS_TTS_READY=1
+        else
+            echo "Dot.TTS setup marker is stale or incomplete. Repairing Dot.TTS setup..."
+            rm -f "$DOTS_TTS_DIR/.dots_tts_ready"
+        fi
+    else
+        echo "Dot.TTS setup marker is stale or incomplete. Repairing Dot.TTS setup..."
+        rm -f "$DOTS_TTS_DIR/.dots_tts_ready"
+    fi
+fi
+
+if [ "$DOTS_TTS_READY" -eq 1 ]; then
+    echo "Dot.TTS isolated environment already set up. Skipping."
+elif ! command -v git >/dev/null 2>&1; then
+    echo "WARNING: git not found. Skipping Dot.TTS setup."
+    echo "To install Dot.TTS manually:"
+    echo "  git clone https://github.com/rednote-hilab/dots.tts.git engines/dots-tts/repo"
+    echo "  python -m venv engines/dots-tts/.venv"
+    echo "  engines/dots-tts/.venv/bin/python -m pip install -c engines/dots-tts/repo/constraints/recommended.txt torch torchaudio transformers huggingface-hub loguru 'langcodes[data]' einops librosa soundfile numpy pydantic PyYAML safetensors torchdiffeq tqdm lingua-language-detector"
+    echo "  engines/dots-tts/.venv/bin/python -m pip install -e engines/dots-tts/repo --no-deps"
+else
+    mkdir -p "$DOTS_TTS_DIR"
+    if [ ! -f "$DOTS_TTS_REPO/pyproject.toml" ]; then
+        echo "Cloning Dot.TTS repository..."
+        git clone https://github.com/rednote-hilab/dots.tts.git "$DOTS_TTS_REPO" || echo "WARNING: Failed to clone Dot.TTS."
+    else
+        echo "Dot.TTS already cloned. Pulling latest changes..."
+        git -C "$DOTS_TTS_REPO" pull --ff-only >/dev/null 2>&1 || true
+    fi
+
+    if [ -f "$DOTS_TTS_REPO/pyproject.toml" ]; then
+        if [ ! -x "$DOTS_TTS_PYTHON" ]; then
+            echo "Creating Dot.TTS isolated virtual environment..."
+            python -m venv "$DOTS_TTS_DIR/.venv" || echo "WARNING: Failed to create Dot.TTS venv."
+            DOTS_TTS_PYTHON="$DOTS_TTS_DIR/.venv/bin/python"
+            if [ ! -x "$DOTS_TTS_PYTHON" ] && [ -x "$DOTS_TTS_DIR/.venv/bin/python3" ]; then
+                DOTS_TTS_PYTHON="$DOTS_TTS_DIR/.venv/bin/python3"
+            fi
+        fi
+
+        if [ -x "$DOTS_TTS_PYTHON" ]; then
+            echo "Installing Dot.TTS dependencies (this may take several minutes)..."
+            "$DOTS_TTS_PYTHON" -m pip install --upgrade pip
+            DOTS_TTS_TORCH_READY=0
+            if [ "${DOTS_TTS_CUDA:-1}" != "0" ] && command -v nvidia-smi >/dev/null 2>&1; then
+                echo "Installing Dot.TTS CUDA torch/torchaudio builds..."
+                if "$DOTS_TTS_PYTHON" -m pip install --upgrade --force-reinstall --no-deps \
+                    "torch==2.8.0+cu128" "torchaudio==2.8.0+cu128" \
+                    --index-url https://download.pytorch.org/whl/cu128; then
+                    DOTS_TTS_TORCH_READY=1
+                fi
+            fi
+            if [ "$DOTS_TTS_TORCH_READY" -eq 0 ]; then
+                echo "Installing Dot.TTS CPU torch/torchaudio builds..."
+                "$DOTS_TTS_PYTHON" -m pip install --upgrade --force-reinstall --no-deps \
+                    "torch==2.8.0" "torchaudio==2.8.0" \
+                    --index-url https://download.pytorch.org/whl/cpu || true
+            fi
+            DOTS_TTS_RUNTIME_DEPS=(
+                transformers huggingface-hub loguru "langcodes[data]"
+                einops librosa soundfile numpy pydantic PyYAML safetensors
+                torchdiffeq tqdm lingua-language-detector
+            )
+            if "$DOTS_TTS_PYTHON" -m pip install -c "$DOTS_TTS_REPO/constraints/recommended.txt" "${DOTS_TTS_RUNTIME_DEPS[@]}" \
+                && "$DOTS_TTS_PYTHON" -m pip install -e "$DOTS_TTS_REPO" --no-deps; then
+                echo "Verifying Dot.TTS isolated environment..."
+                if "$DOTS_TTS_PYTHON" "$DOTS_TTS_DIR/dots_tts_worker.py" --check-env; then
+                    if [ "${PREFETCH_DOTS_TTS_MODEL:-0}" = "1" ]; then
+                        echo "Prefetching Dot.TTS model cache (set PREFETCH_DOTS_TTS_MODEL=0 to skip)..."
+                        "$DOTS_TTS_PYTHON" "$DOTS_TTS_DIR/dots_tts_worker.py" --prefetch-model --model-id "rednote-hilab/dots.tts-soar" || \
+                            echo "WARNING: Dot.TTS model prefetch failed. First generation will retry the download."
+                    else
+                        echo "Dot.TTS model prefetch is opt-in. Set PREFETCH_DOTS_TTS_MODEL=1 to download during setup."
+                    fi
+                    touch "$DOTS_TTS_DIR/.dots_tts_ready"
+                    echo "Dot.TTS isolated environment ready."
+                else
+                    echo "WARNING: Dot.TTS verification failed. Dot.TTS will not be available."
+                fi
+            else
+                echo "WARNING: Dot.TTS dependency install failed. Dot.TTS will not be available."
+            fi
+        fi
+    fi
+fi
+
 # Ensure voice prompts directory exists
 echo
 echo "[10/12] Creating data directories..."

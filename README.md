@@ -99,6 +99,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
   - **Qwen3 TTS · Voice Creation** - Create a brand-new voice using Qwen3 TTS voice design
   - **KittenTTS** - Ultra-lightweight CPU-only engine, no GPU required
   - **IndexTTS** - Zero-shot voice cloning by Bilibili, runs in an isolated venv
+  - **Dot.TTS** - 48 kHz zero-shot voice cloning by rednote-hilab, runs in an isolated venv
 - **Unified Replicate API**: Single API token works for both Kokoro and Chatterbox Replicate engines
 - **Voice Cloning**: Upload your own voice recordings (10-15 seconds recommended) to clone any voice with Chatterbox or VoxCPM
 - **Voice Prompt Management**: Add, rename, delete, and preview custom voice prompts with drag-and-drop bulk upload
@@ -323,8 +324,42 @@ TTS-Story supports twelve TTS engine options. In the **Settings** tab, choose yo
 | **Pocket TTS · Voice Clone** | CPU-only voice cloning from reference prompts | CPU only |
 | **KittenTTS** | Ultra-lightweight CPU-only, 8 built-in voices | CPU only |
 | **IndexTTS** | Zero-shot voice cloning, English + Chinese | NVIDIA GPU recommended; isolated venv |
+| **Dot.TTS** | High-similarity zero-shot voice cloning with reference transcript | NVIDIA GPU recommended; isolated venv |
 
 You can also override the engine per-job in the **Generate** tab.
+
+### Dot.TTS Engine
+
+Dot.TTS (by rednote-hilab) is a 48 kHz zero-shot voice cloning engine:
+
+- **Continuation Voice Cloning**: Uses reference audio plus the exact reference transcript for best similarity and stability
+- **Transcript Fallback**: If a voice prompt has no stored transcript, the app attempts SenseVoice transcription and caches the result in `data/voice_prompts/transcripts.json`
+- **Shared Voice Prompts Library**: Uses the same prompt library and library-regeneration controls as Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice Clone, and Pocket TTS Clone
+- **Isolated Environment**: Runs in `engines/dots-tts/.venv` with the upstream repo cloned to `engines/dots-tts/repo`
+- **Optional X-Vector Fallback**: Can run with reference audio only if enabled, but reference audio plus matching text remains the recommended path
+- **Windows Compatibility**: Setup skips WeTextProcessing because its `pynini` dependency does not provide a clean Windows wheel; the worker falls back to no-op text normalization when WeTextProcessing is unavailable
+
+#### Dot.TTS Setup
+
+1. **Run `setup.bat`** — it clones `rednote-hilab/dots.tts`, creates the isolated venv, and installs with `constraints/recommended.txt`
+2. **Optional model prefetch**: set `PREFETCH_DOTS_TTS_MODEL=1` before running setup to download `rednote-hilab/dots.tts-soar`; otherwise the model downloads on first use
+3. **Select Dot.TTS** from the engine dropdown in Settings or the Generate tab
+4. **Assign voice prompts** per speaker and make sure each reference has transcript text
+
+#### Dot.TTS Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Model | `rednote-hilab/dots.tts-soar` | Best voice cloning checkpoint |
+| Chunk Size | `250` chars | Sentence-aware target size; lower values are safer for long passages |
+| Precision | `auto` | Uses `bfloat16` on CUDA and `float32` on CPU to avoid upstream CPU bf16 dtype mismatches |
+| Default Voice Prompt | _(empty)_ | Fallback reference audio path |
+| Default Prompt Transcript | _(empty)_ | Fallback transcript for the reference audio |
+| Sampling Steps | `10` | Flow-matching sampling steps |
+| Guidance Scale | `1.2` | CFG scale; lower values can reduce intensity |
+| Speaker Scale | `1.5` | Reference speaker conditioning strength; lower values can reduce exaggerated style |
+| Normalize Text | `false` | Apply Dot.TTS text normalization when supported |
+| Optimize | `false` | Enable Dot.TTS `torch.compile` optimization |
 
 ### VoxCPM 1.5 Engine
 

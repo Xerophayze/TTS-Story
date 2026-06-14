@@ -380,6 +380,7 @@ function toggleEngineSettingsSections(engineName) {
         'omnivoice_design': 'omnivoice',
         'kitten_tts': 'kitten-tts',
         'index_tts': 'index-tts',
+        'dots_tts': 'dots-tts',
         'api_keys': 'api-keys'
     };
     
@@ -998,6 +999,64 @@ function applySettings(settings) {
         indexMaxTextTokens.value = settings.index_tts_max_text_tokens_per_segment ?? 120;
     }
 
+    // Dot.TTS settings
+    const dotsModelId = document.getElementById('dots-tts-model-id');
+    if (dotsModelId) {
+        dotsModelId.value = settings.dots_tts_model_id || 'rednote-hilab/dots.tts-soar';
+    }
+    const dotsChunkSize = document.getElementById('dots-tts-chunk-size');
+    if (dotsChunkSize) {
+        dotsChunkSize.value = settings.dots_tts_chunk_size ?? 250;
+    }
+    const dotsDevice = document.getElementById('dots-tts-device');
+    if (dotsDevice) {
+        dotsDevice.value = settings.dots_tts_device || 'auto';
+    }
+    const dotsPrecision = document.getElementById('dots-tts-precision');
+    if (dotsPrecision) {
+        dotsPrecision.value = settings.dots_tts_precision || 'auto';
+    }
+    const dotsPrompt = document.getElementById('dots-tts-default-prompt');
+    if (dotsPrompt) {
+        dotsPrompt.value = settings.dots_tts_default_prompt || '';
+    }
+    const dotsPromptText = document.getElementById('dots-tts-default-prompt-text');
+    if (dotsPromptText) {
+        dotsPromptText.value = settings.dots_tts_default_prompt_text || '';
+    }
+    const dotsNumSteps = document.getElementById('dots-tts-num-steps');
+    if (dotsNumSteps) {
+        dotsNumSteps.value = settings.dots_tts_num_steps ?? 10;
+    }
+    const dotsGuidance = document.getElementById('dots-tts-guidance-scale');
+    if (dotsGuidance) {
+        dotsGuidance.value = settings.dots_tts_guidance_scale ?? 1.2;
+    }
+    const dotsSpeakerScale = document.getElementById('dots-tts-speaker-scale');
+    if (dotsSpeakerScale) {
+        dotsSpeakerScale.value = settings.dots_tts_speaker_scale ?? 1.5;
+    }
+    const dotsSeed = document.getElementById('dots-tts-seed');
+    if (dotsSeed) {
+        dotsSeed.value = settings.dots_tts_seed ?? 42;
+    }
+    const dotsLanguage = document.getElementById('dots-tts-language');
+    if (dotsLanguage) {
+        dotsLanguage.value = settings.dots_tts_language || 'none';
+    }
+    const dotsNormalize = document.getElementById('dots-tts-normalize-text');
+    if (dotsNormalize) {
+        dotsNormalize.checked = settings.dots_tts_normalize_text === true;
+    }
+    const dotsOptimize = document.getElementById('dots-tts-optimize');
+    if (dotsOptimize) {
+        dotsOptimize.checked = settings.dots_tts_optimize === true;
+    }
+    const dotsAllowXvector = document.getElementById('dots-tts-allow-xvector-only');
+    if (dotsAllowXvector) {
+        dotsAllowXvector.checked = settings.dots_tts_allow_xvector_only === true;
+    }
+
     // Chatterbox Replicate settings (uses shared replicate_api_key)
     const turboModelInput = document.getElementById('chatterbox-turbo-replicate-model');
     if (turboModelInput) {
@@ -1178,6 +1237,25 @@ async function saveSettings() {
         index_tts_repetition_penalty: parseFloat(document.getElementById('index-tts-repetition-penalty')?.value) || 10.0,
         index_tts_max_mel_tokens: parseInt(document.getElementById('index-tts-max-mel-tokens')?.value, 10) || 1500,
         index_tts_max_text_tokens_per_segment: parseInt(document.getElementById('index-tts-max-text-tokens-per-segment')?.value, 10) || 120,
+        dots_tts_model_id: document.getElementById('dots-tts-model-id')?.value || 'rednote-hilab/dots.tts-soar',
+        dots_tts_chunk_size: parseInt(document.getElementById('dots-tts-chunk-size')?.value, 10) || 250,
+        dots_tts_device: document.getElementById('dots-tts-device')?.value || 'auto',
+        dots_tts_precision: document.getElementById('dots-tts-precision')?.value || 'auto',
+        dots_tts_default_prompt: document.getElementById('dots-tts-default-prompt')?.value || '',
+        dots_tts_default_prompt_text: document.getElementById('dots-tts-default-prompt-text')?.value || '',
+        dots_tts_num_steps: parseInt(document.getElementById('dots-tts-num-steps')?.value, 10) || 10,
+        dots_tts_guidance_scale: parseFloat(document.getElementById('dots-tts-guidance-scale')?.value) || 1.2,
+        dots_tts_speaker_scale: parseFloat(document.getElementById('dots-tts-speaker-scale')?.value) || 1.5,
+        dots_tts_seed: (() => {
+            const raw = document.getElementById('dots-tts-seed')?.value?.trim();
+            if (!raw) return null;
+            const parsed = parseInt(raw, 10);
+            return Number.isFinite(parsed) ? parsed : 42;
+        })(),
+        dots_tts_language: document.getElementById('dots-tts-language')?.value || 'none',
+        dots_tts_normalize_text: document.getElementById('dots-tts-normalize-text')?.checked ?? false,
+        dots_tts_optimize: document.getElementById('dots-tts-optimize')?.checked ?? false,
+        dots_tts_allow_xvector_only: document.getElementById('dots-tts-allow-xvector-only')?.checked ?? false,
         chatterbox_turbo_replicate_model: document.getElementById('chatterbox-turbo-replicate-model').value,
         chatterbox_turbo_replicate_voice: document.getElementById('chatterbox-turbo-replicate-voice').value,
         chatterbox_turbo_replicate_temperature: parseFloat(document.getElementById('chatterbox-turbo-replicate-temperature').value) || 0.8,
@@ -1301,7 +1379,21 @@ async function resetSettings() {
         pocket_tts_default_prompt: '',
         pocket_tts_prompt_truncate: false,
         pocket_tts_num_threads: null,
-        pocket_tts_interop_threads: null
+        pocket_tts_interop_threads: null,
+        dots_tts_model_id: 'rednote-hilab/dots.tts-soar',
+        dots_tts_chunk_size: 250,
+        dots_tts_device: 'auto',
+        dots_tts_precision: 'auto',
+        dots_tts_default_prompt: '',
+        dots_tts_default_prompt_text: '',
+        dots_tts_num_steps: 10,
+        dots_tts_guidance_scale: 1.2,
+        dots_tts_speaker_scale: 1.5,
+        dots_tts_seed: 42,
+        dots_tts_language: 'none',
+        dots_tts_normalize_text: false,
+        dots_tts_optimize: false,
+        dots_tts_allow_xvector_only: false
     };
     
     try {

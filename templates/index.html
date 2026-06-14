@@ -228,6 +228,7 @@
                                                 <option value="omnivoice_clone">OmniVoice · Voice Clone</option>
                                                 <option value="kitten_tts">KittenTTS · CPU Lightweight</option>
                                                 <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
+                                                <option value="dots_tts">Dot.TTS · Voice Clone</option>
                                             </select>
                                         </div>
                                     </div>
@@ -749,6 +750,7 @@
                                     <option value="omnivoice_clone">OmniVoice · Voice Clone</option>
                                     <option value="kitten_tts">KittenTTS · CPU Lightweight</option>
                                     <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
+                                    <option value="dots_tts">Dot.TTS · Voice Clone</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -795,6 +797,7 @@
                             <button type="button" class="engine-tab-btn" data-engine-tab="omnivoice">OmniVoice</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="kitten-tts">KittenTTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="index-tts">IndexTTS</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="dots-tts">Dot.TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="api-keys">API Keys</button>
                         </div>
 
@@ -1163,6 +1166,93 @@
                                     <label class="checkbox-label">
                                         <input type="checkbox" id="index-tts-use-accel" checked>
                                         Use Accel &mdash; acceleration engine for GPT stage
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dot.TTS Panel -->
+                        <div class="engine-panel" id="engine-panel-dots-tts">
+                            <div class="section-title-inline settings-panel-title">
+                                <h4>Dot.TTS</h4>
+                            </div>
+                            <p class="help-text" style="margin-top:0;">2B zero-shot voice cloning by RedNote. Requires an isolated venv under <code>engines/dots-tts/</code>. Reference audio should include matching transcript text.</p>
+                            <div class="settings-form-grid">
+                                <div class="form-group">
+                                    <label for="dots-tts-model-id">Model ID</label>
+                                    <select id="dots-tts-model-id">
+                                        <option value="rednote-hilab/dots.tts-soar">dots.tts-soar (best cloning)</option>
+                                        <option value="rednote-hilab/dots.tts-mf">dots.tts-mf (faster)</option>
+                                        <option value="rednote-hilab/dots.tts-base">dots.tts-base</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-chunk-size">Chunk Size (chars)</label>
+                                    <input type="number" id="dots-tts-chunk-size" min="100" max="1000" step="50" value="250">
+                                    <small>Sentence-aware target size. Lower this if long chunks stall.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-device">ASR Device</label>
+                                    <input type="text" id="dots-tts-device" placeholder="auto">
+                                    <small>Used for transcript auto-detection only; Dot.TTS handles model placement internally.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-precision">Precision</label>
+                                    <select id="dots-tts-precision">
+                                        <option value="auto">auto (bf16 on CUDA, float32 on CPU)</option>
+                                        <option value="bfloat16">bfloat16</option>
+                                        <option value="float16">float16</option>
+                                        <option value="float32">float32</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-default-prompt">Default Voice Prompt</label>
+                                    <input type="text" id="dots-tts-default-prompt" placeholder="data/voice_prompts/...">
+                                    <small>Fallback reference audio when no per-speaker prompt is assigned.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-default-prompt-text">Default Prompt Transcript</label>
+                                    <input type="text" id="dots-tts-default-prompt-text" placeholder="Exact transcript of the default reference audio">
+                                    <small>Used with the default prompt. Per-voice prompt transcripts take priority.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-num-steps">Sampling Steps</label>
+                                    <input type="number" id="dots-tts-num-steps" min="1" max="64" step="1" value="10">
+                                    <small>SOAR/base usually use 10-32. MeanFlow is designed for 4.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-guidance-scale">Guidance Scale</label>
+                                    <input type="number" id="dots-tts-guidance-scale" min="0.1" max="5" step="0.1" value="1.2">
+                                    <small>Higher values can increase intensity. Try 0.8-1.0 for calmer delivery.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-speaker-scale">Speaker Scale</label>
+                                    <input type="number" id="dots-tts-speaker-scale" min="0.1" max="3" step="0.1" value="1.5">
+                                    <small>Strength of reference speaker conditioning. Lower values can reduce exaggerated cloning style.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-seed">Seed</label>
+                                    <input type="number" id="dots-tts-seed" min="0" step="1" value="42">
+                                    <small>Change for prosody variation. Leave blank for no fixed seed.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dots-tts-language">Language</label>
+                                    <input type="text" id="dots-tts-language" placeholder="none">
+                                    <small>none, auto_detect, EN, ZH, Cantonese, etc.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Options</label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="dots-tts-normalize-text">
+                                        Normalize text before inference
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="dots-tts-optimize">
+                                        Optimize runtime with torch.compile
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="dots-tts-allow-xvector-only">
+                                        Allow reference-audio-only fallback
                                     </label>
                                 </div>
                             </div>

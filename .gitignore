@@ -85,3 +85,8 @@ engines/index-tts/
 !engines/index-tts/tts_worker.py
 engines/omnivoice/.venv
 engines/omnivoice/.omnivoice_ready
+engines/dots-tts/.venv
+engines/dots-tts/.dots_tts_ready
+engines/dots-tts/repo/
+engines/dots-tts/models/
+engines/dots-tts/hf-cache/

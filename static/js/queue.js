@@ -293,7 +293,8 @@ const TURBO_ENGINES = new Set([
     'chatterbox_turbo_replicate',
     'voxcpm_local',
     'qwen3_clone',
-    'omnivoice_clone'
+    'omnivoice_clone',
+    'dots_tts'
 ]);
 const CHATTERBOX_ENGINES = new Set(['chatterbox', ...TURBO_ENGINES]);
 
