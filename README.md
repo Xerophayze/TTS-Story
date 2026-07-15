@@ -9,24 +9,17 @@ Thank you — it genuinely means a lot! 🙏
 ---
 
 # Current Updates and Notes - updated 07-15-2026
-- **New TTS engine: Microsoft Azure AI Speech** - added bring-your-own-key Azure Speech synthesis with regional voice discovery, multilingual neural voices, supported speaking styles and roles, SSML rate/pitch/volume controls, preview support, retries, and configurable local request throttling.
-- **Windows startup stability** - Gemini's native SDK now loads only when Gemini processing is used, after the PyTorch-backed TTS engines have initialized.
-- **Cross-platform audio tools** - Linux and macOS now resolve native SoX and FFmpeg executables from `PATH`; bundled Windows `.exe` files are only selected on Windows.
-- **Installer and diagnostics improvements** - Git bootstrap has a Windows Package Manager fallback, Chatterbox setup validates its runtime import, and engine package/model versions can be collected with `scripts/engine_versions.py`.
-- **New TTS engine: Dot.TTS** - added RedNote HiLab Dot.TTS as a local, isolated-venv voice cloning engine with 48 kHz output, `dots.tts-soar`, `dots.tts-mf`, and `dots.tts-base` model options, CUDA-aware precision handling, and project-local model caching to avoid Windows symlink-cache issues.
-- **Dot.TTS reference transcript support** - Dot.TTS now stores and supplies reference text alongside reference audio. Existing voice prompt transcripts are reused when available, and SenseVoice transcription is attempted when a prompt has no saved transcript.
-- **Dot.TTS audiobook workflow integration** - Dot.TTS is available from the primary Generate interface and Library regeneration flows, uses the shared Voice Prompts library, supports grouped-by-speaker generation, and follows the same split-section/chapter review workflow as the other local cloning engines.
-- **Dot.TTS settings and stability controls** - added Dot.TTS settings for model selection, precision, sampling steps, guidance scale, speaker scale, seed, language, text normalization, runtime optimization, default prompt text, x-vector fallback, and sentence-aware chunk size.
-- **Section folder mapping fixes** - custom and front-matter headings such as Introduction, Prologue, Preface, Foreword, Appendix, and Author Note now map to named folders instead of shifting numbered chapter folders. The splitter also avoids carrying dangling closing speaker tags into the next section.
-- **Cancellation cleanup** - quick-cancelling OmniVoice before its first completed chunk is now treated as an intentional cancellation instead of a generic worker failure.
+- **Microsoft Azure AI Speech support** - use an Azure Speech key and region to access Microsoft's multilingual cloud voices and expression controls.
+- **Atlas Cloud and OpenRouter support** - process and prepare text using models available through either LLM provider.
+- **Dot.TTS support** - generate high-quality local voice-cloned audio using the RedNote HiLab Dot.TTS engine.
+- **Improved installation and platform support** - expanded setup, diagnostics, and audio-tool compatibility across Windows, Linux, macOS, and Pinokio.
+- **Audiobook workflow improvements** - improved section handling, chapter organization, review, regeneration, and audiobook export.
 
 ### Previous Updates
-- **Pinokio support update**: We gave the Pinokio install/update path a bunch of love and fixed setup, update, isolated-environment, and model-download issues. TTS-Story should now install, update, and run properly through Pinokio.
-- **Audio quality improvement**: added automatic MP3-to-WAV conversion for voice prompts before processing across the local voice-cloning engines to prevent artifacts from lossy prompt audio.
-- **Bug fix**: fixed Pocket TTS config parameter handling and added clearer Hugging Face authentication guidance for gated Pocket TTS models.
-- **Bug fix**: fixed IndexTTS clean-install handling by ignoring the cloned upstream repo while tracking the custom worker wrapper.
-- **Dynamic section heading detection**: added chip-based heading controls for default and custom headings, with real-time section preview updates.
-- **M4B audiobook export and parallel AAC encoding**: added chapter-mode M4B export with chapter markers, cover art support, configurable bitrate, ACX options, and faster multi-chapter encoding.
+- Added Pinokio installation and update support.
+- Added M4B audiobook export with chapter markers and cover art.
+- Added dynamic section-heading detection and chapter controls.
+- Improved voice-prompt audio quality and management.
 
 # TTS-Story
 
