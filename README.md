@@ -1,10 +1,12 @@
-## ☕ Support Ongoing Development
+## ❤️ Thank You for Supporting Our Work
 
-If you enjoy TTS-Story and my other open-source projects, consider supporting continued development! Every contribution helps keep things moving and motivates new features, bug fixes, and improvements across all my projects.
+We are deeply grateful to everyone who uses, shares, contributes to, and supports TTS-Story. Your encouragement helps us continue improving the project, adding new features, fixing problems, and keeping it freely available to the community.
 
-👉 **[Buy me a pizza (or whatever you'd like to contribute)](https://xerophayze.com/store.html?category=patron+support)**
+If you appreciate what we do and would like to support ongoing development, you can make a donation here:
 
-Thank you — it genuinely means a lot! 🙏
+👉 **[Support TTS-Story and our other projects](https://xerophayze.com/store.html?category=patron+support)**
+
+Every contribution is appreciated. Thank you for helping make this work possible! 🙏
 
 ---
 
