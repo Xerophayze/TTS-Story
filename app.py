@@ -50,6 +50,18 @@ from src.custom_voice_store import (
     save_custom_voice,
 )
 from src.document_extractor import extract_text_from_file, get_supported_formats
+from src.atlas_cloud_processor import (
+    AtlasCloudProcessor,
+    AtlasCloudProcessorError,
+    DEFAULT_ATLAS_CLOUD_BASE_URL,
+    DEFAULT_ATLAS_CLOUD_MODEL,
+)
+from src.openrouter_processor import (
+    OpenRouterProcessor,
+    OpenRouterProcessorError,
+    DEFAULT_OPENROUTER_BASE_URL,
+    DEFAULT_OPENROUTER_MODEL,
+)
 from src.local_llm_processor import (
     DEFAULT_LOCAL_LLM_BASE_URLS,
     LocalLLMProcessor,
@@ -92,6 +104,13 @@ from src.engines.dots_tts_engine import (
 from src.engines.chatterbox_turbo_replicate_engine import (
     DEFAULT_CHATTERBOX_TURBO_REPLICATE_MODEL,
     DEFAULT_CHATTERBOX_TURBO_REPLICATE_VOICE,
+)
+from src.engines.azure_speech_engine import (
+    AzureSpeechEngine,
+    AzureSpeechError,
+    DEFAULT_AZURE_SPEECH_OUTPUT_FORMAT,
+    DEFAULT_AZURE_SPEECH_REQUESTS_PER_MINUTE,
+    DEFAULT_AZURE_SPEECH_VOICE,
 )
 from src.tts_engine import (
     TTSEngine,
@@ -164,6 +183,24 @@ DEFAULT_CONFIG = {
     "gemini_prompt_presets": [],
     "gemini_speaker_profile_prompt": "",
     "llm_provider": DEFAULT_LLM_PROVIDER,
+    "atlas_cloud_api_key": "",
+    "atlas_cloud_base_url": DEFAULT_ATLAS_CLOUD_BASE_URL,
+    "atlas_cloud_model": DEFAULT_ATLAS_CLOUD_MODEL,
+    "atlas_cloud_timeout": 120,
+    "openrouter_api_key": "",
+    "openrouter_base_url": DEFAULT_OPENROUTER_BASE_URL,
+    "openrouter_model": DEFAULT_OPENROUTER_MODEL,
+    "openrouter_timeout": 120,
+    "azure_speech_key": "",
+    "azure_speech_region": "",
+    "azure_speech_default_voice": DEFAULT_AZURE_SPEECH_VOICE,
+    "azure_speech_output_format": DEFAULT_AZURE_SPEECH_OUTPUT_FORMAT,
+    "azure_speech_timeout": 60,
+    "azure_speech_requests_per_minute": DEFAULT_AZURE_SPEECH_REQUESTS_PER_MINUTE,
+    "azure_speech_chunk_size": 1000,
+    "azure_speech_default_style": "",
+    "azure_speech_default_role": "",
+    "azure_speech_default_style_degree": 1.0,
     "llm_local_provider": LLM_PROVIDER_LMSTUDIO,
     "llm_local_base_url": DEFAULT_LOCAL_LLM_BASE_URLS[LLM_PROVIDER_LMSTUDIO],
     "llm_local_model": "",
@@ -265,6 +302,16 @@ DEFAULT_CONFIG = {
     "parallel_chunks": 3,
     "group_chunks_by_speaker": False,
     "cleanup_vram_after_job": False,
+}
+
+SECRET_CONFIG_KEYS = {
+    "atlas_cloud_api_key",
+    "openrouter_api_key",
+    "gemini_api_key",
+    "replicate_api_key",
+    "llm_local_api_key",
+    "chatterbox_turbo_replicate_api_token",
+    "azure_speech_key",
 }
 
 POCKET_TTS_PRESET_VOICES = [
@@ -1003,6 +1050,8 @@ worker_thread = None  # Background worker thread
 tts_engine_instances: Dict[str, TtsEngineBase] = {}
 engine_config_signatures: Dict[str, str] = {}
 tts_engine_lock = threading.Lock()
+azure_voice_cache: Dict[str, Dict[str, Any]] = {}
+azure_voice_cache_lock = threading.Lock()
 # Lock to prevent concurrent GPU inference across all TTS operations
 # This prevents GPU contention and "badcase" retry loops with VoxCPM
 gpu_inference_lock = threading.Lock()
@@ -1208,6 +1257,11 @@ def _validate_voice_assignments_for_engine(
         if engine_name in {"kokoro", "qwen3_custom"} and not voice:
             missing_voices.append(speaker)
 
+        if engine_name == "azure_speech":
+            default_voice = (config.get("azure_speech_default_voice") or "").strip()
+            if not voice and not default_voice:
+                missing_voices.append(speaker)
+
         if engine_name == "chatterbox_turbo_replicate":
             default_voice = (config.get("chatterbox_turbo_replicate_voice") or "").strip()
             if not prompt and not voice and not default_voice:
@@ -1325,7 +1379,7 @@ def _perform_chunk_regeneration(
         idx, chunk = _find_chunk_record(job_entry, chunk_id)
         if chunk is None:
             raise ValueError("Chunk not found.")
-        config_snapshot = copy.deepcopy(job_entry.get("config_snapshot") or load_config())
+        config_snapshot = _hydrate_config_secrets(job_entry.get("config_snapshot") or load_config())
         job_voice_assignments = copy.deepcopy(job_entry.get("voice_assignments") or {})
         job_dir = _job_dir_from_entry(job_id, job_entry)
         speaker = chunk.get("speaker") or "default"
@@ -1642,7 +1696,7 @@ def _serialize_job_entry(job_id: str, job_entry: Dict[str, Any]) -> Dict[str, An
         "custom_heading": json.dumps({"enabled_headings": job_entry.get("section_headings")}) if job_entry.get("section_headings") else None,
         "merge_options": json.dumps(job_entry.get("merge_options") or {}),
         "voice_assignments": json.dumps(job_entry.get("voice_assignments") or {}),
-        "config_snapshot": json.dumps(job_entry.get("config_snapshot") or {}),
+        "config_snapshot": json.dumps(_redact_config_secrets(job_entry.get("config_snapshot") or {})),
         "job_dir": job_entry.get("job_dir"),
         "total_chunks": job_entry.get("total_chunks"),
         "processed_chunks": job_entry.get("processed_chunks"),
@@ -1849,7 +1903,7 @@ def _build_job_payload(job_id: str, text: str, job_entry: Dict[str, Any]) -> Dic
         "job_id": job_id,
         "text_path": job_entry.get("text_path"),
         "voice_assignments": job_entry.get("voice_assignments") or {},
-        "config_snapshot": job_entry.get("config_snapshot") or {},
+        "config_snapshot": _redact_config_secrets(job_entry.get("config_snapshot") or {}),
         "split_by_chapter": bool(job_entry.get("chapter_mode")),
         "generate_full_story": bool(job_entry.get("full_story_requested")),
         "review_mode": bool(job_entry.get("review_mode")),
@@ -1868,7 +1922,7 @@ def _build_job_data_from_entry(job_id: str, job_entry: Dict[str, Any]) -> Dict[s
     payload = job_entry.get("job_payload") or {}
     text_path = payload.get("text_path") or job_entry.get("text_path")
     text = _load_job_text(text_path)
-    config = job_entry.get("config_snapshot") or load_config()
+    config = _hydrate_config_secrets(job_entry.get("config_snapshot") or load_config())
     return {
         "job_id": job_id,
         "text": text,
@@ -2143,6 +2197,19 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             (config.get("replicate_api_key") or "").strip(),
         )
         return f"{engine_name}::{'|'.join(parts)}"
+    if engine_name == "azure_speech":
+        parts = (
+            (config.get("azure_speech_key") or "").strip(),
+            (config.get("azure_speech_region") or "").strip().lower(),
+            (config.get("azure_speech_output_format") or DEFAULT_AZURE_SPEECH_OUTPUT_FORMAT).strip(),
+            str(config.get("azure_speech_timeout") or 60),
+            str(config.get("azure_speech_requests_per_minute") or 0),
+            (config.get("azure_speech_default_voice") or DEFAULT_AZURE_SPEECH_VOICE).strip(),
+            (config.get("azure_speech_default_style") or "").strip(),
+            (config.get("azure_speech_default_role") or "").strip(),
+            str(config.get("azure_speech_default_style_degree") or 1.0),
+        )
+        return f"{engine_name}::{'|'.join(parts)}"
     return engine_name
 
 
@@ -2354,6 +2421,34 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             default_prompt=(config.get("index_tts_default_prompt") or "").strip() or None,
         )
 
+    if engine_name == "azure_speech":
+        api_key = (config.get("azure_speech_key") or "").strip()
+        region = (config.get("azure_speech_region") or "").strip()
+        if not api_key:
+            raise ValueError("Azure Speech resource key is required. Configure it in Azure Speech settings.")
+        if not region:
+            raise ValueError("Azure Speech region is required. Configure it in Azure Speech settings.")
+        return get_engine(
+            "azure_speech",
+            subscription_key=api_key,
+            region=region,
+            output_format=(
+                config.get("azure_speech_output_format") or DEFAULT_AZURE_SPEECH_OUTPUT_FORMAT
+            ).strip(),
+            timeout=int(config.get("azure_speech_timeout") or 60),
+            requests_per_minute=int(
+                config.get("azure_speech_requests_per_minute")
+                if config.get("azure_speech_requests_per_minute") is not None
+                else DEFAULT_AZURE_SPEECH_REQUESTS_PER_MINUTE
+            ),
+            default_voice=(
+                config.get("azure_speech_default_voice") or DEFAULT_AZURE_SPEECH_VOICE
+            ).strip(),
+            default_style=(config.get("azure_speech_default_style") or "").strip(),
+            default_role=(config.get("azure_speech_default_role") or "").strip(),
+            default_style_degree=float(config.get("azure_speech_default_style_degree") or 1.0),
+        )
+
     if engine_name == "kokoro_replicate":
         api_key = (config.get("replicate_api_key") or "").strip()
         if not api_key:
@@ -2371,7 +2466,7 @@ def get_tts_engine(engine_name: Optional[str] = None, config: Optional[Dict] = N
     import gc
     
     selected = _normalize_engine_name(engine_name)
-    config = config or load_config()
+    config = _hydrate_config_secrets(config or load_config())
     signature = _engine_signature(selected, config)
 
     with tts_engine_lock:
@@ -2795,7 +2890,7 @@ def _append_llm_chunks(
 
 
 def build_gemini_sections(text: str, prefer_chapters: bool, config: dict, section_headings: Optional[Any] = None):
-    """Create sections for Gemini processing based on detected sections or chunks."""
+    """Create sections for configured LLM processing based on detected sections or chunks."""
     sections = []
     if not text:
         return sections
@@ -2888,7 +2983,7 @@ def build_gemini_sections(text: str, prefer_chapters: bool, config: dict, sectio
 
 
 def compose_gemini_prompt(section: dict, prompt_prefix: str = "", known_speakers=None) -> str:
-    """Build the prompt for a Gemini section, optionally referencing known speakers."""
+    """Build a section prompt for the configured LLM, with optional speaker memory."""
     parts = []
     if prompt_prefix:
         parts.append(prompt_prefix.strip())
@@ -2909,7 +3004,7 @@ def compose_gemini_prompt(section: dict, prompt_prefix: str = "", known_speakers
 
 
 def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
-    """Run a prompt through the configured LLM provider (Gemini or local)."""
+    """Run a prompt through the configured LLM provider."""
     provider = (config.get("llm_provider") or DEFAULT_LLM_PROVIDER).lower().strip()
     if provider == "gemini":
         api_key = (config.get("gemini_api_key") or "").strip()
@@ -2918,6 +3013,45 @@ def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
         model_name = config.get("gemini_model") or DEFAULT_GEMINI_MODEL
         processor = GeminiProcessor(api_key=api_key, model_name=model_name)
         return processor.generate_text(prompt)
+
+    if provider == "atlas":
+        api_key = (config.get("atlas_cloud_api_key") or "").strip()
+        if not api_key:
+            raise AtlasCloudProcessorError("Atlas Cloud API key not configured")
+        processor = AtlasCloudProcessor(
+            api_key=api_key,
+            base_url=(config.get("atlas_cloud_base_url") or DEFAULT_ATLAS_CLOUD_BASE_URL),
+            model_name=(config.get("atlas_cloud_model") or DEFAULT_ATLAS_CLOUD_MODEL),
+            timeout=int(config.get("atlas_cloud_timeout") or 120),
+            temperature=config.get("llm_local_temperature"),
+            top_p=config.get("llm_local_top_p"),
+            top_k=config.get("llm_local_top_k"),
+            repetition_penalty=config.get("llm_local_repeat_penalty"),
+            max_tokens=config.get("llm_local_max_tokens"),
+            disable_reasoning=bool(config.get("llm_local_disable_reasoning", False)),
+        )
+        return processor.generate_text(prompt)
+
+    if provider == "openrouter":
+        api_key = (config.get("openrouter_api_key") or "").strip()
+        if not api_key:
+            raise OpenRouterProcessorError("OpenRouter API key not configured")
+        processor = OpenRouterProcessor(
+            api_key=api_key,
+            base_url=(config.get("openrouter_base_url") or DEFAULT_OPENROUTER_BASE_URL),
+            model_name=(config.get("openrouter_model") or DEFAULT_OPENROUTER_MODEL),
+            timeout=int(config.get("openrouter_timeout") or 120),
+            temperature=config.get("llm_local_temperature"),
+            top_p=config.get("llm_local_top_p"),
+            top_k=config.get("llm_local_top_k"),
+            repetition_penalty=config.get("llm_local_repeat_penalty"),
+            max_tokens=config.get("llm_local_max_tokens"),
+            disable_reasoning=bool(config.get("llm_local_disable_reasoning", False)),
+        )
+        return processor.generate_text(prompt)
+
+    if provider != "local":
+        raise LocalLLMProcessorError(f"Unsupported LLM provider: {provider}")
 
     local_provider = (config.get("llm_local_provider") or "").lower().strip()
     base_url = (config.get("llm_local_base_url") or "").strip()
@@ -3025,6 +3159,15 @@ def _create_text_processor_for_engine(engine_name: str, chunk_size: int, config:
             chunk_strategy="characters",
             char_soft_limit=kokoro_chunk_size,
             char_hard_limit=kokoro_chunk_size + 50,
+        )
+    if _normalize_engine_name(engine_name) == "azure_speech":
+        azure_chunk_size = 1000
+        if config:
+            azure_chunk_size = config.get("azure_speech_chunk_size", azure_chunk_size)
+        return TextProcessor(
+            chunk_strategy="characters",
+            char_soft_limit=azure_chunk_size,
+            char_hard_limit=azure_chunk_size + 100,
         )
     if _normalize_engine_name(engine_name) in {"pocket_tts", "pocket_tts_preset"}:
         pocket_chunk_size = 450
@@ -4632,6 +4775,25 @@ def load_config():
     return config
 
 
+def _redact_config_secrets(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return a job-safe config snapshot without persisted API credentials."""
+    snapshot = copy.deepcopy(config or {})
+    for key in SECRET_CONFIG_KEYS:
+        if key in snapshot:
+            snapshot[key] = ""
+    return snapshot
+
+
+def _hydrate_config_secrets(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Merge current local credentials into a redacted runtime snapshot."""
+    hydrated = copy.deepcopy(config or {})
+    current = load_config()
+    for key in SECRET_CONFIG_KEYS:
+        if not hydrated.get(key) and current.get(key):
+            hydrated[key] = current[key]
+    return hydrated
+
+
 def save_config(config):
     """Save configuration to file"""
     merged = DEFAULT_CONFIG.copy()
@@ -4825,6 +4987,63 @@ def get_pocket_tts_voices():
     return jsonify({
         "success": True,
         "voices": POCKET_TTS_PRESET_VOICES,
+    })
+
+
+@app.route('/api/azure-speech/voices', methods=['GET', 'POST'])
+def get_azure_speech_voices():
+    """Validate Azure credentials and return the region-specific voice catalog."""
+    data = (request.get_json(silent=True) or {}) if request.method == 'POST' else {}
+    config = load_config()
+    api_key = (
+        data.get('key')
+        or data.get('subscription_key')
+        or config.get('azure_speech_key')
+        or ''
+    ).strip()
+    region = (data.get('region') or config.get('azure_speech_region') or '').strip().lower()
+    force = bool(data.get('force')) or request.args.get('force', '').lower() in {'1', 'true', 'yes'}
+
+    if not api_key:
+        return jsonify({"success": False, "error": "Azure Speech resource key is required."}), 400
+    if not region:
+        return jsonify({"success": False, "error": "Azure Speech region is required."}), 400
+
+    now = time.time()
+    credential_fingerprint = hashlib.sha256(api_key.encode('utf-8')).hexdigest()[:16]
+    cache_key = f"{region}:{credential_fingerprint}"
+    if not force:
+        with azure_voice_cache_lock:
+            cached = azure_voice_cache.get(cache_key)
+            if cached and now - cached.get("timestamp", 0) < 6 * 60 * 60:
+                return jsonify({
+                    "success": True,
+                    "region": region,
+                    "voices": cached.get("voices", []),
+                    "cached": True,
+                })
+
+    try:
+        engine = AzureSpeechEngine(
+            subscription_key=api_key,
+            region=region,
+            timeout=int(config.get('azure_speech_timeout') or 60),
+            requests_per_minute=0,
+        )
+        voices = engine.list_voices()
+    except AzureSpeechError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover - defensive network failure path
+        logger.error("Failed to load Azure Speech voices: %s", exc, exc_info=True)
+        return jsonify({"success": False, "error": "Unable to load Azure Speech voices."}), 502
+
+    with azure_voice_cache_lock:
+        azure_voice_cache[cache_key] = {"timestamp": now, "voices": voices}
+    return jsonify({
+        "success": True,
+        "region": region,
+        "voices": voices,
+        "cached": False,
     })
 
 
@@ -6480,6 +6699,8 @@ def preview_audio():
             )
             if audio_prompt_path and _has_prompt_param:
                 _kwargs['audio_prompt_path'] = audio_prompt_path
+            if 'voice_options' in _sig.parameters:
+                _kwargs['voice_options'] = data.get('extra') or {}
             audio = engine.generate_audio(**_kwargs)
             if hasattr(audio, 'size') and audio.size == 0:
                 raise RuntimeError("No audio produced for the requested preview.")
@@ -6616,7 +6837,7 @@ def list_gemini_models():
             "models": models
         })
 
-    except (GeminiProcessorError, LocalLLMProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -6656,7 +6877,7 @@ def list_local_llm_models():
             "success": False,
             "error": "Invalid timeout value"
         }), 400
-    except (GeminiProcessorError, LocalLLMProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -6666,6 +6887,101 @@ def list_local_llm_models():
         return jsonify({
             "success": False,
             "error": "Failed to list local LLM models"
+        }), 500
+
+
+@app.route('/api/atlas-cloud/models', methods=['POST'])
+def list_atlas_cloud_models():
+    """List Atlas Cloud LLM models using an entered or saved API key."""
+    try:
+        data = request.json or {}
+        config = load_config()
+        api_key = (data.get("api_key") or config.get("atlas_cloud_api_key") or "").strip()
+        base_url = (
+            data.get("base_url")
+            or config.get("atlas_cloud_base_url")
+            or DEFAULT_ATLAS_CLOUD_BASE_URL
+        ).strip()
+        current_model = (
+            data.get("model")
+            or config.get("atlas_cloud_model")
+            or DEFAULT_ATLAS_CLOUD_MODEL
+        ).strip()
+        timeout = int(data.get("timeout") or config.get("atlas_cloud_timeout") or 30)
+
+        catalog = AtlasCloudProcessor.list_available_models(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            current_model=current_model,
+        )
+        return jsonify({
+            "success": True,
+            "models": catalog.models,
+            "warnings": catalog.warnings,
+        })
+    except (ValueError, TypeError):
+        return jsonify({
+            "success": False,
+            "error": "Invalid Atlas Cloud timeout value"
+        }), 400
+    except AtlasCloudProcessorError as exc:
+        return jsonify({
+            "success": False,
+            "error": str(exc)
+        }), 400
+    except Exception as exc:  # pragma: no cover - general failure
+        logger.error("Error listing Atlas Cloud models: %s", exc, exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "Failed to list Atlas Cloud models"
+        }), 500
+
+
+@app.route('/api/openrouter/models', methods=['POST'])
+def list_openrouter_models():
+    """List text-output models available under an OpenRouter API key."""
+    try:
+        data = request.json or {}
+        config = load_config()
+        api_key = (data.get("api_key") or config.get("openrouter_api_key") or "").strip()
+        base_url = (
+            data.get("base_url")
+            or config.get("openrouter_base_url")
+            or DEFAULT_OPENROUTER_BASE_URL
+        ).strip()
+        current_model = (
+            data.get("model")
+            or config.get("openrouter_model")
+            or DEFAULT_OPENROUTER_MODEL
+        ).strip()
+        timeout = int(data.get("timeout") or config.get("openrouter_timeout") or 30)
+
+        models = OpenRouterProcessor.list_available_models(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            current_model=current_model,
+        )
+        return jsonify({
+            "success": True,
+            "models": models,
+        })
+    except (ValueError, TypeError):
+        return jsonify({
+            "success": False,
+            "error": "Invalid OpenRouter timeout value"
+        }), 400
+    except OpenRouterProcessorError as exc:
+        return jsonify({
+            "success": False,
+            "error": str(exc)
+        }), 400
+    except Exception as exc:  # pragma: no cover - general failure
+        logger.error("Error listing OpenRouter models: %s", exc, exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "Failed to list OpenRouter models"
         }), 500
 
 
@@ -7113,7 +7429,7 @@ def update_library_title(job_id: str):
 
 @app.route('/api/gemini/process', methods=['POST'])
 def process_text_with_gemini():
-    """Process text with Gemini using section-based chunking."""
+    """Process text with the configured LLM using section-based chunking."""
     try:
         data = request.json or {}
         text = (data.get('text') or '').strip()
@@ -7143,7 +7459,7 @@ def process_text_with_gemini():
         if not sections:
             return jsonify({
                 "success": False,
-                "error": "Unable to create sections for Gemini processing"
+                "error": "Unable to create sections for LLM processing"
             }), 400
 
         text_processor = TextProcessor(chunk_size=config.get('chunk_size', 500))
@@ -7175,7 +7491,7 @@ def process_text_with_gemini():
         if not processed_sections:
             return jsonify({
                 "success": False,
-                "error": "Gemini processing produced no output"
+                "error": "LLM processing produced no output"
             }), 500
 
         final_text = "\n\n".join(
@@ -7192,22 +7508,22 @@ def process_text_with_gemini():
             "section_count": len(processed_sections)
         })
 
-    except (GeminiProcessorError, LocalLLMProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
         }), 400
     except Exception as e:  # pragma: no cover - general failure
-        logger.error(f"Error during Gemini processing: {e}", exc_info=True)
+        logger.error(f"Error during LLM processing: {e}", exc_info=True)
         return jsonify({
             "success": False,
-            "error": "Failed to process text with Gemini"
+            "error": "Failed to process text with the configured LLM"
         }), 500
 
 
 @app.route('/api/gemini/process-full', methods=['POST'])
 def process_full_text_with_gemini():
-    """Send the entire text to Gemini using the configured pre-prompt without chunking."""
+    """Send the entire text to the configured LLM without chunking."""
     try:
         data = request.json or {}
         text = (data.get('text') or '').strip()
@@ -7244,16 +7560,16 @@ def process_full_text_with_gemini():
             "result_text": response_text.strip()
         })
 
-    except (GeminiProcessorError, LocalLLMProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
         }), 400
     except Exception as e:  # pragma: no cover - general failure
-        logger.error(f"Error during full-text Gemini processing: {e}", exc_info=True)
+        logger.error(f"Error during full-text LLM processing: {e}", exc_info=True)
         return jsonify({
             "success": False,
-            "error": "Failed to process text with Gemini"
+            "error": "Failed to process text with the configured LLM"
         }), 500
 
 
@@ -7299,22 +7615,22 @@ def process_gemini_speaker_profiles():
             "profiles": profiles,
             "raw": response_text.strip()
         })
-    except (GeminiProcessorError, LocalLLMProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
         }), 400
     except Exception as e:  # pragma: no cover - general failure
-        logger.error(f"Error during Gemini speaker profile processing: {e}", exc_info=True)
+        logger.error(f"Error during LLM speaker profile processing: {e}", exc_info=True)
         return jsonify({
             "success": False,
-            "error": "Failed to process speaker profiles with Gemini"
+            "error": "Failed to process speaker profiles with the configured LLM"
         }), 500
 
 
 @app.route('/api/gemini/sections', methods=['POST'])
 def get_gemini_sections():
-    """Return the list of Gemini sections for the provided text."""
+    """Return the list of LLM processing sections for the provided text."""
     try:
         data = request.json or {}
         text = (data.get('text') or '').strip()
@@ -7346,16 +7662,16 @@ def get_gemini_sections():
         })
 
     except Exception as e:  # pragma: no cover - general failure
-        logger.error(f"Error building Gemini sections: {e}", exc_info=True)
+        logger.error(f"Error building LLM sections: {e}", exc_info=True)
         return jsonify({
             "success": False,
-            "error": "Failed to build Gemini sections"
+            "error": "Failed to build LLM sections"
         }), 500
 
 
 @app.route('/api/gemini/process-section', methods=['POST'])
 def process_gemini_section():
-    """Process a single text section via Gemini."""
+    """Process a single text section through the configured LLM."""
     try:
         data = request.json or {}
         content = (data.get('content') or '').strip()
@@ -7403,7 +7719,7 @@ def process_gemini_section():
             "speakers": detected_speakers
         })
 
-    except (GeminiProcessorError, LocalLLMProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
         err_str = str(exc)
         transient_markers = ("503", "UNAVAILABLE", "429", "quota", "rate limit", "rate_limit", "high demand", "try again")
         is_transient = any(m.lower() in err_str.lower() for m in transient_markers)
@@ -7418,16 +7734,16 @@ def process_gemini_section():
             "error": err_str
         }), 400
     except Exception as e:  # pragma: no cover - general failure
-        logger.error(f"Error processing Gemini section: {e}", exc_info=True)
+        logger.error(f"Error processing LLM section: {e}", exc_info=True)
         return jsonify({
             "success": False,
-            "error": "Failed to process section with Gemini"
+            "error": "Failed to process section with the configured LLM"
         }), 500
 
 
 @app.route('/api/prep-progress/save', methods=['POST'])
 def save_prep_progress():
-    """Persist Gemini prep progress to disk so it survives backend restarts."""
+    """Persist LLM prep progress to disk so it survives backend restarts."""
     try:
         data = request.json or {}
         text_hash = (data.get('text_hash') or '').strip()
@@ -7608,7 +7924,7 @@ def generate_audio():
                 "merge_options": merge_options,
                 "chunks": [],
                 "voice_assignments": voice_assignments,
-                "config_snapshot": copy.deepcopy(config),
+                "config_snapshot": _redact_config_secrets(config),
                 "custom_heading": json.dumps({"enabled_headings": section_headings}) if section_headings else None,
                 "speakers": speakers,
                 "regen_tasks": {},
@@ -8484,7 +8800,7 @@ def restore_library_item_to_review(job_id):
                 "chapter_mode": manifest.get("chapter_mode", False),
                 "full_story_requested": manifest.get("full_story_requested", False),
                 "job_dir": str(job_dir),
-                "config_snapshot": config_snapshot,
+                "config_snapshot": _redact_config_secrets(config_snapshot),
                 "chunks": valid_chunks,
                 "regen_tasks": {},
                 "engine": engine_name,
@@ -9745,6 +10061,11 @@ def health_check():
         "index_tts_unavailable_reason": INDEX_TTS_UNAVAILABLE_REASON if not INDEX_TTS_AVAILABLE else "",
         "dots_tts_available": DOTS_TTS_AVAILABLE,
         "dots_tts_unavailable_reason": DOTS_TTS_UNAVAILABLE_REASON if not DOTS_TTS_AVAILABLE else "",
+        "azure_speech_available": True,
+        "azure_speech_configured": bool(
+            (config.get("azure_speech_key") or "").strip()
+            and (config.get("azure_speech_region") or "").strip()
+        ),
         "cuda_available": False if not KOKORO_AVAILABLE else __import__('torch').cuda.is_available(),
         "vram": vram_info,
         "loaded_engines": list(tts_engine_instances.keys()),

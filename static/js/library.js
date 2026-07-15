@@ -403,6 +403,7 @@ function formatEngineName(engine) {
         'omnivoice_clone': 'OmniVoice (Voice Clone)',
         'omnivoice_design': 'OmniVoice (Voice Design)',
         'dots_tts': 'Dot.TTS (Voice Clone)',
+        'azure_speech': 'Microsoft Azure Speech',
     };
     return engineMap[engine] || engine;
 }
@@ -2321,7 +2322,13 @@ function wireChunkReviewEvents(jobId, chunks, engine) {
                 libraryChunkVoiceOverrides[chunkId] = { audio_prompt_path: value };
             } else {
                 const voiceData = libraryVoiceMap.get(value);
-                libraryChunkVoiceOverrides[chunkId] = { voice: value, lang_code: voiceData?.langCode || 'a' };
+                libraryChunkVoiceOverrides[chunkId] = {
+                    voice: value,
+                    lang_code: voiceData?.langCode || 'a',
+                    ...(normalizedEngine.includes('azurespeech')
+                        ? { extra: { locale: voiceData?.langCode || '' } }
+                        : {}),
+                };
             }
         });
     });
@@ -2545,6 +2552,7 @@ async function populateLibraryVoiceSelects(engine) {
     const isQwenClone = normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone');
     const isOmniClone = normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone');
     const isDotsTts = normalizedEngine.includes('dotstts');
+    const isAzureSpeech = normalizedEngine.includes('azurespeech');
     const isPocketPreset = normalizedEngine.includes('pocketttspreset');
     const isPocket = normalizedEngine.includes('pockettts') && !isPocketPreset;
     const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isDotsTts || isPocket;
@@ -2595,6 +2603,19 @@ async function populateLibraryVoiceSelects(engine) {
                     id: voice,
                     name: voice,
                     isPrompt: false
+                }));
+            }
+        } else if (isAzureSpeech) {
+            const response = await fetch('/api/azure-speech/voices');
+            const data = await response.json();
+            if (data.success && data.voices) {
+                voices = data.voices.map(voice => ({
+                    id: voice.short_name,
+                    name: `${voice.display_name || voice.short_name} (${voice.locale_name || voice.locale})`,
+                    langCode: voice.locale,
+                    styles: voice.styles || [],
+                    roles: voice.roles || [],
+                    isAzureSpeech: true,
                 }));
             }
         } else {
@@ -2674,6 +2695,8 @@ async function populateLibraryVoiceSelects(engine) {
     let voicesRequest = null;
     let pocketTtsVoicesCache = null;
     let pocketTtsVoicesRequest = null;
+    let azureSpeechVoicesCache = null;
+    let azureSpeechVoicesRequest = null;
 
     async function getVoicePromptsCached() {
         if (voicePromptCache) return voicePromptCache;
@@ -2743,6 +2766,23 @@ async function populateLibraryVoiceSelects(engine) {
         return pocketTtsVoicesRequest;
     }
 
+    async function getAzureSpeechVoicesCached() {
+        if (azureSpeechVoicesCache) return azureSpeechVoicesCache;
+        if (!azureSpeechVoicesRequest) {
+            azureSpeechVoicesRequest = fetch('/api/azure-speech/voices')
+                .then(response => response.json())
+                .then(data => {
+                    azureSpeechVoicesCache = data;
+                    return data;
+                })
+                .catch(err => {
+                    azureSpeechVoicesRequest = null;
+                    throw err;
+                });
+        }
+        return azureSpeechVoicesRequest;
+    }
+
     async function populatePromptFilterOptions(genderSelect, languageSelect) {
         if (!genderSelect || !languageSelect) return;
         try {
@@ -2780,6 +2820,7 @@ async function populateLibraryVoiceSelects(engine) {
     }
 
     async function populateChunkVoiceSelect(select, chunkId, engineName, filters = null, currentLabel = '', selectedValue = '') {
+        engineName = (engineName || '').toLowerCase().replace(/[_-]/g, '');
         const isPocketPreset = engineName.includes('pocketttspreset');
         const usesPrompts = engineName.includes('chatterbox')
             || engineName.includes('voxcpm')
@@ -2787,6 +2828,7 @@ async function populateLibraryVoiceSelects(engine) {
             || (engineName.includes('qwen3') && engineName.includes('clone'))
             || engineName.includes('dotstts');
         const isQwenEngine = engineName.includes('qwen3');
+        const isAzureSpeech = engineName.includes('azurespeech');
         const minDuration = getMinDuration(engineName);
         const activeFilters = filters || libraryVoiceFilters;
         let chunkVoices = [];
@@ -2820,6 +2862,18 @@ async function populateLibraryVoiceSelects(engine) {
                         id: voice,
                         name: voice,
                         isPrompt: false
+                    }));
+                }
+            } else if (isAzureSpeech) {
+                const data = await getAzureSpeechVoicesCached();
+                if (data.success && data.voices) {
+                    chunkVoices = data.voices.map(voice => ({
+                        id: voice.short_name,
+                        name: `${voice.display_name || voice.short_name} (${voice.locale_name || voice.locale})`,
+                        langCode: voice.locale,
+                        styles: voice.styles || [],
+                        roles: voice.roles || [],
+                        isAzureSpeech: true,
                     }));
                 }
             } else {
@@ -2862,6 +2916,7 @@ async function populateLibraryVoiceSelects(engine) {
                 chunkVoices = chunkVoices.filter(v => v.language === activeFilters.language);
             }
         }
+        chunkVoices.forEach(voice => libraryVoiceMap.set(voice.id, voice));
         
         const defaultLabel = currentLabel ? `Current: ${currentLabel}` : '-- Keep current --';
         select.innerHTML = `<option value="">${defaultLabel}</option>`;
@@ -2902,6 +2957,7 @@ async function populateLibraryVoiceSelects(engine) {
 
     // Helper to populate bulk speaker voice select based on engine
     async function populateBulkVoiceSelect(select, speaker, engineName, filters = null) {
+        engineName = (engineName || '').toLowerCase().replace(/[_-]/g, '');
         const isPocketPreset = engineName.includes('pocketttspreset');
         const usesPrompts = engineName.includes('chatterbox')
             || engineName.includes('voxcpm')
@@ -2909,6 +2965,7 @@ async function populateLibraryVoiceSelects(engine) {
             || (engineName.includes('qwen3') && engineName.includes('clone'))
             || engineName.includes('dotstts');
         const isQwenEngine = engineName.includes('qwen3');
+        const isAzureSpeech = engineName.includes('azurespeech');
         const minDuration = getMinDuration(engineName);
         const activeFilters = filters || libraryVoiceFilters;
         let bulkVoices = [];
@@ -2942,6 +2999,18 @@ async function populateLibraryVoiceSelects(engine) {
                         id: voice,
                         name: voice,
                         isPrompt: false
+                    }));
+                }
+            } else if (isAzureSpeech) {
+                const data = await getAzureSpeechVoicesCached();
+                if (data.success && data.voices) {
+                    bulkVoices = data.voices.map(voice => ({
+                        id: voice.short_name,
+                        name: `${voice.display_name || voice.short_name} (${voice.locale_name || voice.locale})`,
+                        langCode: voice.locale,
+                        styles: voice.styles || [],
+                        roles: voice.roles || [],
+                        isAzureSpeech: true,
                     }));
                 }
             } else {
@@ -2984,6 +3053,7 @@ async function populateLibraryVoiceSelects(engine) {
                 bulkVoices = bulkVoices.filter(v => v.language === activeFilters.language);
             }
         }
+        bulkVoices.forEach(voice => libraryVoiceMap.set(voice.id, voice));
         
         select.innerHTML = '<option value="">-- Select voice --</option>';
         bulkVoices.forEach(v => {
@@ -3038,6 +3108,7 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="omnivoice_clone">OmniVoice · Voice Clone</option>
             <option value="omnivoice_design">OmniVoice · Voice Design</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
+            <option value="azure_speech">Microsoft Azure Speech</option>
         `;
         if (normalizedCurrentEngine) {
             Array.from(select.options).forEach(option => {
@@ -3175,6 +3246,7 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="omnivoice_clone">OmniVoice · Voice Clone</option>
             <option value="omnivoice_design">OmniVoice · Voice Design</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
+            <option value="azure_speech">Microsoft Azure Speech</option>
         `;
         
         // When engine changes, repopulate the voice dropdown for this speaker and show/hide Qwen3 options
@@ -3326,6 +3398,7 @@ async function triggerBulkSpeakerRegen(jobId, speaker, chunks, engine, button) {
     const isQwenClone = normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone');
     const isOmniClone = normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone');
     const isDotsTts = normalizedEngine.includes('dotstts');
+    const isAzureSpeech = normalizedEngine.includes('azurespeech');
     const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isDotsTts;
 
     // Build voice payload based on engine type
@@ -3358,7 +3431,11 @@ async function triggerBulkSpeakerRegen(jobId, speaker, chunks, engine, button) {
             } 
         };
     } else {
-        voicePayload = { voice: voiceValue, lang_code: voiceData?.langCode || 'a' };
+        voicePayload = {
+            voice: voiceValue,
+            lang_code: voiceData?.langCode || 'a',
+            ...(isAzureSpeech ? { extra: { locale: voiceData?.langCode || '' } } : {}),
+        };
     }
 
     // Attach fx/speed from the bulk speaker sliders
@@ -3474,6 +3551,7 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
     const isQwenClone = normalizedEngine.includes('qwen3') && normalizedEngine.includes('clone');
     const isOmniClone = normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone');
     const isDotsTts = normalizedEngine.includes('dotstts');
+    const isAzureSpeech = normalizedEngine.includes('azurespeech');
     const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isDotsTts;
     const voiceData = libraryVoiceMap.get(voiceValue);
 
@@ -3506,7 +3584,20 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
             }
         };
     } else if (selectedVoiceValue) {
-        voicePayload = { voice: selectedVoiceValue, lang_code: voiceData?.langCode || 'a' };
+        const originalAssignment = originalChunk?.voice_assignment || {};
+        const keepAzureExpression = isAzureSpeech && selectedVoiceValue === originalAssignment.voice;
+        const existingExtra = voicePayload.extra || {};
+        voicePayload = {
+            voice: selectedVoiceValue,
+            lang_code: voiceData?.langCode || originalAssignment.lang_code || 'a',
+            ...(isAzureSpeech ? {
+                extra: {
+                    ...(keepAzureExpression ? (originalAssignment.extra || {}) : {}),
+                    ...existingExtra,
+                    locale: voiceData?.langCode || originalAssignment.extra?.locale || '',
+                },
+            } : {}),
+        };
     }
 
     // Attach fx/speed from the chunk's sliders so regeneration matches original settings
@@ -4188,6 +4279,7 @@ async function _libAwrPopulateVoices(engineName) {
         || norm.includes('dotstts');
     const isQwen = norm.includes('qwen3') && !norm.includes('clone');
     const isPocketPreset = norm.includes('pocketttspreset');
+    const isAzureSpeech = norm.includes('azurespeech');
 
     try {
         if (usesPrompts) {
@@ -4220,6 +4312,17 @@ async function _libAwrPopulateVoices(engineName) {
                     const opt = document.createElement('option');
                     opt.value = v;
                     opt.textContent = v;
+                    select.appendChild(opt);
+                });
+            }
+        } else if (isAzureSpeech) {
+            const resp = await fetch('/api/azure-speech/voices');
+            const data = await resp.json();
+            if (data.success && data.voices) {
+                data.voices.forEach(voice => {
+                    const opt = document.createElement('option');
+                    opt.value = voice.short_name;
+                    opt.textContent = `${voice.display_name || voice.short_name} (${voice.locale_name || voice.locale})`;
                     select.appendChild(opt);
                 });
             }

@@ -17,6 +17,7 @@ from .engines.kitten_tts_engine import KittenTTSEngine
 from .engines.index_tts_engine import IndexTTSEngine, INDEX_TTS_AVAILABLE, INDEX_TTS_UNAVAILABLE_REASON
 from .engines.dots_tts_engine import DotsTTSEngine, DOTS_TTS_AVAILABLE, DOTS_TTS_UNAVAILABLE_REASON
 from .engines.chatterbox_turbo_replicate_engine import ChatterboxTurboReplicateEngine
+from .engines.azure_speech_engine import AzureSpeechEngine
 from .engines.kokoro_engine import (
     DEFAULT_SAMPLE_RATE,
     KOKORO_AVAILABLE,
@@ -39,6 +40,7 @@ EngineRegistry: Dict[str, Type[TtsEngineBase]] = {
     "kitten_tts": KittenTTSEngine,
     "index_tts": IndexTTSEngine,
     "dots_tts": DotsTTSEngine,
+    "azure_speech": AzureSpeechEngine,
 }
 AVAILABLE_ENGINES = tuple(EngineRegistry.keys())
 

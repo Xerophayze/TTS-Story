@@ -15,6 +15,9 @@ from pathlib import Path, PurePosixPath
 
 
 SECRET_CONFIG_KEYS = {
+    "atlas_cloud_api_key",
+    "openrouter_api_key",
+    "azure_speech_key",
     "gemini_api_key",
     "replicate_api_key",
     "llm_local_api_key",

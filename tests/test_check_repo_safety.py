@@ -23,16 +23,24 @@ def test_allows_placeholders_and_tracked_engine_worker():
 
 
 def test_detects_populated_config_secrets():
-    content = b'{"gemini_api_key": "real-value", "replicate_api_key": ""}'
+    content = b'{"atlas_cloud_api_key": "atlas-value", "openrouter_api_key": "router-value", "azure_speech_key": "azure-value", "gemini_api_key": "real-value", "replicate_api_key": ""}'
     problems = SAFETY.content_problems("config.json", content)
+    assert any("atlas_cloud_api_key" in problem for problem in problems)
+    assert any("openrouter_api_key" in problem for problem in problems)
+    assert any("azure_speech_key" in problem for problem in problems)
     assert any("gemini_api_key" in problem for problem in problems)
 
 
 def test_accepts_scrubbed_config():
-    content = b'{"gemini_api_key": "", "replicate_api_key": ""}'
+    content = b'{"atlas_cloud_api_key": "", "openrouter_api_key": "", "azure_speech_key": "", "gemini_api_key": "", "replicate_api_key": ""}'
     assert SAFETY.content_problems("config.json", content) == []
 
 
 def test_detects_high_confidence_token_pattern():
     token = b"AKIA" + (b"A" * 16)
     assert "AWS access key" in SAFETY.content_problems("settings.txt", token)
+
+
+def test_detects_openrouter_token_pattern():
+    token = b"sk-or-v1-" + (b"A" * 40)
+    assert "OpenAI-style key" in SAFETY.content_problems("settings.txt", token)

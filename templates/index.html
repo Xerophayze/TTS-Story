@@ -105,7 +105,7 @@
                         </p>
                         <div id="gemini-progress" class="gemini-progress" style="display: none;">
                             <div class="progress-label">
-                                <span id="gemini-progress-text">Preparing Gemini request…</span>
+                                <span id="gemini-progress-text">Preparing LLM request…</span>
                                 <span id="gemini-progress-count"></span>
                                 <button id="gemini-pause-btn" class="btn btn-secondary btn-sm" style="margin-left:auto;padding:2px 10px;font-size:0.8rem;">Pause</button>
                                 <button id="gemini-abort-btn" class="btn btn-danger btn-sm" style="display:none;padding:2px 10px;font-size:0.8rem;">Abort</button>
@@ -229,6 +229,7 @@
                                                 <option value="kitten_tts">KittenTTS · CPU Lightweight</option>
                                                 <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
                                                 <option value="dots_tts">Dot.TTS · Voice Clone</option>
+                                                <option value="azure_speech">Microsoft Azure Speech · Cloud</option>
                                             </select>
                                         </div>
                                     </div>
@@ -751,6 +752,7 @@
                                     <option value="kitten_tts">KittenTTS · CPU Lightweight</option>
                                     <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
                                     <option value="dots_tts">Dot.TTS · Voice Clone</option>
+                                    <option value="azure_speech">Microsoft Azure Speech · Cloud</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -791,6 +793,7 @@
                             <button type="button" class="engine-tab-btn active" data-engine-tab="kokoro">Kokoro</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-local">Chatterbox Local</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-replicate">Chatterbox Cloud</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="azure-speech">Azure Speech</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="voxcpm">VoxCPM 1.5</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="pocket-tts">Pocket TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="qwen3">Qwen3-TTS</button>
@@ -816,6 +819,72 @@
                                 </div>
                             </div>
                             <p class="help-text">For Replicate, add your API key in the API Keys tab.</p>
+                        </div>
+
+                        <!-- Microsoft Azure Speech Panel -->
+                        <div class="engine-panel" id="engine-panel-azure-speech">
+                            <div class="section-title-inline settings-panel-title">
+                                <h4>Microsoft Azure AI Speech</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-azure-speech" aria-label="Help: Azure Speech">?</button>
+                            </div>
+                            <p class="help-text" style="margin-top:0;">Use your own Azure Speech resource key and region. Voice, style, role, rate, pitch, and volume controls are sent as SSML.</p>
+                            <div class="settings-form-grid">
+                                <div class="form-group">
+                                    <label for="azure-speech-key">Speech Resource Key</label>
+                                    <input type="password" id="azure-speech-key" autocomplete="off" placeholder="Azure Speech resource key">
+                                    <small>Stored only in your local config and scrubbed before Git sync.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-region">Region</label>
+                                    <input type="text" id="azure-speech-region" placeholder="eastus">
+                                    <small>Use the region shown on the resource's Keys and Endpoint page.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-default-voice">Default Voice</label>
+                                    <select id="azure-speech-default-voice">
+                                        <option value="en-US-AvaMultilingualNeural">en-US-AvaMultilingualNeural</option>
+                                    </select>
+                                    <small>The Generate tab can override this for every speaker.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-output-format">Azure WAV Quality</label>
+                                    <select id="azure-speech-output-format">
+                                        <option value="riff-24khz-16bit-mono-pcm">24 kHz · 16-bit mono PCM</option>
+                                        <option value="riff-48khz-16bit-mono-pcm">48 kHz · 16-bit mono PCM</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-chunk-size">Chunk Size (chars)</label>
+                                    <input type="number" id="azure-speech-chunk-size" min="100" max="5000" step="100" value="1000">
+                                    <small>Sentence-aware target size. Larger chunks use fewer Azure transactions.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-requests-per-minute">Request Limit / Minute</label>
+                                    <input type="number" id="azure-speech-requests-per-minute" min="0" max="60000" step="1" value="20">
+                                    <small>20 is safe for Azure F0. Use 0 to disable local throttling for paid resources.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-timeout">Request Timeout (seconds)</label>
+                                    <input type="number" id="azure-speech-timeout" min="10" max="600" step="10" value="60">
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-default-style">Default Style</label>
+                                    <select id="azure-speech-default-style"><option value="">Neutral / default</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-default-role">Default Role</label>
+                                    <select id="azure-speech-default-role"><option value="">Default role</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="azure-speech-default-style-degree">Default Style Intensity</label>
+                                    <input type="number" id="azure-speech-default-style-degree" min="0.01" max="2" step="0.01" value="1">
+                                </div>
+                            </div>
+                            <div class="settings-inline-actions" style="margin-top:12px;">
+                                <button type="button" class="btn btn-secondary" id="fetch-azure-speech-voices">Test Connection &amp; Load Voices</button>
+                                <span id="azure-speech-voices-status" class="help-text" aria-live="polite"></span>
+                            </div>
+                            <p class="help-text" style="margin-top:12px;">Azure usage is billed to your Azure resource. Current pricing and free-tier allowances are available on the <a href="https://azure.microsoft.com/pricing/details/speech/" target="_blank" rel="noopener noreferrer">Azure Speech pricing page</a>.</p>
                         </div>
 
                         <!-- Chatterbox Local Panel -->
@@ -1500,12 +1569,14 @@
                         <span class="collapse-icon">▼</span>
                     </div>
                     <div class="settings-group-content">
-                        <p class="help-text" style="margin-top:0;">Use Gemini or a local LLM (LM Studio / Ollama) to clean up or enhance text before TTS.</p>
+                        <p class="help-text" style="margin-top:0;">Use Gemini, Atlas Cloud, OpenRouter, or a local LLM (LM Studio / Ollama) to clean up or enhance text before TTS.</p>
                         <div class="settings-form-grid">
                             <div class="form-group">
                                 <label for="llm-provider">LLM Provider</label>
                                 <select id="llm-provider">
                                     <option value="gemini">Gemini (cloud)</option>
+                                    <option value="atlas">Atlas Cloud (cloud)</option>
+                                    <option value="openrouter">OpenRouter (cloud)</option>
                                     <option value="local">Local (LM Studio / Ollama)</option>
                                 </select>
                             </div>
@@ -1522,14 +1593,14 @@
                                 <small>Disable to process full chapters in one request.</small>
                             </div>
                             <div class="form-group" id="llm-local-chunk-group">
-                                <label for="llm-local-chunk-size">Local LLM chunk size (words)</label>
+                                <label for="llm-local-chunk-size">Cloud / local LLM chunk size (words)</label>
                                 <input type="number" id="llm-local-chunk-size" min="50" max="5000" step="50" value="500">
-                                <small>Applies when LM Studio/Ollama is the prep provider.</small>
+                                <small>Applies when Atlas Cloud, OpenRouter, LM Studio, or Ollama is the prep provider.</small>
                             </div>
                             <div class="form-group" id="llm-local-chunk-chapters-group">
                                 <label style="display:flex;align-items:center;gap:8px;">
                                     <input type="checkbox" id="llm-local-chunk-chapters" checked>
-                                    Chunk local LLM chapters into smaller sections
+                                    Chunk cloud / local LLM chapters into smaller sections
                                 </label>
                                 <small>Disable to process full chapters in one request.</small>
                             </div>
@@ -1550,6 +1621,58 @@
                         <div class="button-group" style="margin-top: 10px;" id="gemini-models-actions">
                             <button type="button" id="fetch-gemini-models-btn" class="btn btn-secondary btn-sm">Fetch Models</button>
                             <span id="gemini-models-status" class="help-text" style="margin-left:10px;"></span>
+                        </div>
+                        <div class="settings-form-grid" id="llm-atlas-settings" style="margin-top: 12px;">
+                            <div class="form-group">
+                                <label for="atlas-cloud-api-key">Atlas Cloud API Key</label>
+                                <input type="password" id="atlas-cloud-api-key" placeholder="Enter your Atlas Cloud API key">
+                                <small><a href="https://www.atlascloud.ai/docs/en/api-keys" target="_blank" rel="noopener noreferrer">Create or manage an API key</a></small>
+                            </div>
+                            <div class="form-group">
+                                <label for="atlas-cloud-base-url">Base URL</label>
+                                <input type="text" id="atlas-cloud-base-url" value="https://api.atlascloud.ai/v1">
+                                <small>Atlas Cloud's OpenAI-compatible LLM endpoint. Keep the <code>/v1</code> suffix.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="atlas-cloud-model">Model</label>
+                                <select id="atlas-cloud-model" class="select-compact">
+                                    <option value="deepseek-v3">deepseek-v3</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="atlas-cloud-timeout">Timeout (seconds)</label>
+                                <input type="number" id="atlas-cloud-timeout" min="10" max="1800" step="10" value="120">
+                            </div>
+                        </div>
+                        <div class="button-group" style="margin-top: 10px;" id="atlas-cloud-models-actions">
+                            <button type="button" id="fetch-atlas-cloud-models-btn" class="btn btn-secondary btn-sm">Fetch Atlas Models</button>
+                            <span id="atlas-cloud-models-status" class="help-text" style="margin-left:10px;"></span>
+                        </div>
+                        <div class="settings-form-grid" id="llm-openrouter-settings" style="margin-top: 12px;">
+                            <div class="form-group">
+                                <label for="openrouter-api-key">OpenRouter API Key</label>
+                                <input type="password" id="openrouter-api-key" placeholder="Enter your OpenRouter API key">
+                                <small><a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">Create or manage an API key</a></small>
+                            </div>
+                            <div class="form-group">
+                                <label for="openrouter-base-url">Base URL</label>
+                                <input type="text" id="openrouter-base-url" value="https://openrouter.ai/api/v1">
+                                <small>OpenRouter's OpenAI-compatible API endpoint. Keep the <code>/api/v1</code> suffix.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="openrouter-model">Model</label>
+                                <select id="openrouter-model" class="select-compact">
+                                    <option value="openrouter/auto">openrouter/auto</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="openrouter-timeout">Timeout (seconds)</label>
+                                <input type="number" id="openrouter-timeout" min="10" max="1800" step="10" value="120">
+                            </div>
+                        </div>
+                        <div class="button-group" style="margin-top: 10px;" id="openrouter-models-actions">
+                            <button type="button" id="fetch-openrouter-models-btn" class="btn btn-secondary btn-sm">Fetch OpenRouter Models</button>
+                            <span id="openrouter-models-status" class="help-text" style="margin-left:10px;"></span>
                         </div>
                         <div class="settings-form-grid" id="llm-local-settings" style="margin-top: 12px;">
                             <div class="form-group">
@@ -1583,8 +1706,8 @@
                             <button type="button" id="fetch-local-llm-models-btn" class="btn btn-secondary btn-sm">Fetch Local Models</button>
                             <span id="local-llm-models-status" class="help-text" style="margin-left:10px;"></span>
                         </div>
-                        <div class="settings-subsection" style="margin-top:16px;">
-                            <h4>Local LLM Response Tuning</h4>
+                        <div class="settings-subsection" id="llm-non-gemini-tuning" style="margin-top:16px;">
+                            <h4>Cloud / Local LLM Response Tuning</h4>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="llm-local-temperature">Temperature</label>
@@ -1611,7 +1734,7 @@
                                         <input type="checkbox" id="llm-local-disable-reasoning">
                                         Disable reasoning mode
                                     </label>
-                                    <small>Reduces latency on models that support reasoning toggles.</small>
+                                    <small>Reduces latency on models that support reasoning toggles. Leave this unchecked for OpenRouter models that require reasoning.</small>
                                 </div>
                             </div>
                         </div>
@@ -2099,10 +2222,10 @@
         </div>
     </div>
 
-    <script src="/static/js/main.js?v=35"></script>
+    <script src="/static/js/main.js?v=37"></script>
     <script src="/static/js/queue.js?v=4"></script>
     <script src="/static/js/library.js?v=37"></script>
     <script src="/static/js/voice-manager.js?v=14"></script>
-    <script src="/static/js/settings.js?v=8"></script>
+    <script src="/static/js/settings.js?v=10"></script>
 </body>
 </html>

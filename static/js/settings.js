@@ -10,6 +10,9 @@ const LOCAL_LLM_BASE_URLS = {
     lmstudio: 'http://localhost:1234/v1',
     ollama: 'http://localhost:11434'
 };
+const ATLAS_CLOUD_BASE_URL = 'https://api.atlascloud.ai/v1';
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+let settingsAzureSpeechVoices = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
@@ -20,13 +23,158 @@ function updateLLMSettingsUI(provider = 'gemini') {
     const geminiCredentials = document.getElementById('gemini-credentials');
     const geminiModelGroup = document.getElementById('gemini-model-group');
     const geminiModelsActions = document.getElementById('gemini-models-actions');
+    const atlasSettings = document.getElementById('llm-atlas-settings');
+    const atlasModelsActions = document.getElementById('atlas-cloud-models-actions');
+    const openRouterSettings = document.getElementById('llm-openrouter-settings');
+    const openRouterModelsActions = document.getElementById('openrouter-models-actions');
     const localSettings = document.getElementById('llm-local-settings');
+    const localModelsActions = document.getElementById('local-llm-models-actions');
+    const geminiChunkGroup = document.getElementById('llm-gemini-chunk-group');
+    const geminiChunkChaptersGroup = document.getElementById('llm-gemini-chunk-chapters-group');
+    const localChunkGroup = document.getElementById('llm-local-chunk-group');
+    const localChunkChaptersGroup = document.getElementById('llm-local-chunk-chapters-group');
+    const nonGeminiTuning = document.getElementById('llm-non-gemini-tuning');
 
-    const isLocal = (provider || '').toLowerCase() === 'local';
-    if (geminiCredentials) geminiCredentials.style.display = isLocal ? 'none' : '';
-    if (geminiModelGroup) geminiModelGroup.style.display = isLocal ? 'none' : '';
-    if (geminiModelsActions) geminiModelsActions.style.display = isLocal ? 'none' : '';
+    const normalizedProvider = (provider || '').toLowerCase();
+    const isGemini = normalizedProvider === 'gemini';
+    const isAtlas = normalizedProvider === 'atlas';
+    const isOpenRouter = normalizedProvider === 'openrouter';
+    const isLocal = normalizedProvider === 'local';
+    if (geminiCredentials) geminiCredentials.style.display = isGemini ? '' : 'none';
+    if (geminiModelGroup) geminiModelGroup.style.display = isGemini ? '' : 'none';
+    if (geminiModelsActions) geminiModelsActions.style.display = isGemini ? '' : 'none';
+    if (atlasSettings) atlasSettings.style.display = isAtlas ? '' : 'none';
+    if (atlasModelsActions) atlasModelsActions.style.display = isAtlas ? '' : 'none';
+    if (openRouterSettings) openRouterSettings.style.display = isOpenRouter ? '' : 'none';
+    if (openRouterModelsActions) openRouterModelsActions.style.display = isOpenRouter ? '' : 'none';
     if (localSettings) localSettings.style.display = isLocal ? '' : 'none';
+    if (localModelsActions) localModelsActions.style.display = isLocal ? '' : 'none';
+    if (geminiChunkGroup) geminiChunkGroup.style.display = isGemini ? '' : 'none';
+    if (geminiChunkChaptersGroup) geminiChunkChaptersGroup.style.display = isGemini ? '' : 'none';
+    if (localChunkGroup) localChunkGroup.style.display = isGemini ? 'none' : '';
+    if (localChunkChaptersGroup) localChunkChaptersGroup.style.display = isGemini ? 'none' : '';
+    if (nonGeminiTuning) nonGeminiTuning.style.display = isGemini ? 'none' : '';
+}
+
+async function fetchAtlasCloudModels(buttonEl) {
+    const apiKeyInput = document.getElementById('atlas-cloud-api-key');
+    const baseUrlInput = document.getElementById('atlas-cloud-base-url');
+    const timeoutInput = document.getElementById('atlas-cloud-timeout');
+    const modelSelect = document.getElementById('atlas-cloud-model');
+    const statusEl = document.getElementById('atlas-cloud-models-status');
+    if (!apiKeyInput || !baseUrlInput || !modelSelect) return;
+
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+        if (statusEl) statusEl.textContent = 'Enter your Atlas Cloud API key first.';
+        return;
+    }
+
+    const originalLabel = buttonEl ? buttonEl.textContent : '';
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Fetching Atlas models...';
+    }
+    if (statusEl) statusEl.textContent = 'Contacting Atlas Cloud and its LLM catalog...';
+
+    try {
+        const response = await fetch('/api/atlas-cloud/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: apiKey,
+                base_url: baseUrlInput.value.trim() || ATLAS_CLOUD_BASE_URL,
+                model: modelSelect.value || 'deepseek-v3',
+                timeout: parseInt(timeoutInput?.value, 10) || 30
+            })
+        });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Unable to fetch Atlas Cloud models');
+
+        const models = data.models || [];
+        if (!models.length) throw new Error('No Atlas Cloud LLM models were returned.');
+        const previousValue = (modelSelect.value || '').trim();
+        modelSelect.innerHTML = '';
+        models.forEach(modelName => {
+            const option = document.createElement('option');
+            option.value = modelName;
+            option.textContent = modelName;
+            modelSelect.appendChild(option);
+        });
+        modelSelect.value = models.includes(previousValue) ? previousValue : models[0];
+        if (statusEl) {
+            const warning = (data.warnings || [])[0];
+            statusEl.textContent = warning
+                ? `Loaded ${models.length} Atlas LLM models. ${warning}`
+                : `Loaded ${models.length} Atlas LLM models.`;
+        }
+    } catch (error) {
+        console.error('Failed to fetch Atlas Cloud models:', error);
+        if (statusEl) statusEl.textContent = error.message || 'Unable to fetch Atlas Cloud models.';
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = originalLabel || 'Fetch Atlas Models';
+        }
+    }
+}
+
+async function fetchOpenRouterModels(buttonEl) {
+    const apiKeyInput = document.getElementById('openrouter-api-key');
+    const baseUrlInput = document.getElementById('openrouter-base-url');
+    const timeoutInput = document.getElementById('openrouter-timeout');
+    const modelSelect = document.getElementById('openrouter-model');
+    const statusEl = document.getElementById('openrouter-models-status');
+    if (!apiKeyInput || !baseUrlInput || !modelSelect) return;
+
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) {
+        if (statusEl) statusEl.textContent = 'Enter your OpenRouter API key first.';
+        return;
+    }
+
+    const originalLabel = buttonEl ? buttonEl.textContent : '';
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Fetching OpenRouter models...';
+    }
+    if (statusEl) statusEl.textContent = 'Loading models available to this OpenRouter key...';
+
+    try {
+        const response = await fetch('/api/openrouter/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: apiKey,
+                base_url: baseUrlInput.value.trim() || OPENROUTER_BASE_URL,
+                model: modelSelect.value || 'openrouter/auto',
+                timeout: parseInt(timeoutInput?.value, 10) || 30
+            })
+        });
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Unable to fetch OpenRouter models');
+
+        const models = data.models || [];
+        if (!models.length) throw new Error('No text-output OpenRouter models were returned.');
+        const previousValue = (modelSelect.value || '').trim();
+        modelSelect.innerHTML = '';
+        models.forEach(modelName => {
+            const option = document.createElement('option');
+            option.value = modelName;
+            option.textContent = modelName;
+            modelSelect.appendChild(option);
+        });
+        modelSelect.value = models.includes(previousValue) ? previousValue : models[0];
+        if (statusEl) statusEl.textContent = `Loaded ${models.length} OpenRouter models available to this key.`;
+    } catch (error) {
+        console.error('Failed to fetch OpenRouter models:', error);
+        if (statusEl) statusEl.textContent = error.message || 'Unable to fetch OpenRouter models.';
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = originalLabel || 'Fetch OpenRouter Models';
+        }
+    }
 }
 
 async function fetchLocalLlmModels(buttonEl) {
@@ -381,6 +529,7 @@ function toggleEngineSettingsSections(engineName) {
         'kitten_tts': 'kitten-tts',
         'index_tts': 'index-tts',
         'dots_tts': 'dots-tts',
+        'azure_speech': 'azure-speech',
         'api_keys': 'api-keys'
     };
     
@@ -412,9 +561,25 @@ function setupSettingsListeners() {
     if (fetchGeminiModelsBtn) {
         fetchGeminiModelsBtn.addEventListener('click', () => fetchGeminiModels(fetchGeminiModelsBtn));
     }
+    const fetchAtlasModelsBtn = document.getElementById('fetch-atlas-cloud-models-btn');
+    if (fetchAtlasModelsBtn) {
+        fetchAtlasModelsBtn.addEventListener('click', () => fetchAtlasCloudModels(fetchAtlasModelsBtn));
+    }
+    const fetchOpenRouterModelsBtn = document.getElementById('fetch-openrouter-models-btn');
+    if (fetchOpenRouterModelsBtn) {
+        fetchOpenRouterModelsBtn.addEventListener('click', () => fetchOpenRouterModels(fetchOpenRouterModelsBtn));
+    }
     const fetchLocalModelsBtn = document.getElementById('fetch-local-llm-models-btn');
     if (fetchLocalModelsBtn) {
         fetchLocalModelsBtn.addEventListener('click', () => fetchLocalLlmModels(fetchLocalModelsBtn));
+    }
+    const fetchAzureVoicesBtn = document.getElementById('fetch-azure-speech-voices');
+    if (fetchAzureVoicesBtn) {
+        fetchAzureVoicesBtn.addEventListener('click', () => fetchAzureSpeechVoices(fetchAzureVoicesBtn));
+    }
+    const azureDefaultVoice = document.getElementById('azure-speech-default-voice');
+    if (azureDefaultVoice) {
+        azureDefaultVoice.addEventListener('change', () => updateAzureDefaultExpressionOptions());
     }
 
     const ttsEngineSelect = document.getElementById('settings-tts-engine');
@@ -576,6 +741,112 @@ async function fetchGeminiModels(buttonEl) {
     }
 }
 
+function populateAzureDefaultVoiceSelect(voices, preferredVoice = '') {
+    const select = document.getElementById('azure-speech-default-voice');
+    if (!select) return;
+    const selected = preferredVoice || select.value || 'en-US-AvaMultilingualNeural';
+    select.innerHTML = '';
+    const groups = new Map();
+    (voices || []).forEach(voice => {
+        const localeLabel = voice.locale_name || voice.locale || 'Azure voices';
+        if (!groups.has(localeLabel)) groups.set(localeLabel, []);
+        groups.get(localeLabel).push(voice);
+    });
+    groups.forEach((entries, localeLabel) => {
+        const group = document.createElement('optgroup');
+        group.label = localeLabel;
+        entries.forEach(voice => {
+            const option = document.createElement('option');
+            option.value = voice.short_name;
+            option.textContent = `${voice.display_name || voice.short_name} · ${voice.gender || 'Unknown'} (${voice.short_name})`;
+            group.appendChild(option);
+        });
+        select.appendChild(group);
+    });
+    if (!Array.from(select.options).some(option => option.value === selected)) {
+        const option = document.createElement('option');
+        option.value = selected;
+        option.textContent = selected;
+        select.insertBefore(option, select.firstChild);
+    }
+    select.value = selected;
+    updateAzureDefaultExpressionOptions();
+}
+
+function populateAzureExpressionSelect(select, values, emptyLabel, preferredValue = '') {
+    if (!select) return;
+    const selected = preferredValue || select.value || '';
+    select.innerHTML = `<option value="">${emptyLabel}</option>`;
+    (values || []).forEach(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+    });
+    if (selected && !Array.from(select.options).some(option => option.value === selected)) {
+        const option = document.createElement('option');
+        option.value = selected;
+        option.textContent = `${selected} (saved)`;
+        select.appendChild(option);
+    }
+    select.value = selected;
+}
+
+function updateAzureDefaultExpressionOptions(preferredStyle, preferredRole) {
+    const voiceName = document.getElementById('azure-speech-default-voice')?.value || '';
+    const voice = settingsAzureSpeechVoices.find(entry => entry.short_name === voiceName);
+    populateAzureExpressionSelect(
+        document.getElementById('azure-speech-default-style'),
+        voice?.styles || [],
+        'Neutral / default',
+        preferredStyle
+    );
+    populateAzureExpressionSelect(
+        document.getElementById('azure-speech-default-role'),
+        voice?.roles || [],
+        'Default role',
+        preferredRole
+    );
+}
+
+async function fetchAzureSpeechVoices(buttonEl) {
+    const status = document.getElementById('azure-speech-voices-status');
+    const key = document.getElementById('azure-speech-key')?.value?.trim() || '';
+    const region = document.getElementById('azure-speech-region')?.value?.trim() || '';
+    if (!key || !region) {
+        if (status) status.textContent = 'Enter both the resource key and region first.';
+        return;
+    }
+    const originalLabel = buttonEl?.textContent;
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Loading Azure voices…';
+    }
+    if (status) status.textContent = 'Connecting to Azure Speech…';
+    try {
+        const response = await fetch('/api/azure-speech/voices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key, region, force: true })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load Azure voices.');
+        settingsAzureSpeechVoices = Array.isArray(data.voices) ? data.voices : [];
+        populateAzureDefaultVoiceSelect(
+            settingsAzureSpeechVoices,
+            document.getElementById('azure-speech-default-voice')?.value || ''
+        );
+        if (status) status.textContent = `Connected. Loaded ${settingsAzureSpeechVoices.length} voices for ${data.region}.`;
+    } catch (error) {
+        if (status) status.textContent = error.message || 'Unable to load Azure voices.';
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = originalLabel || 'Test Connection & Load Voices';
+        }
+    }
+}
+
 // Load settings from API
 async function loadSettings() {
     try {
@@ -670,6 +941,51 @@ function applySettings(settings) {
     // Local LLM settings
     const llmProvider = settings.llm_provider || 'gemini';
     setElementValue('llm-provider', llmProvider, 'gemini');
+    setElementValue('atlas-cloud-api-key', settings.atlas_cloud_api_key || '');
+    setElementValue('atlas-cloud-base-url', settings.atlas_cloud_base_url || ATLAS_CLOUD_BASE_URL, ATLAS_CLOUD_BASE_URL);
+    setElementValue('atlas-cloud-timeout', settings.atlas_cloud_timeout ?? 120, 120);
+    const atlasModelSelect = document.getElementById('atlas-cloud-model');
+    const savedAtlasModel = settings.atlas_cloud_model || 'deepseek-v3';
+    if (atlasModelSelect && savedAtlasModel) {
+        const hasOption = Array.from(atlasModelSelect.options).some(option => option.value === savedAtlasModel);
+        if (!hasOption) {
+            const option = document.createElement('option');
+            option.value = savedAtlasModel;
+            option.textContent = savedAtlasModel;
+            atlasModelSelect.appendChild(option);
+        }
+        atlasModelSelect.value = savedAtlasModel;
+    }
+    setElementValue('openrouter-api-key', settings.openrouter_api_key || '');
+    setElementValue('openrouter-base-url', settings.openrouter_base_url || OPENROUTER_BASE_URL, OPENROUTER_BASE_URL);
+    setElementValue('openrouter-timeout', settings.openrouter_timeout ?? 120, 120);
+    const openRouterModelSelect = document.getElementById('openrouter-model');
+    const savedOpenRouterModel = settings.openrouter_model || 'openrouter/auto';
+    if (openRouterModelSelect && savedOpenRouterModel) {
+        const hasOption = Array.from(openRouterModelSelect.options).some(option => option.value === savedOpenRouterModel);
+        if (!hasOption) {
+            const option = document.createElement('option');
+            option.value = savedOpenRouterModel;
+            option.textContent = savedOpenRouterModel;
+            openRouterModelSelect.appendChild(option);
+        }
+        openRouterModelSelect.value = savedOpenRouterModel;
+    }
+    setElementValue('azure-speech-key', settings.azure_speech_key || '');
+    setElementValue('azure-speech-region', settings.azure_speech_region || '');
+    setElementValue('azure-speech-output-format', settings.azure_speech_output_format || 'riff-24khz-16bit-mono-pcm');
+    setElementValue('azure-speech-timeout', settings.azure_speech_timeout ?? 60, 60);
+    setElementValue('azure-speech-requests-per-minute', settings.azure_speech_requests_per_minute ?? 20, 20);
+    setElementValue('azure-speech-chunk-size', settings.azure_speech_chunk_size ?? 1000, 1000);
+    setElementValue('azure-speech-default-style-degree', settings.azure_speech_default_style_degree ?? 1, 1);
+    populateAzureDefaultVoiceSelect(
+        settingsAzureSpeechVoices,
+        settings.azure_speech_default_voice || 'en-US-AvaMultilingualNeural'
+    );
+    updateAzureDefaultExpressionOptions(
+        settings.azure_speech_default_style || '',
+        settings.azure_speech_default_role || ''
+    );
     setElementValue('llm-local-provider', settings.llm_local_provider || 'lmstudio', 'lmstudio');
     setElementValue('llm-local-base-url', settings.llm_local_base_url || LOCAL_LLM_BASE_URLS.lmstudio, LOCAL_LLM_BASE_URLS.lmstudio);
     setElementValue('llm-local-model', settings.llm_local_model || '');
@@ -1130,6 +1446,24 @@ async function saveSettings() {
         gemini_speaker_profile_prompt: document.getElementById('gemini-speaker-profile-prompt')?.value || '',
         gemini_prompt_presets: geminiPresetState.list.map(preset => ({ ...preset })),
         llm_provider: document.getElementById('llm-provider')?.value || 'gemini',
+        atlas_cloud_api_key: document.getElementById('atlas-cloud-api-key')?.value || '',
+        atlas_cloud_base_url: document.getElementById('atlas-cloud-base-url')?.value || ATLAS_CLOUD_BASE_URL,
+        atlas_cloud_model: document.getElementById('atlas-cloud-model')?.value || 'deepseek-v3',
+        atlas_cloud_timeout: parseInt(document.getElementById('atlas-cloud-timeout')?.value, 10) || 120,
+        openrouter_api_key: document.getElementById('openrouter-api-key')?.value || '',
+        openrouter_base_url: document.getElementById('openrouter-base-url')?.value || OPENROUTER_BASE_URL,
+        openrouter_model: document.getElementById('openrouter-model')?.value || 'openrouter/auto',
+        openrouter_timeout: parseInt(document.getElementById('openrouter-timeout')?.value, 10) || 120,
+        azure_speech_key: document.getElementById('azure-speech-key')?.value || '',
+        azure_speech_region: document.getElementById('azure-speech-region')?.value?.trim().toLowerCase() || '',
+        azure_speech_default_voice: document.getElementById('azure-speech-default-voice')?.value || 'en-US-AvaMultilingualNeural',
+        azure_speech_output_format: document.getElementById('azure-speech-output-format')?.value || 'riff-24khz-16bit-mono-pcm',
+        azure_speech_timeout: Math.max(10, parseInt(document.getElementById('azure-speech-timeout')?.value, 10) || 60),
+        azure_speech_requests_per_minute: Math.max(0, parseInt(document.getElementById('azure-speech-requests-per-minute')?.value, 10) || 0),
+        azure_speech_chunk_size: Math.max(100, parseInt(document.getElementById('azure-speech-chunk-size')?.value, 10) || 1000),
+        azure_speech_default_style: document.getElementById('azure-speech-default-style')?.value || '',
+        azure_speech_default_role: document.getElementById('azure-speech-default-role')?.value || '',
+        azure_speech_default_style_degree: Math.max(0.01, Math.min(2, parseFloat(document.getElementById('azure-speech-default-style-degree')?.value) || 1)),
         llm_local_provider: document.getElementById('llm-local-provider')?.value || 'lmstudio',
         llm_local_base_url: document.getElementById('llm-local-base-url')?.value || LOCAL_LLM_BASE_URLS.lmstudio,
         llm_local_model: document.getElementById('llm-local-model')?.value || '',
@@ -1331,6 +1665,24 @@ async function resetSettings() {
         gemini_prompt: '',
         gemini_prompt_presets: [],
         llm_provider: 'gemini',
+        atlas_cloud_api_key: '',
+        atlas_cloud_base_url: ATLAS_CLOUD_BASE_URL,
+        atlas_cloud_model: 'deepseek-v3',
+        atlas_cloud_timeout: 120,
+        openrouter_api_key: '',
+        openrouter_base_url: OPENROUTER_BASE_URL,
+        openrouter_model: 'openrouter/auto',
+        openrouter_timeout: 120,
+        azure_speech_key: '',
+        azure_speech_region: '',
+        azure_speech_default_voice: 'en-US-AvaMultilingualNeural',
+        azure_speech_output_format: 'riff-24khz-16bit-mono-pcm',
+        azure_speech_timeout: 60,
+        azure_speech_requests_per_minute: 20,
+        azure_speech_chunk_size: 1000,
+        azure_speech_default_style: '',
+        azure_speech_default_role: '',
+        azure_speech_default_style_degree: 1,
         llm_local_provider: 'lmstudio',
         llm_local_base_url: LOCAL_LLM_BASE_URLS.lmstudio,
         llm_local_model: '',

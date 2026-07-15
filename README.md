@@ -8,7 +8,8 @@ Thank you — it genuinely means a lot! 🙏
 
 ---
 
-# Current Updates and Notes - updated 07-14-2026
+# Current Updates and Notes - updated 07-15-2026
+- **New TTS engine: Microsoft Azure AI Speech** - added bring-your-own-key Azure Speech synthesis with regional voice discovery, multilingual neural voices, supported speaking styles and roles, SSML rate/pitch/volume controls, preview support, retries, and configurable local request throttling.
 - **Windows startup stability** - Gemini's native SDK now loads only when Gemini processing is used, after the PyTorch-backed TTS engines have initialized.
 - **Cross-platform audio tools** - Linux and macOS now resolve native SoX and FFmpeg executables from `PATH`; bundled Windows `.exe` files are only selected on Windows.
 - **Installer and diagnostics improvements** - Git bootstrap has a Windows Package Manager fallback, Chatterbox setup validates its runtime import, and engine package/model versions can be collected with `scripts/engine_versions.py`.
@@ -29,7 +30,7 @@ Thank you — it genuinely means a lot! 🙏
 
 # TTS-Story
 
-A web-based Text-to-Speech application supporting multiple TTS engines including **Kokoro-82M**, **Chatterbox**, **VoxCPM 1.5**, **Qwen3 TTS** (Custom Voice, Clone, Voice Creation), **Pocket TTS** (CPU-friendly), **OmniVoice**, **KittenTTS** (ultra-lightweight CPU-only), **IndexTTS** (zero-shot voice cloning by Bilibili), and **Dot.TTS** (48 kHz zero-shot voice cloning by rednote-hilab), with both local GPU inference and Replicate cloud API options for generating multi-voice audiobooks and stories.
+A web-based Text-to-Speech application supporting multiple TTS engines including **Kokoro-82M**, **Chatterbox**, **VoxCPM 1.5**, **Qwen3 TTS** (Custom Voice, Clone, Voice Creation), **Pocket TTS** (CPU-friendly), **OmniVoice**, **KittenTTS** (ultra-lightweight CPU-only), **IndexTTS** (zero-shot voice cloning by Bilibili), **Dot.TTS** (48 kHz zero-shot voice cloning by rednote-hilab), and **Microsoft Azure AI Speech**, with local inference plus Replicate and Azure cloud options for generating multi-voice audiobooks and stories.
 
 <div align="center">
   <table>
@@ -96,11 +97,11 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
   - **Pocket TTS · Voice Clone** - CPU-only voice cloning using reference prompts
   - **Qwen3 TTS · Custom Voice** - Generate with Qwen3 TTS custom voice prompts
   - **Qwen3 TTS · Clone** - Clone a voice from reference audio using Qwen3 TTS
-  - **Qwen3 TTS · Voice Creation** - Create a brand-new voice using Qwen3 TTS voice design
   - **OmniVoice · Voice Clone** - Voice cloning in an isolated environment
   - **KittenTTS** - Ultra-lightweight CPU-only engine, no GPU required
   - **IndexTTS** - Zero-shot voice cloning by Bilibili, runs in an isolated venv
   - **Dot.TTS** - 48 kHz zero-shot voice cloning by rednote-hilab, runs in an isolated venv
+  - **Microsoft Azure Speech · Cloud** - Use your Azure Speech resource with dynamically discovered multilingual neural voices, styles, roles, and SSML prosody controls
 - **Unified Replicate API**: Single API token works for both Kokoro and Chatterbox Replicate engines
 - **Voice Cloning**: Upload your own voice recordings (10-15 seconds recommended) for supported cloning engines including Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, and Dot.TTS
 - **Voice Prompt Management**: Add, rename, delete, and preview custom voice prompts with drag-and-drop bulk upload
@@ -117,10 +118,12 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 - **Intro & Inter-Segment Silence Controls**: Dial in precise empty space before the first line and between chunks
 
 ### AI & Processing
-- **Gemini Pre-Processing**: Automatically decides between whole-text or chapter-based Gemini runs with speaker-memory context
-- **Speaker Memory Between Chunks**: Gemini requests carry forward discovered speaker tags for consistency
+- **Multi-Provider LLM Pre-Processing**: Clean up and tag text with Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama
+- **Atlas Cloud Model Discovery**: Save an Atlas Cloud API key and retrieve current LLM choices from the authenticated API and public LLM catalog
+- **OpenRouter Model Discovery**: Retrieve the text models allowed by your key's provider preferences, privacy settings, and guardrails
+- **Speaker Memory Between Chunks**: LLM requests carry forward discovered speaker tags for consistency
 - **Local GPU Processing**: Run entirely on your machine for privacy and speed
-- **Cloud API Option**: Use Replicate API when you don't have local GPU resources
+- **Cloud API Options**: Use Replicate or Microsoft Azure Speech when you don't have local GPU resources
 
 ### Job Management & Library
 - **Job Queue**: Submit multiple jobs, track real-time progress with ETA, cancel, and download results
@@ -131,7 +134,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 ### UI & Configuration
 - **Available Voices & Previews**: Browse all Kokoro voices grouped by language, generate preview samples
 - **Configurable Settings**: Control TTS engine, speed, chunk size, output format, bitrate, crossfade
-- **Dynamic Gemini Controls**: Save your Gemini API key, fetch the latest available Gemini models on demand
+- **Dynamic LLM Controls**: Save cloud API keys and fetch available Gemini, Atlas Cloud, OpenRouter, or local models on demand
 - **Web Interface**: Modern single-page UI built with Flask and vanilla JS
 
 ## Available Voices
@@ -320,15 +323,43 @@ TTS-Story supports fourteen TTS engine options. In the **Settings** tab, choose 
 | **VoxCPM 1.5 · Local GPU** | VoxCPM with voice cloning & auto-transcription | NVIDIA GPU (~6GB VRAM) |
 | **Qwen3 TTS · Custom Voice** | Qwen3 TTS custom voice prompts | NVIDIA GPU (local) |
 | **Qwen3 TTS · Clone** | Qwen3 TTS voice cloning from reference audio | NVIDIA GPU (local) |
-| **Qwen3 TTS · Voice Creation** | Qwen3 TTS voice design (new voice creation) | NVIDIA GPU (local) |
 | **OmniVoice · Voice Clone** | Voice cloning from reference prompts | NVIDIA GPU recommended; isolated venv |
 | **Pocket TTS · Preset Voices** | CPU-only preset voices, no GPU needed | CPU only |
 | **Pocket TTS · Voice Clone** | CPU-only voice cloning from reference prompts | CPU only |
 | **KittenTTS** | Ultra-lightweight CPU-only, 8 built-in voices | CPU only |
 | **IndexTTS** | Zero-shot voice cloning, English + Chinese | NVIDIA GPU recommended; isolated venv |
 | **Dot.TTS** | High-similarity zero-shot voice cloning with reference transcript | NVIDIA GPU recommended; isolated venv |
+| **Microsoft Azure Speech · Cloud** | Regional multilingual neural voices with styles, roles, and SSML controls | Azure Speech resource key and region |
 
 You can also override the engine per-job in the **Generate** tab.
+
+### Microsoft Azure AI Speech Engine
+
+Azure Speech is a bring-your-own-account cloud engine. TTS-Story uses the regional REST endpoints directly, so it does not add the native Azure Speech SDK or require a GPU.
+
+#### Azure Speech Setup
+
+1. Create or select an Azure AI Speech resource and copy one resource key plus its region from **Keys and Endpoint**. The key and region must belong to the same resource.
+2. Open **Settings → Engine Settings → Azure Speech**.
+3. Enter the resource key and region, then click **Test Connection & Load Voices**.
+4. Select a default voice, output quality, and optional default expression settings, then save.
+5. Select **Microsoft Azure Speech · Cloud** on the Generate tab and assign a voice to each speaker.
+
+The voice list is retrieved from the selected Azure region. Each speaker can use a different locale and voice. When the selected voice advertises them, TTS-Story also exposes speaking style, role, style intensity, speed, pitch, and volume controls. Unsupported style or role combinations are not offered in the main assignment UI.
+
+#### Azure Speech Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Default Voice | `en-US-AvaMultilingualNeural` | Fallback voice when a speaker does not override it |
+| Azure WAV Quality | 24 kHz, 16-bit mono PCM | Intermediate synthesis quality; 48 kHz is also available |
+| Chunk Size | `1000` chars | Sentence-aware target size; larger chunks reduce request count |
+| Request Limit | `20` per minute | Local rolling limiter; set this to the quota appropriate for your Azure tier, or `0` to disable local throttling |
+| Timeout | `60` seconds | Per-request timeout |
+| Default Style / Role | Neutral / default | Applied when a speaker does not choose another supported expression |
+| Style Intensity | `1.0` | Azure style degree, clamped to `0.01`–`2.0` |
+
+Azure usage and data handling are governed by your Azure resource and subscription. Review the current [Azure Speech pricing](https://azure.microsoft.com/pricing/details/speech/) and [Azure text-to-speech documentation](https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech) before large jobs. TTS-Story retries transient failures and `429` responses, but Azure quota and billing still apply.
 
 ### Dot.TTS Engine
 
@@ -430,7 +461,7 @@ KittenTTS is an ultra-lightweight, CPU-only TTS engine — ideal for machines wi
 
 1. Open your browser to `http://localhost:5000`
 2. In **Settings**, select your preferred TTS engine
-3. If using Replicate engines, enter your API token in the **Replicate API** section
+3. If using a cloud engine, configure its Replicate token or Azure Speech resource key and region
 4. Paste your text with or without speaker tags in the **Generate** tab
 5. Select a **Default Voice** (used for plain text / unassigned speakers)
 6. If you use speaker tags, TTS-Story automatically analyzes the text and lets you assign voices per speaker
@@ -453,7 +484,7 @@ When using voice-cloning engines:
 - A shared "Quick Test Text" field lives above the Assigned Voices section so you can type once and preview any speaker with matching FX.
 - Each speaker row includes an inline Quick Test button beside the tone controls.
 
-**Note:** Local GPU modes run entirely on your machine and never use cloud APIs, ensuring complete privacy and no API costs.
+**Note:** Local modes run entirely on your machine. Replicate and Azure Speech send synthesis text to the selected cloud provider and may incur provider charges.
 
 ### Silence & Timing Controls
 
@@ -491,25 +522,29 @@ You can use either numbered speakers or named speakers:
 
 You can use any alphanumeric name (letters, numbers, underscores). The system will automatically detect all unique speakers and let you assign voices to each one.
 
-### Gemini Pre-Processing Workflow
+### LLM Pre-Processing Workflow
 
-Need to tidy a manuscript or add consistent speaker tags before running TTS? Use the **Prep Text with Gemini** button:
+Need to tidy a manuscript or add consistent speaker tags before running TTS? Use the **Prep Text** button:
 
-1. Enter your Gemini API key and model in **Settings**, then click **Fetch Available Models** if you want to load the latest list directly from Google.
+1. In **Settings**, select Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama as the LLM provider.
+   - For Atlas Cloud, enter your API key and click **Fetch Atlas Models**, then select a model from the returned list.
+   - For OpenRouter, enter your API key and click **Fetch OpenRouter Models** to load the text models allowed by that key.
+   - For Gemini, enter your API key and use **Fetch Models**.
+   - For LM Studio or Ollama, enter the local server URL and use **Fetch Local Models**.
 2. Paste your story in the **Generate** tab and decide whether "Generate separate audio files for each chapter" should be enabled.
 3. Select a **Prompt Preset** (see below) or write your own custom prompt.
-4. Click **Prep Text with Gemini**:
-   - If chapter splitting is enabled, TTS-Story reuses the detected chapter list and sends each one to Gemini separately with your pre-prompt and the running speaker list.
-   - If chapter splitting is disabled, the whole manuscript (plus pre-prompt) is sent in a single Gemini request to respect the context window.
+4. Click **Prep Text**:
+   - If chapter splitting is enabled, TTS-Story reuses the detected chapter list and sends each one to the selected LLM with your pre-prompt and the running speaker list.
+   - If chapter splitting is disabled, the whole manuscript (plus pre-prompt) is sent in one request to respect the context window.
    - A real-time progress bar shows which chapter or full-text step is running.
-5. When Gemini finishes, the cleaned/expanded narrative replaces the input field. Chapter headings stay inside the narrator tags so audio splitting still works.
+5. When the LLM finishes, the cleaned/expanded narrative replaces the input field. Chapter headings stay inside the narrator tags so audio splitting still works.
 6. Re-run **Analyze Text** if needed. Your voice assignments and FX settings remain untouched unless you explicitly reset them.
 
 Because the speaker list is tracked across sections, characters that appear later continue to use the same tag, which keeps the voice assignment UI tidy and prevents duplicate dropdowns.
 
 #### Pre-loaded Prompt Presets
 
-TTS-Story includes pre-configured Gemini prompt presets optimized for different use cases:
+TTS-Story includes pre-configured LLM prompt presets optimized for different use cases:
 
 | Preset | Best For | Description |
 |--------|----------|-------------|
@@ -517,7 +552,7 @@ TTS-Story includes pre-configured Gemini prompt presets optimized for different 
 | **Chatterbox Audio Book Conversion** | Chatterbox engines | Maintains strict adherence to the original text while converting symbols and abbreviations that TTS engines struggle with into speakable words (e.g., "/" → "slash", "-" → "dash", "Dr." → "Doctor"). |
 | **Strict Book Narration V1** | Kokoro & other engines | Preserves the exact text of the book while adding speaker tags and preparing the content for TTS conversion. Improved instruction adherence ensures the original prose is never paraphrased or summarised. |
 
-Select a preset from the dropdown in the Gemini section, or create your own custom prompts and save them for reuse.
+Select a preset from the LLM section, or create your own custom prompts and save them for reuse.
 
 ### Plain Text Mode
 
@@ -580,10 +615,27 @@ Settings are stored in `config.json`:
   "chatterbox_turbo_local_temperature": 0.8,
   "chatterbox_turbo_replicate_model": "resemble-ai/chatterbox-turbo",
   "voxcpm_local_device": "auto",
+  "llm_provider": "gemini",
   "gemini_api_key": "",
-  "gemini_model": "gemini-2.0-flash"
+  "gemini_model": "gemini-2.0-flash",
+  "atlas_cloud_api_key": "",
+  "atlas_cloud_base_url": "https://api.atlascloud.ai/v1",
+  "atlas_cloud_model": "deepseek-v3",
+  "atlas_cloud_timeout": 120,
+  "openrouter_api_key": "",
+  "openrouter_base_url": "https://openrouter.ai/api/v1",
+  "openrouter_model": "openrouter/auto",
+  "openrouter_timeout": 120,
+  "azure_speech_key": "",
+  "azure_speech_region": "",
+  "azure_speech_default_voice": "en-US-AvaMultilingualNeural",
+  "azure_speech_output_format": "riff-24khz-16bit-mono-pcm",
+  "azure_speech_requests_per_minute": 20,
+  "azure_speech_chunk_size": 1000
 }
 ```
+
+Cloud API keys are stored locally in `config.json`. The repository sync script scrubs these fields before staging or committing that file.
 
 ### TTS Engine Options
 
@@ -603,6 +655,7 @@ Settings are stored in `config.json`:
 | `kitten_tts` | KittenTTS CPU-only engine |
 | `index_tts` | IndexTTS zero-shot voice cloning |
 | `dots_tts` | Dot.TTS 48 kHz zero-shot voice cloning |
+| `azure_speech` | Microsoft Azure AI Speech regional REST API |
 
 Any settings you override in the Generate tab (format, bitrate, engine) are sent along with the job payload while keeping the saved defaults intact.
 
@@ -632,7 +685,8 @@ TTS-Story/
 │       ├── omnivoice_clone_engine.py     # OmniVoice subprocess adapter
 │       ├── kitten_tts_engine.py          # KittenTTS CPU-only engine
 │       ├── index_tts_engine.py           # IndexTTS subprocess adapter
-│       └── dots_tts_engine.py            # Dot.TTS subprocess adapter
+│       ├── dots_tts_engine.py            # Dot.TTS subprocess adapter
+│       └── azure_speech_engine.py         # Microsoft Azure Speech REST adapter
 ├── engines/
 │   ├── index-tts/                    # Cloned IndexTTS repo (isolated venv)
 │   │   ├── .venv/                        # uv-managed isolated environment
@@ -666,10 +720,15 @@ TTS-Story/
 - `GET /api/settings` - Get current settings
 - `POST /api/settings` - Update settings
 - `POST /api/analyze` - Analyze text and return statistics/speakers
-- `POST /api/gemini/sections` - Preview the sections (chapters/chunks) Gemini will process for a given input
-- `POST /api/gemini/process-section` - Send a single section to Gemini (called in sequence by the frontend for live progress updates)
-- `POST /api/gemini/process` - Process the entire text through Gemini in one backend call (used for scripted workflows)
+- `POST /api/gemini/sections` - Preview the sections (chapters/chunks) the configured LLM will process
+- `POST /api/gemini/process-section` - Send one section to the configured LLM (called in sequence by the frontend for live progress updates)
+- `POST /api/gemini/process` - Process the entire text through the configured LLM in one backend call (legacy route name retained for compatibility)
 - `POST /api/gemini/models` - Fetch available Gemini models after providing an API key
+- `POST /api/atlas-cloud/models` - Fetch Atlas Cloud LLM models using an entered or saved API key
+- `POST /api/openrouter/models` - Fetch text-output models allowed by an entered or saved OpenRouter API key
+- `GET /api/azure-speech/voices` - Fetch the saved Azure resource's regional voice catalog
+- `POST /api/azure-speech/voices` - Validate an entered Azure key/region and fetch its regional voice catalog
+- `POST /api/local-llm/models` - Fetch models from LM Studio or Ollama
 - `POST /api/generate` - Queue a new audio generation job
 - `GET /api/status/<job_id>` - Check status of a specific job
 - `POST /api/cancel/<job_id>` - Cancel a queued or running job
@@ -776,6 +835,13 @@ Use `python scripts/engine_versions.py --json` for machine-readable output. Omni
 - No API costs
 - Full privacy
 
+### Microsoft Azure Speech · Cloud
+- No local model download or GPU required
+- Regional voice catalog with multilingual neural voices
+- Voice-dependent speaking styles and roles plus SSML rate, pitch, and volume
+- 24 kHz or 48 kHz PCM synthesis before final audiobook encoding
+- Usage limits, privacy, and cost depend on your Azure subscription
+
 ## Troubleshooting
 
 ### espeak-ng not found
@@ -786,6 +852,13 @@ Reduce chunk_size in settings or use a Replicate engine instead of local GPU.
 
 ### Audio quality issues
 Adjust the speed parameter (0.5 - 2.0) in settings.
+
+### Azure Speech rejects the key, region, voice, or request
+
+- Confirm the resource key and region came from the same Azure Speech resource; enter the region name such as `eastus`, not the full endpoint URL.
+- Click **Test Connection & Load Voices** after changing credentials. Only voices returned for that resource and region are shown.
+- A `429` response means Azure throttled the resource. Reduce **Parallel Chunks**, lower the configured request limit to match the subscription quota, or retry later.
+- If Azure rejects a style or role, return the speaker to neutral/default or reload the voice catalog; expression support varies by voice.
 
 ### Chatterbox Turbo is unavailable
 
