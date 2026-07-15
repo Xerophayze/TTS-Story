@@ -19,6 +19,8 @@ set "PYTHON_INSTALLER=%TEMP%\python-installer.exe"
 set "TORCH_VERSION=2.6.0"
 set "TORCHVISION_VERSION=0.21.0"
 set "TORCHAUDIO_VERSION=2.6.0"
+set "CHATTERBOX_TTS_VERSION=0.1.6"
+set "POCKET_TTS_VERSION=1.0.3"
 set "BLACKWELL_TORCH_VERSION=2.8.0"
 set "BLACKWELL_TORCHVISION_VERSION=0.23.0"
 set "BLACKWELL_TORCHAUDIO_VERSION=2.8.0"
@@ -46,20 +48,12 @@ if exist "%VENV_PYTHON%" (
         set "USE_EXISTING_VENV=1"
         echo Found existing project venv Python 3.11. Reusing it for update.
         goto :PythonReady
-    ) else if "!VENV_CFG_MM!"=="3.11" (
-        set "USE_EXISTING_VENV=1"
-        echo Found existing project venv pyvenv.cfg Python 3.11. Reusing it for update.
-        goto :PythonReady
     ) else if defined VENV_PY_MM (
         echo Existing venv Python is not 3.11 ^(detected: !VENV_PY_MM!^). Recreating venv.
         rmdir /s /q venv >nul 2>&1
-    ) else if defined VENV_CFG_MM (
-        echo Existing venv Python is not 3.11 ^(pyvenv.cfg: !VENV_CFG_MM!^). Recreating venv.
-        rmdir /s /q venv >nul 2>&1
     ) else (
-        echo Existing venv Python version could not be detected. Keeping it and validating after activation.
-        set "USE_EXISTING_VENV=1"
-        goto :PythonReady
+        echo Existing venv Python cannot start ^(pyvenv.cfg: !VENV_CFG_MM!^). Recreating venv.
+        rmdir /s /q venv >nul 2>&1
     )
 )
 
@@ -355,11 +349,23 @@ if errorlevel 1 (
 REM Install local Chatterbox runtime
 echo.
 echo [7/12] Installing Chatterbox Turbo runtime...
-pip install chatterbox-tts --no-deps
+pip install chatterbox-tts==%CHATTERBOX_TTS_VERSION% --no-deps
 if errorlevel 1 (
-    echo ERROR: Failed to install chatterbox-tts
-    pause
-    exit /b 1
+    echo WARNING: Failed to install chatterbox-tts==%CHATTERBOX_TTS_VERSION%.
+    echo Chatterbox Turbo will be unavailable, but setup will continue for other engines.
+) else (
+    python -c "from chatterbox.tts_turbo import ChatterboxTurboTTS; import importlib.metadata as m; print('Chatterbox Turbo import OK; package version:', m.version('chatterbox-tts'))"
+    if errorlevel 1 (
+        echo WARNING: chatterbox-tts installed but its runtime import failed.
+        echo The application health endpoint will report the underlying dependency error.
+    )
+)
+
+echo.
+echo Validating Pocket TTS runtime...
+python -c "from pocket_tts import TTSModel; import importlib.metadata as m; print('Pocket TTS import OK; package version:', m.version('pocket-tts'))"
+if errorlevel 1 (
+    echo WARNING: Pocket TTS is installed incorrectly or unavailable. Rerun setup to repair it.
 )
 
 REM Install VoxCPM runtime
@@ -573,6 +579,23 @@ echo Dot.TTS pins newer torch/transformers versions, so it runs in its own venv.
 set "DOTS_TTS_DIR=%~dp0engines\dots-tts"
 set "DOTS_TTS_REPO=%DOTS_TTS_DIR%\repo"
 if "%DOTS_TTS_DIR:~-1%"=="\" set "DOTS_TTS_DIR=%DOTS_TTS_DIR:~0,-1%"
+set "DOTS_TTS_REPO_UPDATED=0"
+if exist "%DOTS_TTS_REPO%\.git" (
+    where git >nul 2>&1
+    if not errorlevel 1 (
+        set "DOTS_TTS_REPO_BEFORE="
+        set "DOTS_TTS_REPO_AFTER="
+        for /f "delims=" %%H in ('git -C "%DOTS_TTS_REPO%" rev-parse HEAD 2^>nul') do set "DOTS_TTS_REPO_BEFORE=%%H"
+        echo Checking Dot.TTS upstream updates...
+        git -C "%DOTS_TTS_REPO%" pull --ff-only >nul 2>&1
+        for /f "delims=" %%H in ('git -C "%DOTS_TTS_REPO%" rev-parse HEAD 2^>nul') do set "DOTS_TTS_REPO_AFTER=%%H"
+        if defined DOTS_TTS_REPO_BEFORE if defined DOTS_TTS_REPO_AFTER if not "!DOTS_TTS_REPO_BEFORE!"=="!DOTS_TTS_REPO_AFTER!" (
+            set "DOTS_TTS_REPO_UPDATED=1"
+            echo Dot.TTS upstream updated. Refreshing editable install.
+            del "%DOTS_TTS_DIR%\.dots_tts_ready" >nul 2>&1
+        )
+    )
+)
 if exist "%DOTS_TTS_DIR%\.dots_tts_ready" (
     if exist "%DOTS_TTS_DIR%\dots_tts_worker.py" (
         if exist "%DOTS_TTS_REPO%\pyproject.toml" (

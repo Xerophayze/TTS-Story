@@ -8,28 +8,28 @@ Thank you — it genuinely means a lot! 🙏
 
 ---
 
-# Current Updates and Notes - updated 06-04-2026
-- **Pinokio support update**: We gave the Pinokio install/update path a bunch of love and fixed a lot of setup, update, isolated-environment, and model-download issues. TTS-Story should now install, update, and run properly through Pinokio. If you still run into problems, please report them on the GitHub issues page so they can be tracked and fixed.
+# Current Updates and Notes - updated 07-14-2026
+- **Windows startup stability** - Gemini's native SDK now loads only when Gemini processing is used, after the PyTorch-backed TTS engines have initialized.
+- **Cross-platform audio tools** - Linux and macOS now resolve native SoX and FFmpeg executables from `PATH`; bundled Windows `.exe` files are only selected on Windows.
+- **Installer and diagnostics improvements** - Git bootstrap has a Windows Package Manager fallback, Chatterbox setup validates its runtime import, and engine package/model versions can be collected with `scripts/engine_versions.py`.
+- **New TTS engine: Dot.TTS** - added RedNote HiLab Dot.TTS as a local, isolated-venv voice cloning engine with 48 kHz output, `dots.tts-soar`, `dots.tts-mf`, and `dots.tts-base` model options, CUDA-aware precision handling, and project-local model caching to avoid Windows symlink-cache issues.
+- **Dot.TTS reference transcript support** - Dot.TTS now stores and supplies reference text alongside reference audio. Existing voice prompt transcripts are reused when available, and SenseVoice transcription is attempted when a prompt has no saved transcript.
+- **Dot.TTS audiobook workflow integration** - Dot.TTS is available from the primary Generate interface and Library regeneration flows, uses the shared Voice Prompts library, supports grouped-by-speaker generation, and follows the same split-section/chapter review workflow as the other local cloning engines.
+- **Dot.TTS settings and stability controls** - added Dot.TTS settings for model selection, precision, sampling steps, guidance scale, speaker scale, seed, language, text normalization, runtime optimization, default prompt text, x-vector fallback, and sentence-aware chunk size.
+- **Section folder mapping fixes** - custom and front-matter headings such as Introduction, Prologue, Preface, Foreword, Appendix, and Author Note now map to named folders instead of shifting numbered chapter folders. The splitter also avoids carrying dangling closing speaker tags into the next section.
+- **Cancellation cleanup** - quick-cancelling OmniVoice before its first completed chunk is now treated as an intentional cancellation instead of a generic worker failure.
 
 ### Previous Updates
-- **Audio quality improvement**: MP3 to WAV conversion for voice prompts — added automatic conversion of MP3 voice prompts to WAV format before processing across all TTS engines (VoxCPM, Pocket TTS, Chatterbox local, Qwen3 Voice Clone, OmniVoice Clone, Index TTS, Chatterbox Turbo Replicate) to prevent audio artifacts from lossy compression when using audio processing tools like SoX.
-- **Bug fix**: SoX path resolution — fixed SOX_PATH calculation in `audio_effects.py` to correctly prioritize the local `tools/sox` directory, ensuring SoX post-processing is applied consistently across all engines.
-- **Bug fix**: Pocket TTS config parameter handling — fixed parameter order to prioritize `variant` over `config` when loading Pocket TTS models, preventing errors when the library expects a YAML file path for the `config` parameter.
-- **Bug fix**: IndexTTS installation issue — fixed .gitignore to exclude the entire cloned IndexTTS repository while tracking the custom `tts_worker.py` wrapper file, ensuring clean installs work correctly.
-- **Pocket TTS authentication support** — added HF_TOKEN environment variable detection and improved error messages for Pocket TTS voice cloning, with clear guidance on HuggingFace authentication requirements.
-- Added **dynamic section heading detection** with chip-based UI — enable/disable default section headings (book, chapter, section, letter, part, prologue, epilogue) and add custom headings via removable chips. Section detection now dynamically updates in real-time as you toggle headings or add custom ones.
-- Added **parallel AAC encoding** for M4B export — chapters are encoded to AAC format in parallel using a thread pool before concatenation, significantly reducing M4B export time for multi-chapter audiobooks.
-- Added **M4B audiobook export** for chapter-mode jobs — download audiobooks as M4B format with embedded chapter markers, cover art support, and configurable bitrate (64-192 kbps) and ACX compliance options for audiobook distribution platforms.
-
-- **UI consolidation**: Simplified rebuild/repair workflow — consolidated multiple rebuild options (rebuild full story, recompile audio, repair) into a single "Rebuild" button in the library view. The new Rebuild button recompiles all chapter audio files from individual audio chunks and then recompiles the full audiobook from the chapter files, with a confirmation dialog before execution.
-- **Performance improvement**: Parallel chapter merging — applied ThreadPoolExecutor with dynamic worker allocation (based on `os.cpu_count()`) to all chapter merging operations including main generation, repair/rebuild, rebuild selected chapters, and rebuild all operations. This significantly reduces post-processing time for multi-chapter audiobooks by merging chapters concurrently.
-- **Bug fix**: Download filename now uses project name — download filenames now use the audiobook title from metadata (e.g., `{audiobook_title}_{job_id}.{format}`) instead of the hardcoded "kokoro_story" prefix, making downloads easier to identify.
-- **Bug fix**: Long folder/file name handling and M4B export efficiency — fixed WinError 206 (path too long) by reducing `slugify_filename` max_length from 120 to 60, replacing the fragile `concat:pipe|joined` protocol with `-f concat -safe 0 -i list_file` for ffmpeg, adding Windows extended-length path (`\\?\`) prefix helper for subprocess calls, and encoding M4B temp intermediates to `.m4a` (AAC in MP4 container) instead of raw ADTS `.aac` for accurate duration metadata and proper bitrate control. Chapter markers now work correctly across all chapters with proper file sizes.
-- **Bug fix**: OmniVoice installation issue — fixed missing `omnivoice_worker.py` file on clean installs by removing `engines/omnivoice/` from .gitignore and only excluding the `.venv` subdirectory. The worker file is now properly tracked in version control.
+- **Pinokio support update**: We gave the Pinokio install/update path a bunch of love and fixed setup, update, isolated-environment, and model-download issues. TTS-Story should now install, update, and run properly through Pinokio.
+- **Audio quality improvement**: added automatic MP3-to-WAV conversion for voice prompts before processing across the local voice-cloning engines to prevent artifacts from lossy prompt audio.
+- **Bug fix**: fixed Pocket TTS config parameter handling and added clearer Hugging Face authentication guidance for gated Pocket TTS models.
+- **Bug fix**: fixed IndexTTS clean-install handling by ignoring the cloned upstream repo while tracking the custom worker wrapper.
+- **Dynamic section heading detection**: added chip-based heading controls for default and custom headings, with real-time section preview updates.
+- **M4B audiobook export and parallel AAC encoding**: added chapter-mode M4B export with chapter markers, cover art support, configurable bitrate, ACX options, and faster multi-chapter encoding.
 
 # TTS-Story
 
-A web-based Text-to-Speech application supporting multiple TTS engines including **Kokoro-82M**, **Chatterbox**, **VoxCPM 1.5**, **Qwen3 TTS** (Custom Voice, Clone, Voice Creation), **Pocket TTS** (CPU-friendly), **KittenTTS** (ultra-lightweight CPU-only), and **IndexTTS** (zero-shot voice cloning by Bilibili), with both local GPU inference and Replicate cloud API options for generating multi-voice audiobooks and stories.
+A web-based Text-to-Speech application supporting multiple TTS engines including **Kokoro-82M**, **Chatterbox**, **VoxCPM 1.5**, **Qwen3 TTS** (Custom Voice, Clone, Voice Creation), **Pocket TTS** (CPU-friendly), **OmniVoice**, **KittenTTS** (ultra-lightweight CPU-only), **IndexTTS** (zero-shot voice cloning by Bilibili), and **Dot.TTS** (48 kHz zero-shot voice cloning by rednote-hilab), with both local GPU inference and Replicate cloud API options for generating multi-voice audiobooks and stories.
 
 <div align="center">
   <table>
@@ -86,7 +86,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 ## Features
 
 ### TTS Engines
-- **Multi-Engine Support**: Choose from twelve TTS engine options:
+- **Multi-Engine Support**: Choose from fourteen TTS engine options:
   - **Kokoro · Local GPU** - Run Kokoro-82M locally on your NVIDIA GPU
   - **Kokoro · Replicate** - Use Kokoro via Replicate cloud API
   - **Chatterbox · Local GPU** - Run Chatterbox locally with voice cloning (~8GB VRAM required)
@@ -97,17 +97,18 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
   - **Qwen3 TTS · Custom Voice** - Generate with Qwen3 TTS custom voice prompts
   - **Qwen3 TTS · Clone** - Clone a voice from reference audio using Qwen3 TTS
   - **Qwen3 TTS · Voice Creation** - Create a brand-new voice using Qwen3 TTS voice design
+  - **OmniVoice · Voice Clone** - Voice cloning in an isolated environment
   - **KittenTTS** - Ultra-lightweight CPU-only engine, no GPU required
   - **IndexTTS** - Zero-shot voice cloning by Bilibili, runs in an isolated venv
   - **Dot.TTS** - 48 kHz zero-shot voice cloning by rednote-hilab, runs in an isolated venv
 - **Unified Replicate API**: Single API token works for both Kokoro and Chatterbox Replicate engines
-- **Voice Cloning**: Upload your own voice recordings (10-15 seconds recommended) to clone any voice with Chatterbox or VoxCPM
+- **Voice Cloning**: Upload your own voice recordings (10-15 seconds recommended) for supported cloning engines including Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, and Dot.TTS
 - **Voice Prompt Management**: Add, rename, delete, and preview custom voice prompts with drag-and-drop bulk upload
 - **External Voice Library**: Browse and download 500+ voice samples from the [TTS Samples](https://github.com/yaph/tts-samples) repository directly in the app
 - **Qwen3 TTS Modes**: Dedicated flows for **Custom Voice**, **Clone**, and **Voice Creation** to generate, clone, or design new voices
 
 ### Voice & Audio
-- **Multi-Voice Support**: Use Kokoro-82M voices for any number of characters in your story
+- **Multi-Voice Support**: Use built-in, blended, or cloned voices for any number of characters in your story
 - **Custom Voice Blending**: Mix any combination of Kokoro voices with weighted ratios to create reusable "custom_*" voice codes
 - **Speaker Tags & Auto Detection**: Automatically parse `[speaker1]...[/speaker1]` or `[alice]...[/alice]` tags
 - **Smart Text Chunking**: Automatically splits long texts into manageable chunks with per-engine configurable character limits
@@ -167,9 +168,9 @@ TTS-Story exposes the full Kokoro-82M voice set, grouped by language.
 
 All of these voices are browsable in the **Available Voices** tab, where you can generate and play preview samples.
 
-### Voice Prompts (Chatterbox & VoxCPM)
+### Voice Prompts (Shared Cloning Engines)
 
-Both Chatterbox and VoxCPM support voice cloning from audio recordings. Voice prompts are shared between these engines.
+Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, and Dot.TTS support voice cloning from audio recordings. Voice prompts are shared between these engines where compatible.
 
 #### Adding Voice Prompts
 
@@ -178,7 +179,7 @@ Both Chatterbox and VoxCPM support voice cloning from audio recordings. Voice pr
    - **Recommended duration**: 10-15 seconds of clear speech
    - Avoid background noise for best results
 3. Give the voice a descriptive name and click **Save Voice**
-4. Your custom voices appear in all Chatterbox/VoxCPM voice dropdowns
+4. Your custom voices appear in the supported voice-cloning engine dropdowns
 
 You can also drag-and-drop multiple audio files for bulk upload.
 
@@ -308,7 +309,7 @@ python app.py
 
 ### Selecting a TTS Engine
 
-TTS-Story supports twelve TTS engine options. In the **Settings** tab, choose your preferred default engine:
+TTS-Story supports fourteen TTS engine options. In the **Settings** tab, choose your preferred default engine:
 
 | Engine | Description | Requirements |
 |--------|-------------|--------------|
@@ -320,6 +321,7 @@ TTS-Story supports twelve TTS engine options. In the **Settings** tab, choose yo
 | **Qwen3 TTS · Custom Voice** | Qwen3 TTS custom voice prompts | NVIDIA GPU (local) |
 | **Qwen3 TTS · Clone** | Qwen3 TTS voice cloning from reference audio | NVIDIA GPU (local) |
 | **Qwen3 TTS · Voice Creation** | Qwen3 TTS voice design (new voice creation) | NVIDIA GPU (local) |
+| **OmniVoice · Voice Clone** | Voice cloning from reference prompts | NVIDIA GPU recommended; isolated venv |
 | **Pocket TTS · Preset Voices** | CPU-only preset voices, no GPU needed | CPU only |
 | **Pocket TTS · Voice Clone** | CPU-only voice cloning from reference prompts | CPU only |
 | **KittenTTS** | Ultra-lightweight CPU-only, 8 built-in voices | CPU only |
@@ -341,7 +343,7 @@ Dot.TTS (by rednote-hilab) is a 48 kHz zero-shot voice cloning engine:
 
 #### Dot.TTS Setup
 
-1. **Run `setup.bat`** — it clones `rednote-hilab/dots.tts`, creates the isolated venv, and installs with `constraints/recommended.txt`
+1. **Run `setup.bat`** — it clones `rednote-hilab/dots.tts`, creates the isolated venv, and installs the compatible Dot.TTS runtime dependencies
 2. **Optional model prefetch**: set `PREFETCH_DOTS_TTS_MODEL=1` before running setup to download `rednote-hilab/dots.tts-soar`; otherwise the model downloads on first use
 3. **Select Dot.TTS** from the engine dropdown in Settings or the Generate tab
 4. **Assign voice prompts** per speaker and make sure each reference has transcript text
@@ -366,7 +368,7 @@ Dot.TTS (by rednote-hilab) is a 48 kHz zero-shot voice cloning engine:
 VoxCPM 1.5 is a powerful voice cloning engine with unique features:
 
 - **Automatic Transcription**: If no transcript is provided, VoxCPM uses SenseVoice ASR to automatically transcribe the reference audio
-- **Shared Voice Prompts**: Uses the same voice prompt library as Chatterbox
+- **Shared Voice Prompts**: Uses the shared voice prompt library used by the local voice-cloning engines
 - **Lower VRAM Requirements**: Runs on GPUs with ~6GB VRAM
 - **High Quality Output**: Produces natural-sounding speech with good prosody
 
@@ -375,7 +377,7 @@ VoxCPM 1.5 is a powerful voice cloning engine with unique features:
 IndexTTS (by Bilibili) is a state-of-the-art zero-shot voice cloning engine with emotion control:
 
 - **Zero-Shot Voice Cloning**: Clone any voice from a short reference audio (up to 15 seconds)
-- **Reuses Voice Prompts Library**: Uses the same voice prompt files as Chatterbox/VoxCPM — no new voice management needed
+- **Reuses Voice Prompts Library**: Uses the shared voice prompt files used by the local voice-cloning engines — no new voice management needed
 - **Emotion Control** (IndexTTS-2): Condition speech on a separate emotion reference audio, an 8-value emotion vector, or a text description
 - **English + Chinese**: Supports both languages natively
 - **GPU Recommended**: Runs on CUDA, MPS (Apple Silicon), or CPU (slow)
@@ -437,9 +439,9 @@ KittenTTS is an ultra-lightweight, CPU-only TTS engine — ideal for machines wi
    - **Job Queue** tab (with real-time progress, ETA, and player)
    - **Library** tab (all past generations with engine indicator)
 
-### Using Voice Cloning (Chatterbox & VoxCPM)
+### Using Voice Cloning
 
-When using Chatterbox or VoxCPM engines:
+When using voice-cloning engines:
 
 1. First, add voice recordings in **Available Voices → Voice Prompts**
 2. In the **Generate** tab, select your cloned voice from the **Reference Prompt** dropdown
@@ -595,10 +597,12 @@ Settings are stored in `config.json`:
 | `qwen3_custom_voice` | Qwen3 TTS custom voice mode |
 | `qwen3_clone` | Qwen3 TTS voice cloning mode |
 | `qwen3_voice_creation` | Qwen3 TTS voice creation mode |
-| `pocket_tts` | Pocket TTS preset voices (CPU-only) |
-| `pocket_tts_preset` | Pocket TTS voice clone mode (CPU-only) |
+| `omnivoice_clone` | OmniVoice voice cloning mode |
+| `pocket_tts` | Pocket TTS voice clone mode (CPU-only) |
+| `pocket_tts_preset` | Pocket TTS preset voices (CPU-only) |
 | `kitten_tts` | KittenTTS CPU-only engine |
 | `index_tts` | IndexTTS zero-shot voice cloning |
+| `dots_tts` | Dot.TTS 48 kHz zero-shot voice cloning |
 
 Any settings you override in the Generate tab (format, bitrate, engine) are sent along with the job payload while keeping the saved defaults intact.
 
@@ -625,13 +629,17 @@ TTS-Story/
 │       ├── voxcpm_local_engine.py        # VoxCPM 1.5 local GPU engine
 │       ├── pocket_tts_engine.py          # Pocket TTS CPU-only engine
 │       ├── qwen3_engine.py               # Qwen3 TTS engine (custom/clone/design)
+│       ├── omnivoice_clone_engine.py     # OmniVoice subprocess adapter
 │       ├── kitten_tts_engine.py          # KittenTTS CPU-only engine
-│       └── index_tts_engine.py           # IndexTTS subprocess adapter
+│       ├── index_tts_engine.py           # IndexTTS subprocess adapter
+│       └── dots_tts_engine.py            # Dot.TTS subprocess adapter
 ├── engines/
-│   └── index-tts/                    # Cloned IndexTTS repo (isolated venv)
-│       ├── .venv/                        # uv-managed isolated environment
-│       ├── checkpoints/                  # Downloaded model weights
-│       └── tts_worker.py                 # Worker script called by the adapter
+│   ├── index-tts/                    # Cloned IndexTTS repo (isolated venv)
+│   │   ├── .venv/                        # uv-managed isolated environment
+│   │   ├── checkpoints/                  # Downloaded model weights
+│   │   └── tts_worker.py                 # Worker script called by the adapter
+│   ├── omnivoice/                    # OmniVoice worker and isolated venv
+│   └── dots-tts/                     # Dot.TTS worker, cloned repo, model cache, and isolated venv
 ├── static/
 │   ├── css/
 │   │   └── style.css
@@ -652,7 +660,7 @@ TTS-Story/
 ## API Endpoints
 
 - `GET /` - Main web interface
-- `GET /api/health` - Health check (TTS engine, Kokoro availability, CUDA status)
+- `GET /api/health` - Health check (TTS engine availability, CUDA status, and loaded engines)
 - `GET /api/voices` - Get available voices and preview sample status
 - `POST /api/voices/samples` - Generate or regenerate voice preview samples
 - `GET /api/settings` - Get current settings
@@ -675,7 +683,7 @@ TTS-Story/
 - `GET /api/custom-voices/<voice_id>` - Retrieve a specific custom voice (ID or `custom_` code)
 - `PUT /api/custom-voices/<voice_id>` - Update an existing custom voice blend
 - `DELETE /api/custom-voices/<voice_id>` - Delete a custom voice and invalidate cached tensors
-- `GET /api/chatterbox-voices` - List saved voice prompts (for Chatterbox/VoxCPM)
+- `GET /api/chatterbox-voices` - List saved voice prompts for shared voice-cloning engines
 - `POST /api/chatterbox-voices` - Upload a new voice prompt
 - `PUT /api/chatterbox-voices/<voice_id>/update` - Update voice metadata (name, gender, language)
 - `DELETE /api/chatterbox-voices/<voice_id>` - Delete a voice prompt
@@ -698,6 +706,8 @@ TTS-Story/
 - Model: [jaaari/kokoro-82m](https://replicate.com/jaaari/kokoro-82m)
 
 ### Chatterbox · Local GPU
+- Uses **Chatterbox Turbo**, not a V2/V3 selector. Setup pins `chatterbox-tts==0.1.6` and loads the public `ResembleAI/chatterbox-turbo` model.
+- Current adapter language support: English.
 - Requires ~8GB VRAM
 - Voice cloning from 10-15 second audio samples
 - No API costs
@@ -717,10 +727,21 @@ TTS-Story/
 - Full privacy
 
 ### Pocket TTS · CPU
+- Setup pins `pocket-tts==1.0.3`. The current TTS-Story adapter supports English.
 - No GPU required — runs on any CPU
-- Preset voices and voice cloning from reference prompts
+- Preset voices and voice cloning from reference **audio files**. A reference prompt means a WAV/MP3/M4A/FLAC/OGG voice recording, not a text prompt.
 - No API costs
 - Full privacy
+
+### Checking installed engine versions
+
+Package versions can differ on installations created before the current pins. To include exact environment information in a bug report, run:
+
+```bash
+python scripts/engine_versions.py
+```
+
+Use `python scripts/engine_versions.py --json` for machine-readable output. OmniVoice, IndexTTS, and Dot.TTS use isolated environments, so the report lists their configured model identifiers separately from packages installed in the main environment.
 
 ### KittenTTS · CPU
 - No GPU required — ultra-lightweight (<25MB model)
@@ -740,6 +761,21 @@ TTS-Story/
 - Full privacy
 - Model download: `uv tool run huggingface-cli download IndexTeam/IndexTTS-2 --local-dir=checkpoints`
 
+### OmniVoice · Local GPU (NVIDIA recommended)
+- Voice cloning from shared reference voice prompts
+- Runs in an isolated venv to avoid dependency conflicts
+- Reference prompt transcripts are reused when available
+- No API costs
+- Full privacy
+
+### Dot.TTS · Local GPU (NVIDIA recommended)
+- 48 kHz zero-shot voice cloning from reference audio plus matching reference text
+- `dots.tts-soar` is the default high-similarity cloning model; `dots.tts-mf` is available for faster MeanFlow generation
+- Sentence-aware chunking defaults to 250 characters and keeps section/chapter folder outputs aligned with detected headings
+- Runs in an isolated venv with project-local model caching for Windows-friendly downloads
+- No API costs
+- Full privacy
+
 ## Troubleshooting
 
 ### espeak-ng not found
@@ -750,6 +786,26 @@ Reduce chunk_size in settings or use a Replicate engine instead of local GPU.
 
 ### Audio quality issues
 Adjust the speed parameter (0.5 - 2.0) in settings.
+
+### Chatterbox Turbo is unavailable
+
+Run `setup.bat` on Windows or `./setup.sh` on Linux/macOS. Setup now validates the Chatterbox import, and `/api/health` reports the underlying dependency error in `chatterbox_turbo_unavailable_reason`. Include that value and the output from `python scripts/engine_versions.py` in the issue report.
+
+### Virtual environment Python cannot start
+
+Rerun the platform setup script. Setup detects virtual environments that reference a removed or relocated Python installation and recreates them automatically.
+
+### SoX is unavailable or permission is denied
+
+Windows uses the bundled `tools/sox/sox.exe`. Linux and macOS require a native SoX installation on `PATH`; the Windows executable is never used on those platforms.
+
+```bash
+# Ubuntu / Debian / Linux Mint
+sudo apt-get install sox libsox-dev
+
+# macOS
+brew install sox
+```
 
 ## License
 
@@ -762,6 +818,8 @@ Apache 2.0 - Same as Kokoro-82M
 - [VoxCPM](https://github.com/openvpi/VoxCPM) by OpenVPI
 - [KittenTTS](https://github.com/KittenML/KittenTTS) by KittenML
 - [IndexTTS](https://github.com/index-tts/index-tts) by Bilibili IndexTTS Team
+- [OmniVoice](https://huggingface.co/k2-fsa/OmniVoice) by k2-fsa
+- [Dot.TTS](https://github.com/rednote-hilab/dots.tts) by RedNote HiLab
 - [TTS Samples](https://github.com/yaph/tts-samples) by yaph - External voice sample library
 - [StyleTTS2](https://github.com/yl4579/StyleTTS2) by yl4579
 - [Replicate](https://replicate.com) for cloud API

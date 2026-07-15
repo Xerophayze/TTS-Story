@@ -17,14 +17,20 @@ from ..audio_effects import AudioPostProcessor, VoiceFXSettings
 logger = logging.getLogger(__name__)
 
 CHATTERBOX_TURBO_SAMPLE_RATE = 24000
+CHATTERBOX_TURBO_UNAVAILABLE_REASON = ""
+
+
+def _setup_hint() -> str:
+    return "Run setup.bat" if os.name == "nt" else "Run ./setup.sh"
 
 try:
     from chatterbox.tts_turbo import ChatterboxTurboTTS  # type: ignore
     from huggingface_hub import snapshot_download  # type: ignore
 
     CHATTERBOX_TURBO_AVAILABLE = True
-except ImportError:  # pragma: no cover - optional dependency
+except Exception as exc:  # pragma: no cover - optional native dependency
     CHATTERBOX_TURBO_AVAILABLE = False
+    CHATTERBOX_TURBO_UNAVAILABLE_REASON = f"{type(exc).__name__}: {exc}"
     ChatterboxTurboTTS = None  # type: ignore[assignment]
     snapshot_download = None  # type: ignore[assignment]
 
@@ -55,7 +61,8 @@ class ChatterboxTurboLocalEngine(TtsEngineBase):
     ):
         if not CHATTERBOX_TURBO_AVAILABLE:
             raise ImportError(
-                "chatterbox-tts is not installed. Run setup.bat to install the Chatterbox Turbo runtime."
+                f"Chatterbox Turbo is unavailable ({CHATTERBOX_TURBO_UNAVAILABLE_REASON or 'runtime import failed'}). "
+                f"{_setup_hint()} to install or repair its dependencies."
             )
 
         resolved_device = self._resolve_device(device)
@@ -559,5 +566,7 @@ class ChatterboxTurboLocalEngine(TtsEngineBase):
 
 __all__ = [
     "ChatterboxTurboLocalEngine",
+    "CHATTERBOX_TURBO_AVAILABLE",
+    "CHATTERBOX_TURBO_UNAVAILABLE_REASON",
     "CHATTERBOX_TURBO_SAMPLE_RATE",
 ]

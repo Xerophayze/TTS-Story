@@ -34,7 +34,7 @@ gradio==5.44.1
 pyloudnorm>=0.1.0
 omegaconf>=2.3.0
 
-# Note: torch, torchvision, torchaudio, and chatterbox-tts are installed by setup.bat
+# Note: torch, torchvision, torchaudio, and chatterbox-tts==0.1.6 are installed by setup scripts
 
 # VoxCPM 1.5 local runtime
 voxcpm
@@ -48,7 +48,7 @@ huggingface-hub
 # It cannot be installed here due to torch/transformers version conflicts with other engines.
 
 # Pocket TTS runtime
-pocket-tts
+pocket-tts==1.0.3
 
 # KittenTTS runtime (CPU-only, <25MB model)
 # Install manually: pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl

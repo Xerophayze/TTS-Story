@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Any, Optional, Tuple
 
-# Try new SDK first, fall back to deprecated one
-try:  # pragma: no cover - optional dependency checked at runtime
-    from google import genai
-    USING_NEW_SDK = True
-except ImportError:  # pragma: no cover - try legacy SDK
+# Importing the Gemini SDK can load native gRPC/protobuf libraries. Keep that
+# work out of application startup so native TTS/PyTorch libraries initialize
+# first on Windows.
+def _load_genai_sdk() -> Tuple[Optional[Any], bool]:
+    """Load the preferred Gemini SDK only when Gemini is actually used."""
+
     try:
-        import google.generativeai as genai
-        USING_NEW_SDK = False
-    except ImportError:
-        genai = None
-        USING_NEW_SDK = False
+        from google import genai as sdk  # type: ignore
+
+        return sdk, True
+    except ImportError:  # pragma: no cover - try legacy SDK
+        try:
+            import google.generativeai as sdk  # type: ignore
+
+            return sdk, False
+        except ImportError:
+            return None, False
 
 
 class GeminiProcessorError(RuntimeError):
@@ -26,6 +32,7 @@ class GeminiProcessor:
     """Wrapper around the Google Gemini SDK."""
 
     def __init__(self, api_key: str, model_name: str = "gemini-1.5-flash"):
+        genai, using_new_sdk = _load_genai_sdk()
         if genai is None:
             raise GeminiProcessorError(
                 "google-genai is not installed. Please install it to use Gemini features: pip install google-genai"
@@ -36,16 +43,18 @@ class GeminiProcessor:
 
         self.model_name = model_name or "gemini-1.5-flash"
         self.api_key = api_key
+        self._genai = genai
+        self._using_new_sdk = using_new_sdk
         self._configure(api_key)
 
     def _configure(self, api_key: str) -> None:
         """Configure SDK and initialize client."""
         try:
-            if USING_NEW_SDK:
-                self.client = genai.Client(api_key=api_key)
+            if self._using_new_sdk:
+                self.client = self._genai.Client(api_key=api_key)
             else:
-                genai.configure(api_key=api_key)
-                self.model = genai.GenerativeModel(self.model_name)
+                self._genai.configure(api_key=api_key)
+                self.model = self._genai.GenerativeModel(self.model_name)
         except Exception as exc:  # pragma: no cover - network failure
             logging.error("Failed to initialize Gemini: %s", exc, exc_info=True)
             raise GeminiProcessorError(f"Failed to initialize Gemini: {exc}") from exc
@@ -57,7 +66,7 @@ class GeminiProcessor:
             raise GeminiProcessorError("Prompt must not be empty")
 
         try:
-            if USING_NEW_SDK:
+            if self._using_new_sdk:
                 response = self.client.models.generate_content(
                     model=self.model_name,
                     contents=prompt

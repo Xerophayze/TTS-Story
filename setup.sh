@@ -22,6 +22,8 @@ fi
 TORCH_VERSION="2.6.0"
 TORCHVISION_VERSION="0.21.0"
 TORCHAUDIO_VERSION="2.6.0"
+CHATTERBOX_TTS_VERSION="0.1.6"
+POCKET_TTS_VERSION="1.0.3"
 BLACKWELL_TORCH_VERSION="2.8.0"
 BLACKWELL_TORCHVISION_VERSION="0.23.0"
 BLACKWELL_TORCHAUDIO_VERSION="2.8.0"
@@ -96,7 +98,11 @@ echo
 echo "[2/12] Creating virtual environment..."
 if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
     VENV_MM="$(venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
-    if [ "$VENV_MM" = "3.11" ] || [ "$UPDATE_MODE" -eq 1 ]; then
+    if [ -z "$VENV_MM" ]; then
+        echo "Existing venv Python cannot start. Recreating venv."
+        rm -rf venv
+        python3 -m venv venv
+    elif [ "$VENV_MM" = "3.11" ] || [ "$UPDATE_MODE" -eq 1 ]; then
         echo "Virtual environment already exists, skipping..."
     else
         echo "Existing venv Python is not 3.11 (detected: ${VENV_MM:-unknown}). Recreating venv."
@@ -286,13 +292,18 @@ fi
 # 7/12 Install Chatterbox Turbo runtime
 echo
 echo "[7/12] Installing Chatterbox Turbo runtime..."
-# First try with deps to get torchaudio and other required packages
-if pip install chatterbox-tts; then
-    echo "Chatterbox Turbo installed with dependencies!"
+# Core dependencies are managed by requirements.txt/PyTorch setup. Avoid
+# allowing chatterbox-tts to silently replace shared engine dependencies.
+if pip install "chatterbox-tts==${CHATTERBOX_TTS_VERSION}" --no-deps; then
+    if python -c "from chatterbox.tts_turbo import ChatterboxTurboTTS; import importlib.metadata as m; print('Chatterbox Turbo import OK; package version:', m.version('chatterbox-tts'))"; then
+        echo "Chatterbox Turbo runtime validated!"
+    else
+        echo "WARNING: chatterbox-tts installed but its runtime import failed."
+        echo "The application health endpoint will report the underlying dependency error."
+    fi
 else
-    # If that fails, try without deps but install torchaudio manually
-    echo "Installing chatterbox-tts without auto-deps, installing key dependencies manually..."
-    pip install chatterbox-tts --no-deps || true
+    echo "WARNING: Failed to install chatterbox-tts==${CHATTERBOX_TTS_VERSION}."
+    echo "Chatterbox Turbo will be unavailable, but setup will continue for other engines."
 fi
 
 # Ensure torchaudio is installed (required for Chatterbox)
@@ -309,8 +320,12 @@ pip install scipy --quiet || echo "WARNING: scipy install failed"
 echo
 echo "[8/12] Installing Pocket TTS runtime..."
 # Install pocket-tts with deps to get all required packages
-if pip install pocket-tts; then
-    echo "Pocket TTS installed with dependencies!"
+if pip install "pocket-tts==${POCKET_TTS_VERSION}"; then
+    if python -c "from pocket_tts import TTSModel; import importlib.metadata as m; print('Pocket TTS import OK; package version:', m.version('pocket-tts'))"; then
+        echo "Pocket TTS runtime validated!"
+    else
+        echo "WARNING: Pocket TTS installed but its runtime import failed"
+    fi
 else
     echo "WARNING: pocket-tts install failed - Pocket TTS engine will not be available"
 fi
@@ -516,6 +531,18 @@ if [ ! -x "$DOTS_TTS_PYTHON" ] && [ -x "$DOTS_TTS_DIR/.venv/bin/python3" ]; then
     DOTS_TTS_PYTHON="$DOTS_TTS_DIR/.venv/bin/python3"
 fi
 DOTS_TTS_READY=0
+DOTS_TTS_REPO_UPDATED=0
+if [ -d "$DOTS_TTS_REPO/.git" ] && command -v git >/dev/null 2>&1; then
+    DOTS_TTS_REPO_BEFORE="$(git -C "$DOTS_TTS_REPO" rev-parse HEAD 2>/dev/null || true)"
+    echo "Checking Dot.TTS upstream updates..."
+    git -C "$DOTS_TTS_REPO" pull --ff-only >/dev/null 2>&1 || true
+    DOTS_TTS_REPO_AFTER="$(git -C "$DOTS_TTS_REPO" rev-parse HEAD 2>/dev/null || true)"
+    if [ -n "$DOTS_TTS_REPO_BEFORE" ] && [ -n "$DOTS_TTS_REPO_AFTER" ] && [ "$DOTS_TTS_REPO_BEFORE" != "$DOTS_TTS_REPO_AFTER" ]; then
+        DOTS_TTS_REPO_UPDATED=1
+        echo "Dot.TTS upstream updated. Refreshing editable install."
+        rm -f "$DOTS_TTS_DIR/.dots_tts_ready"
+    fi
+fi
 if [ -f "$DOTS_TTS_DIR/.dots_tts_ready" ]; then
     if [ -f "$DOTS_TTS_DIR/dots_tts_worker.py" ] && [ -f "$DOTS_TTS_REPO/pyproject.toml" ] && [ -x "$DOTS_TTS_PYTHON" ]; then
         if "$DOTS_TTS_PYTHON" "$DOTS_TTS_DIR/dots_tts_worker.py" --check-env >/dev/null 2>&1; then

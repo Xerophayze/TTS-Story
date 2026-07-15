@@ -15,6 +15,8 @@ from typing import Dict, Optional
 import numpy as np
 import soundfile as sf
 
+from .system_tools import find_system_tool
+
 try:
     import librosa
     from librosa import util as librosa_util
@@ -39,6 +41,14 @@ class VoiceFXSettings:
     pitch_semitones: float = 0.0
     speed: float = 1.0  # 0.5 to 2.0 (1.0 = normal)
     tone: str = "neutral"  # neutral | warm | bright
+
+    def is_identity(self) -> bool:
+        """Return True when the settings would not alter the audio."""
+        return (
+            abs(self.pitch_semitones) < 1e-3
+            and abs(self.speed - 1.0) < 1e-3
+            and self.tone == "neutral"
+        )
 
     @classmethod
     def from_payload(cls, payload: Optional[Dict]) -> Optional["VoiceFXSettings"]:
@@ -115,16 +125,10 @@ class AudioPostProcessor:
     """Applies pitch, speed, and tonal shaping to generated audio arrays."""
 
     @staticmethod
-    def _find_sox() -> Path:
-        """Find SoX executable, checking local tools folder first."""
-        # Check local tools folder FIRST (contains correct version from GitHub)
-        script_dir = Path(__file__).resolve().parent.parent  # src/ -> TTS-Story root
-        local_sox = script_dir / "tools" / "sox" / "sox.exe"
-        if local_sox.exists():
-            return local_sox
+    def _find_sox() -> Optional[Path]:
+        """Find a platform-appropriate SoX executable."""
 
-        # Fall back to relative path calculation
-        return Path(__file__).resolve().parents[2] / "tools" / "sox" / "sox.exe"
+        return find_system_tool("sox")
 
     SOX_PATH = _find_sox.__func__()
 
@@ -139,8 +143,8 @@ class AudioPostProcessor:
         """Apply a lightweight SoX post-processing pass to audio output."""
         if audio is None:
             return audio
-        if not self.SOX_PATH.exists():
-            logger.warning("SoX not found at %s - skipping post-processing", self.SOX_PATH)
+        if not self.SOX_PATH or not self.SOX_PATH.exists():
+            logger.warning("SoX not found - skipping post-processing")
             return audio
 
         logger.info("Applying SoX post-processing (normalize=%s, fade=%.2fs)", normalize, fade_seconds)
@@ -369,7 +373,7 @@ class AudioPostProcessor:
             return False
         if abs(fx.speed - 1.0) < 1e-3 and abs(fx.pitch_semitones) < 1e-3:
             return False
-        return cls.SOX_PATH.exists()
+        return bool(cls.SOX_PATH and cls.SOX_PATH.exists())
 
     @classmethod
     def _apply_speed_pitch_sox(

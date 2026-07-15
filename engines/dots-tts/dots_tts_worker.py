@@ -6,6 +6,7 @@ engines/dots-tts/.venv and loads the model once per job file.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import inspect
 import json
 import os
@@ -14,11 +15,6 @@ import types
 from pathlib import Path
 
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
-
-import numpy as np
-import soundfile as sf
-import torch
-from huggingface_hub import snapshot_download
 
 
 def _install_wetext_fallback_modules() -> None:
@@ -52,13 +48,21 @@ def _install_wetext_fallback_modules() -> None:
     setattr(english_mod, "normalizer", en_norm_mod)
 
 
-_install_wetext_fallback_modules()
-from dots_tts.runtime import DotsTtsRuntime  # type: ignore
-
 DEFAULT_MODEL_ID = "rednote-hilab/dots.tts-soar"
 ENGINE_ROOT = Path(__file__).resolve().parent
 MODEL_CACHE_ROOT = ENGINE_ROOT / "models"
 HF_CACHE_ROOT = ENGINE_ROOT / "hf-cache"
+
+
+def _check_required_modules() -> list[str]:
+    required = [
+        "numpy",
+        "soundfile",
+        "torch",
+        "huggingface_hub",
+        "dots_tts.runtime",
+    ]
+    return [name for name in required if importlib.util.find_spec(name) is None]
 
 
 def _safe_model_dir_name(model_id: str) -> str:
@@ -89,6 +93,8 @@ def _resolve_model_path(model_id: str) -> str:
         f"[dots-tts worker] Ensuring local model cache for {model_id}: {local_dir}",
         file=sys.stderr,
     )
+    from huggingface_hub import snapshot_download
+
     snapshot_download(
         repo_id=model_id,
         local_dir=str(local_dir),
@@ -97,7 +103,10 @@ def _resolve_model_path(model_id: str) -> str:
     return str(local_dir.resolve())
 
 
-def _load_runtime(job: dict) -> DotsTtsRuntime:
+def _load_runtime(job: dict):
+    _install_wetext_fallback_modules()
+    from dots_tts.runtime import DotsTtsRuntime  # type: ignore
+
     model_id = _resolve_model_path(job.get("model_id") or DEFAULT_MODEL_ID)
     precision = _resolve_precision(job.get("precision") or "auto")
     optimize = bool(job.get("optimize", False))
@@ -113,6 +122,8 @@ def _load_runtime(job: dict) -> DotsTtsRuntime:
 
 
 def _resolve_precision(requested: str) -> str:
+    import torch
+
     requested = (requested or "auto").strip().lower()
     cuda_available = torch.cuda.is_available()
     if requested in {"", "auto"}:
@@ -127,6 +138,9 @@ def _resolve_precision(requested: str) -> str:
 
 
 def _write_audio(output_path: str, audio, sample_rate: int) -> None:
+    import numpy as np
+    import soundfile as sf
+
     arr = audio
     if hasattr(arr, "detach"):
         arr = arr.detach().float().cpu().squeeze().numpy()
@@ -202,6 +216,19 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.check_env:
+        missing = _check_required_modules()
+        if missing:
+            print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "runtime": "dots_tts",
+                        "missing": missing,
+                        "error": f"Missing required modules: {', '.join(missing)}",
+                    }
+                )
+            )
+            sys.exit(1)
         print(json.dumps({"success": True, "runtime": "dots_tts"}))
         return
 

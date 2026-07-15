@@ -41,6 +41,12 @@ Thumbs.db
 
 # Environment
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Models (large files - downloaded on demand)
 models/
@@ -56,9 +62,12 @@ data/voice_prompts/*
 !data/voice_prompts/.gitkeep
 
 # Job data (user-generated, not for repo)
+jobs.db
 data/jobs/
+data/prep/
 data/chatterbox_voices.json
 data/custom_voices.json
+data/external_voice_archives.json
 data/*.db
 
 # External voices cache
@@ -81,7 +90,7 @@ tools/ffmpeg/
 tools/rubberband/
 
 # Third-party engine repos (cloned locally, not tracked in this repo)
-engines/index-tts/
+engines/index-tts/*
 !engines/index-tts/tts_worker.py
 engines/omnivoice/.venv
 engines/omnivoice/.omnivoice_ready

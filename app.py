@@ -50,7 +50,6 @@ from src.custom_voice_store import (
     save_custom_voice,
 )
 from src.document_extractor import extract_text_from_file, get_supported_formats
-from src.gemini_processor import GeminiProcessor, GeminiProcessorError
 from src.local_llm_processor import (
     DEFAULT_LOCAL_LLM_BASE_URLS,
     LocalLLMProcessor,
@@ -59,10 +58,12 @@ from src.local_llm_processor import (
     LLM_PROVIDER_OLLAMA,
 )
 from src.replicate_api import ReplicateAPI
+from src.system_tools import find_system_tool
 from src.text_processor import TextProcessor
 from src.engines import TtsEngineBase
 from src.engines.chatterbox_turbo_local_engine import (
     CHATTERBOX_TURBO_AVAILABLE,
+    CHATTERBOX_TURBO_UNAVAILABLE_REASON,
 )
 from src.engines.voxcpm_local_engine import VOXCPM_AVAILABLE
 from src.engines.qwen3_custom_voice_engine import QWEN3_AVAILABLE
@@ -101,6 +102,9 @@ from src.tts_engine import (
 )
 from src.voice_manager import VoiceManager
 from src.voice_sample_generator import generate_voice_samples
+# Keep the Gemini wrapper after engine imports. Its SDK is also lazy-loaded in
+# GeminiProcessor so native gRPC/protobuf libraries do not precede PyTorch on Windows.
+from src.gemini_processor import GeminiProcessor, GeminiProcessorError
 
 # Setup logging
 logging.basicConfig(
@@ -2157,7 +2161,9 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
     if engine_name == "chatterbox_turbo_local":
         if not CHATTERBOX_TURBO_AVAILABLE:
             raise ImportError(
-                "chatterbox-tts is not installed. Run setup to enable the local Chatterbox Turbo engine."
+                "Chatterbox Turbo is unavailable: "
+                f"{CHATTERBOX_TURBO_UNAVAILABLE_REASON or 'runtime import failed'}. "
+                "Run setup.bat on Windows or ./setup.sh on Linux/macOS to repair it."
             )
         device = (config.get("chatterbox_turbo_local_device") or config.get("device") or "auto").strip()
         return get_engine(
@@ -4883,7 +4889,7 @@ def _apply_voice_design_cleanup(audio_data, sample_rate: int):
         sox_path = AudioPostProcessor.SOX_PATH
     except Exception:  # pragma: no cover
         return audio_data
-    if not sox_path.exists():
+    if not sox_path or not sox_path.exists():
         return audio_data
 
     input_path = None
@@ -5145,13 +5151,13 @@ def preview_voice_prompt_fx():
 
     try:
         use_sox = abs(speed - 1.0) > 1e-3 or abs(pitch) > 1e-3
-        sox_path = Path("tools/sox/sox.exe")
-        ffmpeg_path = Path("tools/ffmpeg/ffmpeg.exe")
+        sox_path = find_system_tool("sox")
+        ffmpeg_path = find_system_tool("ffmpeg")
         
         # Convert MP3 to WAV if needed before SoX processing
         input_for_sox = file_path
         temp_mp3_conv = None
-        if file_path.suffix.lower() == ".mp3" and ffmpeg_path.exists():
+        if file_path.suffix.lower() == ".mp3" and ffmpeg_path:
             try:
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_out:
                     temp_mp3_conv = Path(temp_out.name)
@@ -5169,7 +5175,7 @@ def preview_voice_prompt_fx():
                     temp_mp3_conv.unlink(missing_ok=True)
                 temp_mp3_conv = None
         
-        if use_sox and sox_path.exists():
+        if use_sox and sox_path:
             output_path = None
             try:
                 with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_out:
@@ -9727,6 +9733,10 @@ def health_check():
         "success": True,
         "tts_engine": config.get('tts_engine', 'kokoro'),
         "kokoro_available": KOKORO_AVAILABLE,
+        "chatterbox_turbo_available": CHATTERBOX_TURBO_AVAILABLE,
+        "chatterbox_turbo_unavailable_reason": (
+            CHATTERBOX_TURBO_UNAVAILABLE_REASON if not CHATTERBOX_TURBO_AVAILABLE else ""
+        ),
         "qwen3_available": QWEN3_AVAILABLE,
         "omnivoice_available": OMNIVOICE_AVAILABLE,
         "pocket_tts_available": POCKET_TTS_AVAILABLE,
