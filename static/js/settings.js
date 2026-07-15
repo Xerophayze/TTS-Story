@@ -12,7 +12,11 @@ const LOCAL_LLM_BASE_URLS = {
 };
 const ATLAS_CLOUD_BASE_URL = 'https://api.atlascloud.ai/v1';
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+const ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
 let settingsAzureSpeechVoices = [];
+let settingsEdgeTtsVoices = [];
+let settingsElevenLabsVoices = [];
+let settingsElevenLabsModels = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
@@ -530,6 +534,8 @@ function toggleEngineSettingsSections(engineName) {
         'index_tts': 'index-tts',
         'dots_tts': 'dots-tts',
         'azure_speech': 'azure-speech',
+        'edge_tts': 'edge-tts',
+        'elevenlabs': 'elevenlabs',
         'api_keys': 'api-keys'
     };
     
@@ -576,6 +582,14 @@ function setupSettingsListeners() {
     const fetchAzureVoicesBtn = document.getElementById('fetch-azure-speech-voices');
     if (fetchAzureVoicesBtn) {
         fetchAzureVoicesBtn.addEventListener('click', () => fetchAzureSpeechVoices(fetchAzureVoicesBtn));
+    }
+    const fetchEdgeVoicesBtn = document.getElementById('fetch-edge-tts-voices');
+    if (fetchEdgeVoicesBtn) {
+        fetchEdgeVoicesBtn.addEventListener('click', () => fetchEdgeTtsVoices(fetchEdgeVoicesBtn));
+    }
+    const fetchElevenLabsCatalogBtn = document.getElementById('fetch-elevenlabs-catalog');
+    if (fetchElevenLabsCatalogBtn) {
+        fetchElevenLabsCatalogBtn.addEventListener('click', () => fetchElevenLabsCatalog(fetchElevenLabsCatalogBtn));
     }
     const azureDefaultVoice = document.getElementById('azure-speech-default-voice');
     if (azureDefaultVoice) {
@@ -847,6 +861,156 @@ async function fetchAzureSpeechVoices(buttonEl) {
     }
 }
 
+function populateProviderVoiceSelect(selectId, voices, preferredVoice, fallbackVoice, providerLabel) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    const selected = preferredVoice || select.value || fallbackVoice || '';
+    select.innerHTML = '';
+    const groups = new Map();
+    (voices || []).forEach(voice => {
+        const locale = voice.locale_name || voice.locale || providerLabel;
+        if (!groups.has(locale)) groups.set(locale, []);
+        groups.get(locale).push(voice);
+    });
+    groups.forEach((entries, locale) => {
+        const group = document.createElement('optgroup');
+        group.label = locale;
+        entries.forEach(voice => {
+            const option = document.createElement('option');
+            option.value = voice.short_name || voice.voice_id;
+            const details = [voice.gender, voice.category].filter(Boolean).join(' · ');
+            option.textContent = `${voice.display_name || option.value}${details ? ` · ${details}` : ''}`;
+            group.appendChild(option);
+        });
+        select.appendChild(group);
+    });
+    if (selected && !Array.from(select.options).some(option => option.value === selected)) {
+        const option = document.createElement('option');
+        option.value = selected;
+        option.textContent = selected;
+        select.insertBefore(option, select.firstChild);
+    }
+    if (selected) select.value = selected;
+}
+
+function populateElevenLabsModelSelect(models, preferredModel = '') {
+    const select = document.getElementById('elevenlabs-model');
+    if (!select) return;
+    const selected = preferredModel || select.value || 'eleven_multilingual_v2';
+    select.innerHTML = '';
+    (models || []).forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.model_id;
+        option.textContent = model.name || model.model_id;
+        option.title = model.description || '';
+        select.appendChild(option);
+    });
+    if (!Array.from(select.options).some(option => option.value === selected)) {
+        const option = document.createElement('option');
+        option.value = selected;
+        option.textContent = selected;
+        select.insertBefore(option, select.firstChild);
+    }
+    select.value = selected;
+}
+
+async function fetchEdgeTtsVoices(buttonEl, { force = true } = {}) {
+    const status = document.getElementById('edge-tts-voices-status');
+    const originalLabel = buttonEl?.textContent;
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Loading Edge voices…';
+    }
+    if (status) status.textContent = 'Connecting to the Edge speech service…';
+    try {
+        const response = await fetch('/api/edge-tts/voices', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load Edge voices.');
+        settingsEdgeTtsVoices = Array.isArray(data.voices) ? data.voices : [];
+        populateProviderVoiceSelect(
+            'edge-tts-default-voice',
+            settingsEdgeTtsVoices,
+            document.getElementById('edge-tts-default-voice')?.value,
+            'en-US-AriaNeural',
+            'Edge voices'
+        );
+        if (status) status.textContent = `Connected. Loaded ${settingsEdgeTtsVoices.length} voices.`;
+        return data;
+    } catch (error) {
+        if (status) status.textContent = error.message || 'Unable to load Edge voices.';
+        return null;
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = originalLabel || 'Test Connection & Load Voices';
+        }
+    }
+}
+
+async function fetchElevenLabsCatalog(buttonEl, { force = true } = {}) {
+    const status = document.getElementById('elevenlabs-catalog-status');
+    const usage = document.getElementById('elevenlabs-usage-status');
+    const apiKey = document.getElementById('elevenlabs-api-key')?.value?.trim() || '';
+    const baseUrl = document.getElementById('elevenlabs-base-url')?.value?.trim() || ELEVENLABS_BASE_URL;
+    if (!apiKey) {
+        if (status) status.textContent = 'Enter your ElevenLabs API key first.';
+        return null;
+    }
+    const originalLabel = buttonEl?.textContent;
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Loading ElevenLabs catalog…';
+    }
+    if (status) status.textContent = 'Connecting to ElevenLabs…';
+    try {
+        const response = await fetch('/api/elevenlabs/catalog', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey, base_url: baseUrl, force })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load ElevenLabs.');
+        settingsElevenLabsVoices = Array.isArray(data.voices) ? data.voices : [];
+        settingsElevenLabsModels = Array.isArray(data.models) ? data.models : [];
+        populateElevenLabsModelSelect(
+            settingsElevenLabsModels,
+            document.getElementById('elevenlabs-model')?.value
+        );
+        populateProviderVoiceSelect(
+            'elevenlabs-default-voice',
+            settingsElevenLabsVoices,
+            document.getElementById('elevenlabs-default-voice')?.value,
+            'JBFqnCBsd6RMkjVDRZzb',
+            'ElevenLabs voices'
+        );
+        if (status) {
+            const warning = Array.isArray(data.warnings) ? data.warnings[0] : '';
+            status.textContent = `Connected. Loaded ${settingsElevenLabsVoices.length} voices and ${settingsElevenLabsModels.length} TTS models.${warning ? ` ${warning}` : ''}`;
+        }
+        if (usage) {
+            const subscription = data.subscription || {};
+            const used = Number(subscription.character_count);
+            const limit = Number(subscription.character_limit);
+            usage.textContent = Number.isFinite(used) && Number.isFinite(limit)
+                ? `Plan: ${subscription.tier || 'unknown'} · ${used.toLocaleString()} of ${limit.toLocaleString()} characters used.`
+                : `Plan: ${subscription.tier || 'unknown'}`;
+        }
+        return data;
+    } catch (error) {
+        if (status) status.textContent = error.message || 'Unable to load ElevenLabs.';
+        return null;
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = originalLabel || 'Test Connection & Load Catalog';
+        }
+    }
+}
+
 // Load settings from API
 async function loadSettings() {
     try {
@@ -985,6 +1149,38 @@ function applySettings(settings) {
     updateAzureDefaultExpressionOptions(
         settings.azure_speech_default_style || '',
         settings.azure_speech_default_role || ''
+    );
+    setElementValue('edge-tts-timeout', settings.edge_tts_timeout ?? 60, 60);
+    setElementValue('edge-tts-max-parallel', settings.edge_tts_max_parallel ?? 2, 2);
+    setElementValue('edge-tts-chunk-size', settings.edge_tts_chunk_size ?? 1000, 1000);
+    setElementValue('edge-tts-default-volume', settings.edge_tts_default_volume ?? 0, 0);
+    populateProviderVoiceSelect(
+        'edge-tts-default-voice',
+        settingsEdgeTtsVoices,
+        settings.edge_tts_default_voice || 'en-US-AriaNeural',
+        'en-US-AriaNeural',
+        'Edge voices'
+    );
+    setElementValue('elevenlabs-api-key', settings.elevenlabs_api_key || '');
+    setElementValue('elevenlabs-base-url', settings.elevenlabs_base_url || ELEVENLABS_BASE_URL, ELEVENLABS_BASE_URL);
+    setElementValue('elevenlabs-output-format', settings.elevenlabs_output_format || 'mp3_44100_128');
+    setElementValue('elevenlabs-timeout', settings.elevenlabs_timeout ?? 120, 120);
+    setElementValue('elevenlabs-max-parallel', settings.elevenlabs_max_parallel ?? 2, 2);
+    setElementValue('elevenlabs-chunk-size', settings.elevenlabs_chunk_size ?? 4000, 4000);
+    setElementValue('elevenlabs-stability', settings.elevenlabs_stability ?? 0.5, 0.5);
+    setElementValue('elevenlabs-similarity-boost', settings.elevenlabs_similarity_boost ?? 0.75, 0.75);
+    setElementValue('elevenlabs-style', settings.elevenlabs_style ?? 0, 0);
+    setCheckboxValue('elevenlabs-use-speaker-boost', settings.elevenlabs_use_speaker_boost ?? true, true);
+    populateElevenLabsModelSelect(
+        settingsElevenLabsModels,
+        settings.elevenlabs_model || 'eleven_multilingual_v2'
+    );
+    populateProviderVoiceSelect(
+        'elevenlabs-default-voice',
+        settingsElevenLabsVoices,
+        settings.elevenlabs_default_voice || 'JBFqnCBsd6RMkjVDRZzb',
+        'JBFqnCBsd6RMkjVDRZzb',
+        'ElevenLabs voices'
     );
     setElementValue('llm-local-provider', settings.llm_local_provider || 'lmstudio', 'lmstudio');
     setElementValue('llm-local-base-url', settings.llm_local_base_url || LOCAL_LLM_BASE_URLS.lmstudio, LOCAL_LLM_BASE_URLS.lmstudio);
@@ -1426,6 +1622,11 @@ async function saveSettings() {
         }
         return Math.round(parsed);
     };
+    const parseClampedFloat = (inputId, fallback, minimum = 0, maximum = 1) => {
+        const parsed = parseFloat(document.getElementById(inputId)?.value);
+        const value = Number.isFinite(parsed) ? parsed : fallback;
+        return Math.max(minimum, Math.min(maximum, value));
+    };
 
     const kokoroReplicateKeyEl = document.getElementById('kokoro-replicate-api-key');
     const settings = {
@@ -1464,6 +1665,23 @@ async function saveSettings() {
         azure_speech_default_style: document.getElementById('azure-speech-default-style')?.value || '',
         azure_speech_default_role: document.getElementById('azure-speech-default-role')?.value || '',
         azure_speech_default_style_degree: Math.max(0.01, Math.min(2, parseFloat(document.getElementById('azure-speech-default-style-degree')?.value) || 1)),
+        edge_tts_default_voice: document.getElementById('edge-tts-default-voice')?.value || 'en-US-AriaNeural',
+        edge_tts_timeout: Math.max(10, Math.min(300, parseInt(document.getElementById('edge-tts-timeout')?.value, 10) || 60)),
+        edge_tts_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('edge-tts-max-parallel')?.value, 10) || 2)),
+        edge_tts_chunk_size: Math.max(100, Math.min(5000, parseInt(document.getElementById('edge-tts-chunk-size')?.value, 10) || 1000)),
+        edge_tts_default_volume: Math.max(-100, Math.min(100, parseInt(document.getElementById('edge-tts-default-volume')?.value, 10) || 0)),
+        elevenlabs_api_key: document.getElementById('elevenlabs-api-key')?.value || '',
+        elevenlabs_base_url: document.getElementById('elevenlabs-base-url')?.value?.trim() || ELEVENLABS_BASE_URL,
+        elevenlabs_model: document.getElementById('elevenlabs-model')?.value || 'eleven_multilingual_v2',
+        elevenlabs_default_voice: document.getElementById('elevenlabs-default-voice')?.value || 'JBFqnCBsd6RMkjVDRZzb',
+        elevenlabs_output_format: document.getElementById('elevenlabs-output-format')?.value || 'mp3_44100_128',
+        elevenlabs_timeout: Math.max(10, Math.min(600, parseInt(document.getElementById('elevenlabs-timeout')?.value, 10) || 120)),
+        elevenlabs_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('elevenlabs-max-parallel')?.value, 10) || 2)),
+        elevenlabs_chunk_size: Math.max(100, Math.min(10000, parseInt(document.getElementById('elevenlabs-chunk-size')?.value, 10) || 4000)),
+        elevenlabs_stability: parseClampedFloat('elevenlabs-stability', 0.5),
+        elevenlabs_similarity_boost: parseClampedFloat('elevenlabs-similarity-boost', 0.75),
+        elevenlabs_style: parseClampedFloat('elevenlabs-style', 0),
+        elevenlabs_use_speaker_boost: document.getElementById('elevenlabs-use-speaker-boost')?.checked ?? true,
         llm_local_provider: document.getElementById('llm-local-provider')?.value || 'lmstudio',
         llm_local_base_url: document.getElementById('llm-local-base-url')?.value || LOCAL_LLM_BASE_URLS.lmstudio,
         llm_local_model: document.getElementById('llm-local-model')?.value || '',
@@ -1683,6 +1901,23 @@ async function resetSettings() {
         azure_speech_default_style: '',
         azure_speech_default_role: '',
         azure_speech_default_style_degree: 1,
+        edge_tts_default_voice: 'en-US-AriaNeural',
+        edge_tts_timeout: 60,
+        edge_tts_max_parallel: 2,
+        edge_tts_chunk_size: 1000,
+        edge_tts_default_volume: 0,
+        elevenlabs_api_key: '',
+        elevenlabs_base_url: ELEVENLABS_BASE_URL,
+        elevenlabs_model: 'eleven_multilingual_v2',
+        elevenlabs_default_voice: 'JBFqnCBsd6RMkjVDRZzb',
+        elevenlabs_output_format: 'mp3_44100_128',
+        elevenlabs_timeout: 120,
+        elevenlabs_max_parallel: 2,
+        elevenlabs_chunk_size: 4000,
+        elevenlabs_stability: 0.5,
+        elevenlabs_similarity_boost: 0.75,
+        elevenlabs_style: 0,
+        elevenlabs_use_speaker_boost: true,
         llm_local_provider: 'lmstudio',
         llm_local_base_url: LOCAL_LLM_BASE_URLS.lmstudio,
         llm_local_model: '',

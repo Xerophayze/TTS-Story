@@ -112,6 +112,21 @@ from src.engines.azure_speech_engine import (
     DEFAULT_AZURE_SPEECH_REQUESTS_PER_MINUTE,
     DEFAULT_AZURE_SPEECH_VOICE,
 )
+from src.engines.edge_tts_engine import (
+    EDGE_TTS_AVAILABLE,
+    EDGE_TTS_UNAVAILABLE_REASON,
+    EdgeTTSEngine,
+    EdgeTTSError,
+    DEFAULT_EDGE_TTS_VOICE,
+)
+from src.engines.elevenlabs_engine import (
+    ElevenLabsEngine,
+    ElevenLabsError,
+    DEFAULT_ELEVENLABS_BASE_URL,
+    DEFAULT_ELEVENLABS_MODEL,
+    DEFAULT_ELEVENLABS_OUTPUT_FORMAT,
+    DEFAULT_ELEVENLABS_VOICE,
+)
 from src.tts_engine import (
     TTSEngine,
     KOKORO_AVAILABLE,
@@ -201,6 +216,23 @@ DEFAULT_CONFIG = {
     "azure_speech_default_style": "",
     "azure_speech_default_role": "",
     "azure_speech_default_style_degree": 1.0,
+    "edge_tts_default_voice": DEFAULT_EDGE_TTS_VOICE,
+    "edge_tts_timeout": 60,
+    "edge_tts_max_parallel": 2,
+    "edge_tts_chunk_size": 1000,
+    "edge_tts_default_volume": 0,
+    "elevenlabs_api_key": "",
+    "elevenlabs_base_url": DEFAULT_ELEVENLABS_BASE_URL,
+    "elevenlabs_model": DEFAULT_ELEVENLABS_MODEL,
+    "elevenlabs_default_voice": DEFAULT_ELEVENLABS_VOICE,
+    "elevenlabs_output_format": DEFAULT_ELEVENLABS_OUTPUT_FORMAT,
+    "elevenlabs_timeout": 120,
+    "elevenlabs_max_parallel": 2,
+    "elevenlabs_chunk_size": 4000,
+    "elevenlabs_stability": 0.5,
+    "elevenlabs_similarity_boost": 0.75,
+    "elevenlabs_style": 0.0,
+    "elevenlabs_use_speaker_boost": True,
     "llm_local_provider": LLM_PROVIDER_LMSTUDIO,
     "llm_local_base_url": DEFAULT_LOCAL_LLM_BASE_URLS[LLM_PROVIDER_LMSTUDIO],
     "llm_local_model": "",
@@ -312,6 +344,7 @@ SECRET_CONFIG_KEYS = {
     "llm_local_api_key",
     "chatterbox_turbo_replicate_api_token",
     "azure_speech_key",
+    "elevenlabs_api_key",
 }
 
 POCKET_TTS_PRESET_VOICES = [
@@ -1052,6 +1085,10 @@ engine_config_signatures: Dict[str, str] = {}
 tts_engine_lock = threading.Lock()
 azure_voice_cache: Dict[str, Dict[str, Any]] = {}
 azure_voice_cache_lock = threading.Lock()
+edge_voice_cache: Dict[str, Any] = {"timestamp": 0.0, "voices": []}
+edge_voice_cache_lock = threading.Lock()
+elevenlabs_catalog_cache: Dict[str, Dict[str, Any]] = {}
+elevenlabs_catalog_cache_lock = threading.Lock()
 # Lock to prevent concurrent GPU inference across all TTS operations
 # This prevents GPU contention and "badcase" retry loops with VoxCPM
 gpu_inference_lock = threading.Lock()
@@ -1259,6 +1296,16 @@ def _validate_voice_assignments_for_engine(
 
         if engine_name == "azure_speech":
             default_voice = (config.get("azure_speech_default_voice") or "").strip()
+            if not voice and not default_voice:
+                missing_voices.append(speaker)
+
+        if engine_name == "edge_tts":
+            default_voice = (config.get("edge_tts_default_voice") or "").strip()
+            if not voice and not default_voice:
+                missing_voices.append(speaker)
+
+        if engine_name == "elevenlabs":
+            default_voice = (config.get("elevenlabs_default_voice") or "").strip()
             if not voice and not default_voice:
                 missing_voices.append(speaker)
 
@@ -2210,6 +2257,29 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             str(config.get("azure_speech_default_style_degree") or 1.0),
         )
         return f"{engine_name}::{'|'.join(parts)}"
+    if engine_name == "edge_tts":
+        parts = (
+            (config.get("edge_tts_default_voice") or DEFAULT_EDGE_TTS_VOICE).strip(),
+            str(config.get("edge_tts_timeout") or 60),
+            str(config.get("edge_tts_max_parallel") or 2),
+            str(config.get("edge_tts_default_volume") or 0),
+        )
+        return f"{engine_name}::{'|'.join(parts)}"
+    if engine_name == "elevenlabs":
+        parts = (
+            (config.get("elevenlabs_api_key") or "").strip(),
+            (config.get("elevenlabs_base_url") or DEFAULT_ELEVENLABS_BASE_URL).strip(),
+            (config.get("elevenlabs_model") or DEFAULT_ELEVENLABS_MODEL).strip(),
+            (config.get("elevenlabs_default_voice") or DEFAULT_ELEVENLABS_VOICE).strip(),
+            (config.get("elevenlabs_output_format") or DEFAULT_ELEVENLABS_OUTPUT_FORMAT).strip(),
+            str(config.get("elevenlabs_timeout") or 120),
+            str(config.get("elevenlabs_max_parallel") or 2),
+            str(config.get("elevenlabs_stability") if config.get("elevenlabs_stability") is not None else 0.5),
+            str(config.get("elevenlabs_similarity_boost") if config.get("elevenlabs_similarity_boost") is not None else 0.75),
+            str(config.get("elevenlabs_style") if config.get("elevenlabs_style") is not None else 0.0),
+            str(bool(config.get("elevenlabs_use_speaker_boost", True))),
+        )
+        return f"{engine_name}::{'|'.join(parts)}"
     return engine_name
 
 
@@ -2447,6 +2517,51 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             default_style=(config.get("azure_speech_default_style") or "").strip(),
             default_role=(config.get("azure_speech_default_role") or "").strip(),
             default_style_degree=float(config.get("azure_speech_default_style_degree") or 1.0),
+        )
+
+    if engine_name == "edge_tts":
+        if not EDGE_TTS_AVAILABLE:
+            raise ImportError(
+                "Edge TTS is unavailable: "
+                f"{EDGE_TTS_UNAVAILABLE_REASON or 'edge-tts is not installed'}. "
+                "Run install-update.bat, then restart TTS-Story."
+            )
+        return get_engine(
+            "edge_tts",
+            default_voice=(config.get("edge_tts_default_voice") or DEFAULT_EDGE_TTS_VOICE).strip(),
+            timeout=int(config.get("edge_tts_timeout") or 60),
+            max_parallel=int(config.get("edge_tts_max_parallel") or 2),
+            default_volume=int(config.get("edge_tts_default_volume") or 0),
+        )
+
+    if engine_name == "elevenlabs":
+        api_key = (config.get("elevenlabs_api_key") or "").strip()
+        if not api_key:
+            raise ValueError("An ElevenLabs API key is required. Configure it in ElevenLabs settings.")
+        return get_engine(
+            "elevenlabs",
+            api_key=api_key,
+            base_url=(config.get("elevenlabs_base_url") or DEFAULT_ELEVENLABS_BASE_URL).strip(),
+            model_id=(config.get("elevenlabs_model") or DEFAULT_ELEVENLABS_MODEL).strip(),
+            default_voice=(config.get("elevenlabs_default_voice") or DEFAULT_ELEVENLABS_VOICE).strip(),
+            output_format=(
+                config.get("elevenlabs_output_format") or DEFAULT_ELEVENLABS_OUTPUT_FORMAT
+            ).strip(),
+            timeout=int(config.get("elevenlabs_timeout") or 120),
+            max_parallel=int(config.get("elevenlabs_max_parallel") or 2),
+            stability=float(
+                config.get("elevenlabs_stability")
+                if config.get("elevenlabs_stability") is not None else 0.5
+            ),
+            similarity_boost=float(
+                config.get("elevenlabs_similarity_boost")
+                if config.get("elevenlabs_similarity_boost") is not None else 0.75
+            ),
+            style=float(
+                config.get("elevenlabs_style")
+                if config.get("elevenlabs_style") is not None else 0.0
+            ),
+            use_speaker_boost=bool(config.get("elevenlabs_use_speaker_boost", True)),
         )
 
     if engine_name == "kokoro_replicate":
@@ -3168,6 +3283,24 @@ def _create_text_processor_for_engine(engine_name: str, chunk_size: int, config:
             chunk_strategy="characters",
             char_soft_limit=azure_chunk_size,
             char_hard_limit=azure_chunk_size + 100,
+        )
+    if _normalize_engine_name(engine_name) == "edge_tts":
+        edge_chunk_size = 1000
+        if config:
+            edge_chunk_size = config.get("edge_tts_chunk_size", edge_chunk_size)
+        return TextProcessor(
+            chunk_strategy="characters",
+            char_soft_limit=edge_chunk_size,
+            char_hard_limit=edge_chunk_size + 100,
+        )
+    if _normalize_engine_name(engine_name) == "elevenlabs":
+        elevenlabs_chunk_size = 4000
+        if config:
+            elevenlabs_chunk_size = config.get("elevenlabs_chunk_size", elevenlabs_chunk_size)
+        return TextProcessor(
+            chunk_strategy="characters",
+            char_soft_limit=elevenlabs_chunk_size,
+            char_hard_limit=elevenlabs_chunk_size + 100,
         )
     if _normalize_engine_name(engine_name) in {"pocket_tts", "pocket_tts_preset"}:
         pocket_chunk_size = 450
@@ -5044,6 +5177,120 @@ def get_azure_speech_voices():
         "region": region,
         "voices": voices,
         "cached": False,
+    })
+
+
+@app.route('/api/edge-tts/voices', methods=['GET', 'POST'])
+def get_edge_tts_voices():
+    """Return the current Edge voice catalog without using a static voice list."""
+    data = (request.get_json(silent=True) or {}) if request.method == 'POST' else {}
+    force = bool(data.get('force')) or request.args.get('force', '').lower() in {'1', 'true', 'yes'}
+    if not EDGE_TTS_AVAILABLE:
+        return jsonify({
+            "success": False,
+            "error": (
+                "Edge TTS is not installed. Run install-update.bat, then restart TTS-Story."
+            ),
+        }), 503
+
+    now = time.time()
+    if not force:
+        with edge_voice_cache_lock:
+            if now - float(edge_voice_cache.get("timestamp") or 0) < 6 * 60 * 60:
+                return jsonify({
+                    "success": True,
+                    "voices": edge_voice_cache.get("voices") or [],
+                    "cached": True,
+                    "experimental": True,
+                })
+    try:
+        engine = EdgeTTSEngine(default_voice=load_config().get('edge_tts_default_voice'))
+        voices = engine.list_voices()
+    except EdgeTTSError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 502
+    except Exception as exc:  # pragma: no cover - defensive network failure path
+        logger.error("Failed to load Edge TTS voices: %s", exc, exc_info=True)
+        return jsonify({"success": False, "error": "Unable to load Edge TTS voices."}), 502
+
+    with edge_voice_cache_lock:
+        edge_voice_cache.update({"timestamp": now, "voices": voices})
+    return jsonify({
+        "success": True,
+        "voices": voices,
+        "cached": False,
+        "experimental": True,
+    })
+
+
+@app.route('/api/elevenlabs/catalog', methods=['GET', 'POST'])
+def get_elevenlabs_catalog():
+    """Validate ElevenLabs credentials and return models, voices, and quota usage."""
+    data = (request.get_json(silent=True) or {}) if request.method == 'POST' else {}
+    config = load_config()
+    api_key = (data.get('api_key') or config.get('elevenlabs_api_key') or '').strip()
+    base_url = (
+        data.get('base_url')
+        or config.get('elevenlabs_base_url')
+        or DEFAULT_ELEVENLABS_BASE_URL
+    ).strip()
+    force = bool(data.get('force')) or request.args.get('force', '').lower() in {'1', 'true', 'yes'}
+    if not api_key:
+        return jsonify({"success": False, "error": "An ElevenLabs API key is required."}), 400
+
+    fingerprint = hashlib.sha256(api_key.encode('utf-8')).hexdigest()[:16]
+    cache_key = f"{base_url.rstrip('/')}:{fingerprint}"
+    now = time.time()
+    cached_catalog = None
+    if not force:
+        with elevenlabs_catalog_cache_lock:
+            cached = elevenlabs_catalog_cache.get(cache_key)
+            if cached and now - float(cached.get("timestamp") or 0) < 30 * 60:
+                cached_catalog = cached
+
+    try:
+        engine = ElevenLabsEngine(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=int(config.get('elevenlabs_timeout') or 120),
+            max_parallel=int(config.get('elevenlabs_max_parallel') or 2),
+        )
+        if cached_catalog:
+            models = cached_catalog.get("models") or []
+            voices = cached_catalog.get("voices") or []
+        else:
+            models = engine.list_models()
+            voices = engine.list_voices()
+            with elevenlabs_catalog_cache_lock:
+                elevenlabs_catalog_cache[cache_key] = {
+                    "timestamp": now,
+                    "models": models,
+                    "voices": voices,
+                }
+        warnings = []
+        try:
+            subscription = engine.get_subscription()
+        except ElevenLabsError as exc:
+            # Restricted API keys may permit voice/model/TTS access without
+            # granting the user-subscription permission. Catalog use should
+            # remain available in that case.
+            logger.info("ElevenLabs usage information is unavailable: %s", exc)
+            subscription = {}
+            warnings.append(
+                "Voices and models loaded, but this API key cannot read subscription usage."
+            )
+    except ElevenLabsError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover - defensive network failure path
+        logger.error("Failed to load ElevenLabs catalog: %s", exc, exc_info=True)
+        return jsonify({"success": False, "error": "Unable to load the ElevenLabs catalog."}), 502
+
+    return jsonify({
+        "success": True,
+        "models": models,
+        "voices": voices,
+        "subscription": subscription,
+        "warnings": warnings,
+        "cached": bool(cached_catalog),
     })
 
 
@@ -10066,6 +10313,12 @@ def health_check():
             (config.get("azure_speech_key") or "").strip()
             and (config.get("azure_speech_region") or "").strip()
         ),
+        "edge_tts_available": EDGE_TTS_AVAILABLE,
+        "edge_tts_unavailable_reason": (
+            EDGE_TTS_UNAVAILABLE_REASON if not EDGE_TTS_AVAILABLE else ""
+        ),
+        "elevenlabs_available": True,
+        "elevenlabs_configured": bool((config.get("elevenlabs_api_key") or "").strip()),
         "cuda_available": False if not KOKORO_AVAILABLE else __import__('torch').cuda.is_available(),
         "vram": vram_info,
         "loaded_engines": list(tts_engine_instances.keys()),

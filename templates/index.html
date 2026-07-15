@@ -230,6 +230,8 @@
                                                 <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
                                                 <option value="dots_tts">Dot.TTS · Voice Clone</option>
                                                 <option value="azure_speech">Microsoft Azure Speech · Cloud</option>
+                                                <option value="edge_tts">Microsoft Edge TTS · Experimental Cloud</option>
+                                                <option value="elevenlabs">ElevenLabs · Cloud</option>
                                             </select>
                                         </div>
                                     </div>
@@ -753,6 +755,8 @@
                                     <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
                                     <option value="dots_tts">Dot.TTS · Voice Clone</option>
                                     <option value="azure_speech">Microsoft Azure Speech · Cloud</option>
+                                    <option value="edge_tts">Microsoft Edge TTS · Experimental Cloud</option>
+                                    <option value="elevenlabs">ElevenLabs · Cloud</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -794,6 +798,8 @@
                             <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-local">Chatterbox Local</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-replicate">Chatterbox Cloud</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="azure-speech">Azure Speech</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="edge-tts">Edge TTS</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="elevenlabs">ElevenLabs</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="voxcpm">VoxCPM 1.5</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="pocket-tts">Pocket TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="qwen3">Qwen3-TTS</button>
@@ -885,6 +891,111 @@
                                 <span id="azure-speech-voices-status" class="help-text" aria-live="polite"></span>
                             </div>
                             <p class="help-text" style="margin-top:12px;">Azure usage is billed to your Azure resource. Current pricing and free-tier allowances are available on the <a href="https://azure.microsoft.com/pricing/details/speech/" target="_blank" rel="noopener noreferrer">Azure Speech pricing page</a>.</p>
+                        </div>
+
+                        <div class="engine-panel" id="engine-panel-edge-tts">
+                            <div class="section-title-inline settings-panel-title">
+                                <h4>Microsoft Edge TTS</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-edge-tts" aria-label="Help: Edge TTS">?</button>
+                            </div>
+                            <p class="help-text" style="margin-top:0;"><strong>Experimental:</strong> Edge TTS uses Microsoft's consumer online speech service through an unofficial client. It needs no API key, but Microsoft can change or restrict the service without notice.</p>
+                            <div class="settings-form-grid">
+                                <div class="form-group">
+                                    <label for="edge-tts-default-voice">Default Voice</label>
+                                    <select id="edge-tts-default-voice"><option value="en-US-AriaNeural">en-US-AriaNeural</option></select>
+                                    <small>The Generate tab can assign a different voice to each speaker.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edge-tts-chunk-size">Chunk Size (chars)</label>
+                                    <input type="number" id="edge-tts-chunk-size" min="100" max="5000" step="100" value="1000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="edge-tts-timeout">Request Timeout (seconds)</label>
+                                    <input type="number" id="edge-tts-timeout" min="10" max="300" step="10" value="60">
+                                </div>
+                                <div class="form-group">
+                                    <label for="edge-tts-max-parallel">Maximum Parallel Requests</label>
+                                    <input type="number" id="edge-tts-max-parallel" min="1" max="8" step="1" value="2">
+                                    <small>A conservative value helps avoid temporary service blocks.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edge-tts-default-volume">Default Volume (%)</label>
+                                    <input type="number" id="edge-tts-default-volume" min="-100" max="100" step="1" value="0">
+                                </div>
+                            </div>
+                            <div class="settings-inline-actions" style="margin-top:12px;">
+                                <button type="button" class="btn btn-secondary" id="fetch-edge-tts-voices">Test Connection &amp; Load Voices</button>
+                                <span id="edge-tts-voices-status" class="help-text" aria-live="polite"></span>
+                            </div>
+                        </div>
+
+                        <div class="engine-panel" id="engine-panel-elevenlabs">
+                            <div class="section-title-inline settings-panel-title">
+                                <h4>ElevenLabs</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-elevenlabs" aria-label="Help: ElevenLabs">?</button>
+                            </div>
+                            <p class="help-text" style="margin-top:0;">Use your ElevenLabs API key to load the voices and text-to-speech models available to your account.</p>
+                            <div class="settings-form-grid">
+                                <div class="form-group">
+                                    <label for="elevenlabs-api-key">API Key</label>
+                                    <input type="password" id="elevenlabs-api-key" autocomplete="off" placeholder="ElevenLabs API key">
+                                    <small>Stored only in your local config and scrubbed before Git sync.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-base-url">API Base URL</label>
+                                    <input type="url" id="elevenlabs-base-url" value="https://api.elevenlabs.io">
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-model">Default Model</label>
+                                    <select id="elevenlabs-model"><option value="eleven_multilingual_v2">Eleven Multilingual v2</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-default-voice">Default Voice</label>
+                                    <select id="elevenlabs-default-voice"><option value="JBFqnCBsd6RMkjVDRZzb">George</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-output-format">Provider Audio Quality</label>
+                                    <select id="elevenlabs-output-format">
+                                        <option value="mp3_44100_128">MP3 44.1 kHz / 128 kbps</option>
+                                        <option value="mp3_44100_192">MP3 44.1 kHz / 192 kbps (plan dependent)</option>
+                                        <option value="wav_44100">WAV 44.1 kHz (plan dependent)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-chunk-size">Chunk Size (chars)</label>
+                                    <input type="number" id="elevenlabs-chunk-size" min="100" max="10000" step="100" value="4000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-timeout">Request Timeout (seconds)</label>
+                                    <input type="number" id="elevenlabs-timeout" min="10" max="600" step="10" value="120">
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-max-parallel">Maximum Parallel Requests</label>
+                                    <input type="number" id="elevenlabs-max-parallel" min="1" max="8" step="1" value="2">
+                                    <small>ElevenLabs concurrency varies by subscription plan.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-stability">Stability</label>
+                                    <input type="number" id="elevenlabs-stability" min="0" max="1" step="0.01" value="0.5">
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-similarity-boost">Similarity Boost</label>
+                                    <input type="number" id="elevenlabs-similarity-boost" min="0" max="1" step="0.01" value="0.75">
+                                </div>
+                                <div class="form-group">
+                                    <label for="elevenlabs-style">Style Exaggeration</label>
+                                    <input type="number" id="elevenlabs-style" min="0" max="1" step="0.01" value="0">
+                                </div>
+                                <div class="form-group checkbox-group">
+                                    <label><input type="checkbox" id="elevenlabs-use-speaker-boost" checked> Use speaker boost</label>
+                                </div>
+                            </div>
+                            <div class="settings-inline-actions" style="margin-top:12px;">
+                                <button type="button" class="btn btn-secondary" id="fetch-elevenlabs-catalog">Test Connection &amp; Load Catalog</button>
+                                <span id="elevenlabs-catalog-status" class="help-text" aria-live="polite"></span>
+                            </div>
+                            <p class="help-text" id="elevenlabs-usage-status" aria-live="polite"></p>
+                            <p class="help-text">Generation is billed by ElevenLabs. See the <a href="https://elevenlabs.io/pricing" target="_blank" rel="noopener noreferrer">ElevenLabs pricing page</a> for current plan limits.</p>
                         </div>
 
                         <!-- Chatterbox Local Panel -->

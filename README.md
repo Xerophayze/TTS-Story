@@ -11,6 +11,7 @@ Every contribution is appreciated. Thank you for helping make this work possible
 ---
 
 # Current Updates and Notes - updated 07-15-2026
+- **Edge TTS and ElevenLabs support** - generate speech with dynamically discovered Edge voices or the voices and models available through your ElevenLabs account.
 - **Microsoft Azure AI Speech support** - use an Azure Speech key and region to access Microsoft's multilingual cloud voices and expression controls.
 - **Atlas Cloud and OpenRouter support** - process and prepare text using models available through either LLM provider.
 - **Dot.TTS support** - generate high-quality local voice-cloned audio using the RedNote HiLab Dot.TTS engine.
@@ -25,7 +26,7 @@ Every contribution is appreciated. Thank you for helping make this work possible
 
 # TTS-Story
 
-A web-based Text-to-Speech application supporting multiple TTS engines including **Kokoro-82M**, **Chatterbox**, **VoxCPM 1.5**, **Qwen3 TTS** (Custom Voice, Clone, Voice Creation), **Pocket TTS** (CPU-friendly), **OmniVoice**, **KittenTTS** (ultra-lightweight CPU-only), **IndexTTS** (zero-shot voice cloning by Bilibili), **Dot.TTS** (48 kHz zero-shot voice cloning by rednote-hilab), and **Microsoft Azure AI Speech**, with local inference plus Replicate and Azure cloud options for generating multi-voice audiobooks and stories.
+A web-based Text-to-Speech application supporting multiple TTS engines including **Kokoro-82M**, **Chatterbox**, **VoxCPM 1.5**, **Qwen3 TTS** (Custom Voice, Clone, Voice Creation), **Pocket TTS** (CPU-friendly), **OmniVoice**, **KittenTTS** (ultra-lightweight CPU-only), **IndexTTS** (zero-shot voice cloning by Bilibili), **Dot.TTS** (48 kHz zero-shot voice cloning by rednote-hilab), **Microsoft Azure AI Speech**, **Microsoft Edge TTS**, and **ElevenLabs**, with local and cloud options for generating multi-voice audiobooks and stories.
 
 <div align="center">
   <table>
@@ -82,7 +83,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 ## Features
 
 ### TTS Engines
-- **Multi-Engine Support**: Choose from fourteen TTS engine options:
+- **Multi-Engine Support**: Choose from sixteen TTS engine options:
   - **Kokoro · Local GPU** - Run Kokoro-82M locally on your NVIDIA GPU
   - **Kokoro · Replicate** - Use Kokoro via Replicate cloud API
   - **Chatterbox · Local GPU** - Run Chatterbox locally with voice cloning (~8GB VRAM required)
@@ -97,6 +98,8 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
   - **IndexTTS** - Zero-shot voice cloning by Bilibili, runs in an isolated venv
   - **Dot.TTS** - 48 kHz zero-shot voice cloning by rednote-hilab, runs in an isolated venv
   - **Microsoft Azure Speech · Cloud** - Use your Azure Speech resource with dynamically discovered multilingual neural voices, styles, roles, and SSML prosody controls
+  - **Microsoft Edge TTS · Experimental Cloud** - Use Microsoft's dynamically discovered consumer Edge voices without an API key
+  - **ElevenLabs · Cloud** - Use the voices and text-to-speech models available through your ElevenLabs account
 - **Unified Replicate API**: Single API token works for both Kokoro and Chatterbox Replicate engines
 - **Voice Cloning**: Upload your own voice recordings (10-15 seconds recommended) for supported cloning engines including Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, and Dot.TTS
 - **Voice Prompt Management**: Add, rename, delete, and preview custom voice prompts with drag-and-drop bulk upload
@@ -118,7 +121,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 - **OpenRouter Model Discovery**: Retrieve the text models allowed by your key's provider preferences, privacy settings, and guardrails
 - **Speaker Memory Between Chunks**: LLM requests carry forward discovered speaker tags for consistency
 - **Local GPU Processing**: Run entirely on your machine for privacy and speed
-- **Cloud API Options**: Use Replicate or Microsoft Azure Speech when you don't have local GPU resources
+- **Cloud API Options**: Use Replicate, Microsoft Azure Speech, experimental Edge TTS, or ElevenLabs when you don't have local GPU resources
 
 ### Job Management & Library
 - **Job Queue**: Submit multiple jobs, track real-time progress with ETA, cancel, and download results
@@ -307,7 +310,7 @@ python app.py
 
 ### Selecting a TTS Engine
 
-TTS-Story supports fourteen TTS engine options. In the **Settings** tab, choose your preferred default engine:
+TTS-Story supports sixteen TTS engine options. In the **Settings** tab, choose your preferred default engine:
 
 | Engine | Description | Requirements |
 |--------|-------------|--------------|
@@ -325,6 +328,8 @@ TTS-Story supports fourteen TTS engine options. In the **Settings** tab, choose 
 | **IndexTTS** | Zero-shot voice cloning, English + Chinese | NVIDIA GPU recommended; isolated venv |
 | **Dot.TTS** | High-similarity zero-shot voice cloning with reference transcript | NVIDIA GPU recommended; isolated venv |
 | **Microsoft Azure Speech · Cloud** | Regional multilingual neural voices with styles, roles, and SSML controls | Azure Speech resource key and region |
+| **Microsoft Edge TTS · Experimental Cloud** | Dynamically discovered Microsoft consumer voices | Internet connection; no API key |
+| **ElevenLabs · Cloud** | Account voices and current text-to-speech models | ElevenLabs API key and available character quota |
 
 You can also override the engine per-job in the **Generate** tab.
 
@@ -355,6 +360,21 @@ The voice list is retrieved from the selected Azure region. Each speaker can use
 | Style Intensity | `1.0` | Azure style degree, clamped to `0.01`–`2.0` |
 
 Azure usage and data handling are governed by your Azure resource and subscription. Review the current [Azure Speech pricing](https://azure.microsoft.com/pricing/details/speech/) and [Azure text-to-speech documentation](https://learn.microsoft.com/azure/ai-services/speech-service/text-to-speech) before large jobs. TTS-Story retries transient failures and `429` responses, but Azure quota and billing still apply.
+
+### Microsoft Edge TTS Engine (Experimental)
+
+Edge TTS provides a large multilingual voice catalog without an API key or local GPU. Run the installer/update script, open **Settings → Engine Settings → Edge TTS**, load the current voices, choose a default, and save. The Generate tab supports per-speaker voices plus the existing speed and pitch controls.
+
+This provider uses Microsoft's consumer Edge speech service through the unofficial `edge-tts` client. It is therefore marked experimental: availability, throttling, and protocol behavior can change without notice. It is best suited to personal use and testing rather than a guaranteed production service.
+
+### ElevenLabs Engine
+
+1. Create an API key in your ElevenLabs account.
+2. Open **Settings → Engine Settings → ElevenLabs** and enter the key.
+3. Click **Test Connection & Load Catalog** to retrieve the voices and TTS models available to the account and view character usage.
+4. Select a default model and voice, save, then choose **ElevenLabs · Cloud** on the Generate tab.
+
+TTS-Story supports per-speaker ElevenLabs voices along with configurable stability, similarity, style, speaker boost, generation speed, previews, full jobs, and Library regeneration. Account concurrency and character limits still apply. Review [ElevenLabs pricing](https://elevenlabs.io/pricing) before large jobs.
 
 ### Dot.TTS Engine
 
@@ -626,7 +646,16 @@ Settings are stored in `config.json`:
   "azure_speech_default_voice": "en-US-AvaMultilingualNeural",
   "azure_speech_output_format": "riff-24khz-16bit-mono-pcm",
   "azure_speech_requests_per_minute": 20,
-  "azure_speech_chunk_size": 1000
+  "azure_speech_chunk_size": 1000,
+  "edge_tts_default_voice": "en-US-AriaNeural",
+  "edge_tts_chunk_size": 1000,
+  "edge_tts_max_parallel": 2,
+  "elevenlabs_api_key": "",
+  "elevenlabs_base_url": "https://api.elevenlabs.io",
+  "elevenlabs_model": "eleven_multilingual_v2",
+  "elevenlabs_default_voice": "JBFqnCBsd6RMkjVDRZzb",
+  "elevenlabs_chunk_size": 4000,
+  "elevenlabs_max_parallel": 2
 }
 ```
 
@@ -651,6 +680,8 @@ Cloud API keys are stored locally in `config.json`. The repository sync script s
 | `index_tts` | IndexTTS zero-shot voice cloning |
 | `dots_tts` | Dot.TTS 48 kHz zero-shot voice cloning |
 | `azure_speech` | Microsoft Azure AI Speech regional REST API |
+| `edge_tts` | Experimental Microsoft Edge online speech service |
+| `elevenlabs` | ElevenLabs REST API with account voice/model discovery |
 
 Any settings you override in the Generate tab (format, bitrate, engine) are sent along with the job payload while keeping the saved defaults intact.
 
@@ -681,7 +712,10 @@ TTS-Story/
 │       ├── kitten_tts_engine.py          # KittenTTS CPU-only engine
 │       ├── index_tts_engine.py           # IndexTTS subprocess adapter
 │       ├── dots_tts_engine.py            # Dot.TTS subprocess adapter
-│       └── azure_speech_engine.py         # Microsoft Azure Speech REST adapter
+│       ├── azure_speech_engine.py         # Microsoft Azure Speech REST adapter
+│       ├── edge_tts_engine.py             # Experimental Microsoft Edge adapter
+│       ├── elevenlabs_engine.py           # ElevenLabs REST adapter
+│       └── cloud_audio.py                 # Shared cloud-audio WAV conversion
 ├── engines/
 │   ├── index-tts/                    # Cloned IndexTTS repo (isolated venv)
 │   │   ├── .venv/                        # uv-managed isolated environment
@@ -723,6 +757,8 @@ TTS-Story/
 - `POST /api/openrouter/models` - Fetch text-output models allowed by an entered or saved OpenRouter API key
 - `GET /api/azure-speech/voices` - Fetch the saved Azure resource's regional voice catalog
 - `POST /api/azure-speech/voices` - Validate an entered Azure key/region and fetch its regional voice catalog
+- `GET|POST /api/edge-tts/voices` - Fetch the current experimental Edge voice catalog
+- `GET|POST /api/elevenlabs/catalog` - Validate ElevenLabs access and fetch account voices, TTS models, and permitted usage data
 - `POST /api/local-llm/models` - Fetch models from LM Studio or Ollama
 - `POST /api/generate` - Queue a new audio generation job
 - `GET /api/status/<job_id>` - Check status of a specific job
@@ -837,6 +873,16 @@ Use `python scripts/engine_versions.py --json` for machine-readable output. Omni
 - 24 kHz or 48 kHz PCM synthesis before final audiobook encoding
 - Usage limits, privacy, and cost depend on your Azure subscription
 
+### Microsoft Edge TTS · Experimental Cloud
+- No API key, local model download, or GPU required
+- Current voice list is loaded dynamically
+- Consumer service availability and throttling are not guaranteed
+
+### ElevenLabs · Cloud
+- Loads the voices and TTS models available to your API key
+- Displays current character usage in Settings when the API key permits subscription access
+- Account plan controls cost, quota, and concurrency
+
 ## Troubleshooting
 
 ### espeak-ng not found
@@ -854,6 +900,18 @@ Adjust the speed parameter (0.5 - 2.0) in settings.
 - Click **Test Connection & Load Voices** after changing credentials. Only voices returned for that resource and region are shown.
 - A `429` response means Azure throttled the resource. Reduce **Parallel Chunks**, lower the configured request limit to match the subscription quota, or retry later.
 - If Azure rejects a style or role, return the speaker to neutral/default or reload the voice catalog; expression support varies by voice.
+
+### Edge TTS is unavailable or stops responding
+
+- Run the current installer/update script so `edge-tts` is installed, then restart TTS-Story.
+- Reload the voice catalog and reduce parallel requests if the service temporarily blocks or throttles requests.
+- Because the Edge consumer protocol is unofficial, an upstream Microsoft change may require a TTS-Story or `edge-tts` update.
+
+### ElevenLabs rejects the key, voice, model, or request
+
+- Test the connection in Settings and reload the account catalog after changing the API key.
+- A `402` normally indicates exhausted quota or billing allowance; a `429` indicates concurrency or rate limiting.
+- Reduce parallel requests, select a model/voice returned by the catalog, and verify the account's current character allowance.
 
 ### Chatterbox Turbo is unavailable
 

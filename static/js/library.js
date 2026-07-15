@@ -404,6 +404,8 @@ function formatEngineName(engine) {
         'omnivoice_design': 'OmniVoice (Voice Design)',
         'dots_tts': 'Dot.TTS (Voice Clone)',
         'azure_speech': 'Microsoft Azure Speech',
+        'edge_tts': 'Microsoft Edge TTS (Experimental)',
+        'elevenlabs': 'ElevenLabs',
     };
     return engineMap[engine] || engine;
 }
@@ -2324,7 +2326,9 @@ function wireChunkReviewEvents(jobId, chunks, engine) {
                 const voiceData = libraryVoiceMap.get(value);
                 libraryChunkVoiceOverrides[chunkId] = {
                     voice: value,
-                    lang_code: voiceData?.langCode || 'a',
+                    lang_code: voiceData?.langCode || (
+                        normalizedEngine.includes('edgetts') || normalizedEngine.includes('elevenlabs') ? '' : 'a'
+                    ),
                     ...(normalizedEngine.includes('azurespeech')
                         ? { extra: { locale: voiceData?.langCode || '' } }
                         : {}),
@@ -2539,6 +2543,47 @@ async function initLibraryVoiceFilters(engine) {
     });
 }
 
+const libraryCloudCatalogCache = new Map();
+const libraryCloudCatalogRequests = new Map();
+
+async function getLibraryCloudCatalog(engineName) {
+    const normalized = (engineName || '').toLowerCase().replace(/[_-]/g, '');
+    const provider = normalized.includes('edgetts')
+        ? 'edge_tts'
+        : (normalized.includes('elevenlabs') ? 'elevenlabs' : '');
+    if (!provider) return { success: false, voices: [] };
+    if (libraryCloudCatalogCache.has(provider)) return libraryCloudCatalogCache.get(provider);
+    if (!libraryCloudCatalogRequests.has(provider)) {
+        const endpoint = provider === 'edge_tts' ? '/api/edge-tts/voices' : '/api/elevenlabs/catalog';
+        const request = fetch(endpoint)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) libraryCloudCatalogCache.set(provider, data);
+                libraryCloudCatalogRequests.delete(provider);
+                return data;
+            })
+            .catch(error => {
+                libraryCloudCatalogRequests.delete(provider);
+                throw error;
+            });
+        libraryCloudCatalogRequests.set(provider, request);
+    }
+    return libraryCloudCatalogRequests.get(provider);
+}
+
+function mapLibraryCloudVoices(data, provider) {
+    return (data?.voices || []).map(voice => ({
+        id: voice.short_name || voice.voice_id,
+        name: `${voice.display_name || voice.short_name || voice.voice_id}${voice.locale ? ` (${voice.locale_name || voice.locale})` : ''}`,
+        langCode: voice.locale || '',
+        gender: voice.gender || '',
+        language: voice.locale || '',
+        isEdgeTts: provider === 'edge_tts',
+        isElevenLabs: provider === 'elevenlabs',
+        isPrompt: false,
+    }));
+}
+
 async function populateLibraryVoiceSelects(engine) {
     const body = document.getElementById('chunk-review-modal-body');
     if (!body) return;
@@ -2553,6 +2598,8 @@ async function populateLibraryVoiceSelects(engine) {
     const isOmniClone = normalizedEngine.includes('omnivoice') && normalizedEngine.includes('clone');
     const isDotsTts = normalizedEngine.includes('dotstts');
     const isAzureSpeech = normalizedEngine.includes('azurespeech');
+    const isEdgeTts = normalizedEngine.includes('edgetts');
+    const isElevenLabs = normalizedEngine.includes('elevenlabs');
     const isPocketPreset = normalizedEngine.includes('pocketttspreset');
     const isPocket = normalizedEngine.includes('pockettts') && !isPocketPreset;
     const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isDotsTts || isPocket;
@@ -2617,6 +2664,11 @@ async function populateLibraryVoiceSelects(engine) {
                     roles: voice.roles || [],
                     isAzureSpeech: true,
                 }));
+            }
+        } else if (isEdgeTts || isElevenLabs) {
+            const data = await getLibraryCloudCatalog(engine);
+            if (data.success) {
+                voices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts' : 'elevenlabs');
             }
         } else {
             // Kokoro and others use /api/voices - returns nested structure by language
@@ -2829,6 +2881,8 @@ async function populateLibraryVoiceSelects(engine) {
             || engineName.includes('dotstts');
         const isQwenEngine = engineName.includes('qwen3');
         const isAzureSpeech = engineName.includes('azurespeech');
+        const isEdgeTts = engineName.includes('edgetts');
+        const isElevenLabs = engineName.includes('elevenlabs');
         const minDuration = getMinDuration(engineName);
         const activeFilters = filters || libraryVoiceFilters;
         let chunkVoices = [];
@@ -2875,6 +2929,11 @@ async function populateLibraryVoiceSelects(engine) {
                         roles: voice.roles || [],
                         isAzureSpeech: true,
                     }));
+                }
+            } else if (isEdgeTts || isElevenLabs) {
+                const data = await getLibraryCloudCatalog(engineName);
+                if (data.success) {
+                    chunkVoices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts' : 'elevenlabs');
                 }
             } else {
                 const data = await getVoicesCached();
@@ -2966,6 +3025,8 @@ async function populateLibraryVoiceSelects(engine) {
             || engineName.includes('dotstts');
         const isQwenEngine = engineName.includes('qwen3');
         const isAzureSpeech = engineName.includes('azurespeech');
+        const isEdgeTts = engineName.includes('edgetts');
+        const isElevenLabs = engineName.includes('elevenlabs');
         const minDuration = getMinDuration(engineName);
         const activeFilters = filters || libraryVoiceFilters;
         let bulkVoices = [];
@@ -3012,6 +3073,11 @@ async function populateLibraryVoiceSelects(engine) {
                         roles: voice.roles || [],
                         isAzureSpeech: true,
                     }));
+                }
+            } else if (isEdgeTts || isElevenLabs) {
+                const data = await getLibraryCloudCatalog(engineName);
+                if (data.success) {
+                    bulkVoices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts' : 'elevenlabs');
                 }
             } else {
                 const data = await getVoicesCached();
@@ -3109,6 +3175,8 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="omnivoice_design">OmniVoice · Voice Design</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
             <option value="azure_speech">Microsoft Azure Speech</option>
+            <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
+            <option value="elevenlabs">ElevenLabs</option>
         `;
         if (normalizedCurrentEngine) {
             Array.from(select.options).forEach(option => {
@@ -3247,6 +3315,8 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="omnivoice_design">OmniVoice · Voice Design</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
             <option value="azure_speech">Microsoft Azure Speech</option>
+            <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
+            <option value="elevenlabs">ElevenLabs</option>
         `;
         
         // When engine changes, repopulate the voice dropdown for this speaker and show/hide Qwen3 options
@@ -3433,7 +3503,9 @@ async function triggerBulkSpeakerRegen(jobId, speaker, chunks, engine, button) {
     } else {
         voicePayload = {
             voice: voiceValue,
-            lang_code: voiceData?.langCode || 'a',
+            lang_code: voiceData?.langCode || (
+                normalizedEngine.includes('edgetts') || normalizedEngine.includes('elevenlabs') ? '' : 'a'
+            ),
             ...(isAzureSpeech ? { extra: { locale: voiceData?.langCode || '' } } : {}),
         };
     }
@@ -3589,7 +3661,9 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
         const existingExtra = voicePayload.extra || {};
         voicePayload = {
             voice: selectedVoiceValue,
-            lang_code: voiceData?.langCode || originalAssignment.lang_code || 'a',
+            lang_code: voiceData?.langCode || originalAssignment.lang_code || (
+                normalizedEngine.includes('edgetts') || normalizedEngine.includes('elevenlabs') ? '' : 'a'
+            ),
             ...(isAzureSpeech ? {
                 extra: {
                     ...(keepAzureExpression ? (originalAssignment.extra || {}) : {}),
@@ -4280,6 +4354,8 @@ async function _libAwrPopulateVoices(engineName) {
     const isQwen = norm.includes('qwen3') && !norm.includes('clone');
     const isPocketPreset = norm.includes('pocketttspreset');
     const isAzureSpeech = norm.includes('azurespeech');
+    const isEdgeTts = norm.includes('edgetts');
+    const isElevenLabs = norm.includes('elevenlabs');
 
     try {
         if (usesPrompts) {
@@ -4323,6 +4399,16 @@ async function _libAwrPopulateVoices(engineName) {
                     const opt = document.createElement('option');
                     opt.value = voice.short_name;
                     opt.textContent = `${voice.display_name || voice.short_name} (${voice.locale_name || voice.locale})`;
+                    select.appendChild(opt);
+                });
+            }
+        } else if (isEdgeTts || isElevenLabs) {
+            const data = await getLibraryCloudCatalog(engineName);
+            if (data.success && data.voices) {
+                data.voices.forEach(voice => {
+                    const opt = document.createElement('option');
+                    opt.value = voice.short_name || voice.voice_id;
+                    opt.textContent = `${voice.display_name || opt.value}${voice.locale ? ` (${voice.locale})` : ''}`;
                     select.appendChild(opt);
                 });
             }

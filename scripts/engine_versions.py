@@ -19,6 +19,7 @@ MAIN_ENV_PACKAGES = {
     "Qwen3 TTS": "qwen-tts",
     "KittenTTS": "kittentts",
     "Replicate client": "replicate",
+    "Edge TTS client": "edge-tts",
     "PyTorch": "torch",
     "Transformers": "transformers",
     "NumPy": "numpy",

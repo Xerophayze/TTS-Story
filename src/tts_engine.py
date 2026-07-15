@@ -18,6 +18,8 @@ from .engines.index_tts_engine import IndexTTSEngine, INDEX_TTS_AVAILABLE, INDEX
 from .engines.dots_tts_engine import DotsTTSEngine, DOTS_TTS_AVAILABLE, DOTS_TTS_UNAVAILABLE_REASON
 from .engines.chatterbox_turbo_replicate_engine import ChatterboxTurboReplicateEngine
 from .engines.azure_speech_engine import AzureSpeechEngine
+from .engines.edge_tts_engine import EdgeTTSEngine
+from .engines.elevenlabs_engine import ElevenLabsEngine
 from .engines.kokoro_engine import (
     DEFAULT_SAMPLE_RATE,
     KOKORO_AVAILABLE,
@@ -41,6 +43,8 @@ EngineRegistry: Dict[str, Type[TtsEngineBase]] = {
     "index_tts": IndexTTSEngine,
     "dots_tts": DotsTTSEngine,
     "azure_speech": AzureSpeechEngine,
+    "edge_tts": EdgeTTSEngine,
+    "elevenlabs": ElevenLabsEngine,
 }
 AVAILABLE_ENGINES = tuple(EngineRegistry.keys())
 

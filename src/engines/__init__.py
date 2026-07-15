@@ -1,15 +1,37 @@
-"""TTS engine implementations."""
+"""TTS engine implementations with lazy compatibility exports.
+
+Importing the package should not initialize every optional local model runtime.
+The application imports concrete adapters from their modules; ``__getattr__``
+keeps older ``from src.engines import KokoroEngine`` usage compatible.
+"""
+from importlib import import_module
 
 from .base import EngineCapabilities, TtsEngineBase
-from .kokoro_engine import KokoroEngine
-from .chatterbox_engine import ChatterboxEngine
-from .chatterbox_turbo_local_engine import ChatterboxTurboLocalEngine
-from .voxcpm_local_engine import VoxCPMLocalEngine
-from .qwen3_custom_voice_engine import Qwen3CustomVoiceEngine
-from .qwen3_voice_clone_engine import Qwen3VoiceCloneEngine
-from .pocket_tts_engine import PocketTTSEngine
-from .kitten_tts_engine import KittenTTSEngine
-from .azure_speech_engine import AzureSpeechEngine
+
+
+_LAZY_EXPORTS = {
+    "KokoroEngine": (".kokoro_engine", "KokoroEngine"),
+    "ChatterboxEngine": (".chatterbox_engine", "ChatterboxEngine"),
+    "ChatterboxTurboLocalEngine": (".chatterbox_turbo_local_engine", "ChatterboxTurboLocalEngine"),
+    "VoxCPMLocalEngine": (".voxcpm_local_engine", "VoxCPMLocalEngine"),
+    "Qwen3CustomVoiceEngine": (".qwen3_custom_voice_engine", "Qwen3CustomVoiceEngine"),
+    "Qwen3VoiceCloneEngine": (".qwen3_voice_clone_engine", "Qwen3VoiceCloneEngine"),
+    "PocketTTSEngine": (".pocket_tts_engine", "PocketTTSEngine"),
+    "KittenTTSEngine": (".kitten_tts_engine", "KittenTTSEngine"),
+    "AzureSpeechEngine": (".azure_speech_engine", "AzureSpeechEngine"),
+    "EdgeTTSEngine": (".edge_tts_engine", "EdgeTTSEngine"),
+    "ElevenLabsEngine": (".elevenlabs_engine", "ElevenLabsEngine"),
+}
+
+
+def __getattr__(name):
+    target = _LAZY_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(name)
+    module_name, attribute_name = target
+    value = getattr(import_module(module_name, __name__), attribute_name)
+    globals()[name] = value
+    return value
 
 __all__ = [
     "TtsEngineBase",
@@ -23,4 +45,6 @@ __all__ = [
     "PocketTTSEngine",
     "KittenTTSEngine",
     "AzureSpeechEngine",
+    "EdgeTTSEngine",
+    "ElevenLabsEngine",
 ]

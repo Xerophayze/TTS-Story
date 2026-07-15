@@ -1112,9 +1112,68 @@ async function loadAzureSpeechVoices(force = false) {
         return await azureSpeechVoicesPromise;
     } catch (error) {
         showNotification(error.message || 'Unable to load Azure Speech voices.', 'warning');
+        if (isAzureSpeechEngine(getSelectedJobEngine() || runtimeSettings?.tts_engine)) {
+            setCatalogVoicePlaceholder('Configure Azure Speech in Settings');
+        }
         return [];
     } finally {
         azureSpeechVoicesPromise = null;
+    }
+}
+
+async function loadEdgeTtsVoices(force = false) {
+    if (edgeTtsVoices.length && !force) return edgeTtsVoices;
+    if (edgeTtsVoicesPromise && !force) return edgeTtsVoicesPromise;
+    edgeTtsVoicesPromise = (async () => {
+        const response = await fetch(`/api/edge-tts/voices${force ? '?force=true' : ''}`);
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load Edge TTS voices.');
+        edgeTtsVoices = Array.isArray(data.voices) ? data.voices : [];
+        window.availableEdgeTtsVoices = edgeTtsVoices;
+        populateDefaultVoiceSelect();
+        populateVoiceSelects();
+        return edgeTtsVoices;
+    })();
+    try {
+        return await edgeTtsVoicesPromise;
+    } catch (error) {
+        showNotification(error.message || 'Unable to load Edge TTS voices.', 'warning');
+        if (isEdgeTtsEngine(getSelectedJobEngine() || runtimeSettings?.tts_engine)) {
+            setCatalogVoicePlaceholder('Unable to load Edge voices');
+        }
+        return [];
+    } finally {
+        edgeTtsVoicesPromise = null;
+    }
+}
+
+async function loadElevenLabsCatalog(force = false) {
+    if (elevenLabsVoices.length && elevenLabsModels.length && !force) {
+        return { voices: elevenLabsVoices, models: elevenLabsModels };
+    }
+    if (elevenLabsCatalogPromise && !force) return elevenLabsCatalogPromise;
+    elevenLabsCatalogPromise = (async () => {
+        const response = await fetch(`/api/elevenlabs/catalog${force ? '?force=true' : ''}`);
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load ElevenLabs.');
+        elevenLabsVoices = Array.isArray(data.voices) ? data.voices : [];
+        elevenLabsModels = Array.isArray(data.models) ? data.models : [];
+        window.availableElevenLabsVoices = elevenLabsVoices;
+        window.availableElevenLabsModels = elevenLabsModels;
+        populateDefaultVoiceSelect();
+        populateVoiceSelects();
+        return data;
+    })();
+    try {
+        return await elevenLabsCatalogPromise;
+    } catch (error) {
+        showNotification(error.message || 'Unable to load ElevenLabs.', 'warning');
+        if (isElevenLabsEngine(getSelectedJobEngine() || runtimeSettings?.tts_engine)) {
+            setCatalogVoicePlaceholder('Configure ElevenLabs in Settings');
+        }
+        return { voices: [], models: [] };
+    } finally {
+        elevenLabsCatalogPromise = null;
     }
 }
 
@@ -1251,6 +1310,18 @@ function isAzureSpeechEngine(engineName) {
     return (engineName || '').toLowerCase() === 'azure_speech';
 }
 
+function isEdgeTtsEngine(engineName) {
+    return (engineName || '').toLowerCase() === 'edge_tts';
+}
+
+function isElevenLabsEngine(engineName) {
+    return (engineName || '').toLowerCase() === 'elevenlabs';
+}
+
+function isCatalogCloudEngine(engineName) {
+    return isAzureSpeechEngine(engineName) || isEdgeTtsEngine(engineName) || isElevenLabsEngine(engineName);
+}
+
 function isQwenCloneEngine(engineName) {
     return (engineName || '').toLowerCase() === 'qwen3_clone';
 }
@@ -1271,6 +1342,8 @@ function updateEngineUI(engineName) {
     const isKitten = isKittenEngine(engineName);
     const isIndexTTS = isIndexTTSEngine(engineName);
     const isAzureSpeech = isAzureSpeechEngine(engineName);
+    const isEdgeTts = isEdgeTtsEngine(engineName);
+    const isElevenLabs = isElevenLabsEngine(engineName);
     const isCloneStyle = isQwenClone || isOmniClone;
     if (kokoroCard) {
         kokoroCard.style.display = isPrompt || isQwen || isCloneStyle ? 'none' : 'block';
@@ -1299,6 +1372,12 @@ function updateEngineUI(engineName) {
     if (isAzureSpeech) {
         loadAzureSpeechVoices();
     }
+    if (isEdgeTts) {
+        loadEdgeTtsVoices();
+    }
+    if (isElevenLabs) {
+        loadElevenLabsCatalog();
+    }
     // Repopulate voice selects when engine changes
     populateVoiceSelects();
 }
@@ -1316,6 +1395,8 @@ function updateAssignmentModes(engineName) {
     const isOmniClone = isOmniVoiceCloneEngine(engineName);
     const isCloneStyle = isQwenClone || isOmniClone;
     const isAzureSpeech = isAzureSpeechEngine(engineName);
+    const isEdgeTts = isEdgeTtsEngine(engineName);
+    const isElevenLabs = isElevenLabsEngine(engineName);
     getAssignmentRows().forEach(row => {
         const kokoroControl = row.querySelector('[data-role="kokoro-control"]');
         const turboControl = row.querySelector('[data-role="turbo-control"]');
@@ -1326,7 +1407,11 @@ function updateAssignmentModes(engineName) {
             kokoroControl.style.display = (isTurbo || isCloneStyle) ? 'none' : 'flex';
             const label = kokoroControl.querySelector('label');
             if (label) {
-                label.textContent = isQwen ? 'Qwen3 Speaker' : (isAzureSpeech ? 'Azure Voice' : row.dataset.speaker || 'Voice');
+                label.textContent = isQwen
+                    ? 'Qwen3 Speaker'
+                    : (isAzureSpeech ? 'Azure Voice'
+                        : (isEdgeTts ? 'Edge Voice'
+                            : (isElevenLabs ? 'ElevenLabs Voice' : row.dataset.speaker || 'Voice')));
             }
         }
         if (turboControl) {
@@ -1792,6 +1877,11 @@ let availableChatterboxVoices = [];
 let azureSpeechVoices = [];
 let azureSpeechVoicesPromise = null;
 const azureVoiceOptionState = {};
+let edgeTtsVoices = [];
+let edgeTtsVoicesPromise = null;
+let elevenLabsVoices = [];
+let elevenLabsModels = [];
+let elevenLabsCatalogPromise = null;
 let qwen3Metadata = null;
 let availableGeminiPromptPresets = [];
 
@@ -3771,7 +3861,9 @@ const engineDisplayNames = {
     'dots_tts': 'Dot.TTS · Voice Clone',
     'omnivoice_clone': 'OmniVoice · Clone',
     'omnivoice_design': 'OmniVoice · Design',
-    'azure_speech': 'Microsoft Azure Speech · Cloud'
+    'azure_speech': 'Microsoft Azure Speech · Cloud',
+    'edge_tts': 'Microsoft Edge TTS · Experimental Cloud',
+    'elevenlabs': 'ElevenLabs · Cloud'
 };
 
 // Update mode indicator based on engine name (called when dropdown changes)
@@ -4495,6 +4587,12 @@ async function applyProjectState(project) {
         if (isAzureSpeechEngine(project.engine)) {
             await loadAzureSpeechVoices();
         }
+        if (isEdgeTtsEngine(project.engine)) {
+            await loadEdgeTtsVoices();
+        }
+        if (isElevenLabsEngine(project.engine)) {
+            await loadElevenLabsCatalog();
+        }
     }
     const defaultVoice = document.getElementById('default-voice-select');
     if (defaultVoice && project.default_voice) defaultVoice.value = project.default_voice;
@@ -4938,14 +5036,38 @@ function initInlineSampleHandlers() {
 }
 
 // Populate voice select dropdowns
+function setCatalogVoicePlaceholder(label = 'Loading voices...') {
+    document.querySelectorAll('#inline-voice-assignment-list .voice-select, #speaker-edit-modal-body .voice-select')
+        .forEach(select => {
+            select.innerHTML = '';
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = label;
+            select.appendChild(option);
+        });
+}
+
 function populateVoiceSelects() {
     const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
     const isAzureSpeech = isAzureSpeechEngine(engineName);
+    const isEdgeTts = isEdgeTtsEngine(engineName);
+    const isElevenLabs = isElevenLabsEngine(engineName);
     if (isAzureSpeech && !azureSpeechVoices.length) {
+        setCatalogVoicePlaceholder('Loading Azure voices...');
         if (!azureSpeechVoicesPromise) loadAzureSpeechVoices();
         return;
     }
-    if (!window.availableVoices && !window.availablePocketTtsVoices && !isKittenEngine(engineName) && !isIndexTTSEngine(engineName) && !isDotsTTSEngine(engineName) && !isAzureSpeech) return;
+    if (isEdgeTts && !edgeTtsVoices.length) {
+        setCatalogVoicePlaceholder('Loading Edge voices...');
+        if (!edgeTtsVoicesPromise) loadEdgeTtsVoices();
+        return;
+    }
+    if (isElevenLabs && !elevenLabsVoices.length) {
+        setCatalogVoicePlaceholder('Loading ElevenLabs voices...');
+        if (!elevenLabsCatalogPromise) loadElevenLabsCatalog();
+        return;
+    }
+    if (!window.availableVoices && !window.availablePocketTtsVoices && !isKittenEngine(engineName) && !isIndexTTSEngine(engineName) && !isDotsTTSEngine(engineName) && !isCatalogCloudEngine(engineName)) return;
     const isQwen = isQwenEngine(engineName);
     const isPocketPreset = isPocketPresetEngine(engineName);
     const isKitten = isKittenEngine(engineName);
@@ -4961,6 +5083,10 @@ function populateVoiceSelects() {
             appendKittenVoiceOptions(select);
         } else if (isAzureSpeech) {
             appendAzureSpeechVoiceOptions(select);
+        } else if (isEdgeTts) {
+            appendProviderVoiceOptions(select, edgeTtsVoices, 'Edge voices');
+        } else if (isElevenLabs) {
+            appendProviderVoiceOptions(select, elevenLabsVoices, 'ElevenLabs voices');
         } else {
             appendVoiceOptions(select);
         }
@@ -5591,21 +5717,36 @@ function populateDefaultVoiceSelect() {
 
     const engineName = getSelectedJobEngine() || runtimeSettings?.tts_engine || 'kokoro';
     const isPocketPreset = isPocketPresetEngine(engineName);
-    if (!isPocketPreset && !window.availableVoices) {
+    const isCloudCatalog = isCatalogCloudEngine(engineName);
+    if (!isPocketPreset && !isCloudCatalog && !window.availableVoices) {
         return;
     }
     if (isPocketPreset && !window.availablePocketTtsVoices) {
         return;
     }
 
+    const configuredDefault = isAzureSpeechEngine(engineName)
+        ? runtimeSettings?.azure_speech_default_voice
+        : (isEdgeTtsEngine(engineName)
+            ? runtimeSettings?.edge_tts_default_voice
+            : (isElevenLabsEngine(engineName) ? runtimeSettings?.elevenlabs_default_voice : ''));
     const previousValue = select.value;
     select.innerHTML = '<option value="">Select Default Voice...</option>';
     if (isPocketPreset) {
         appendPocketPresetVoiceOptions(select);
+    } else if (isAzureSpeechEngine(engineName)) {
+        appendProviderVoiceOptions(select, azureSpeechVoices, 'Azure voices');
+    } else if (isEdgeTtsEngine(engineName)) {
+        appendProviderVoiceOptions(select, edgeTtsVoices, 'Edge voices');
+    } else if (isElevenLabsEngine(engineName)) {
+        appendProviderVoiceOptions(select, elevenLabsVoices, 'ElevenLabs voices');
     } else {
         appendVoiceOptions(select);
     }
     restoreSelectValue(select, previousValue);
+    if (!select.value && configuredDefault && Array.from(select.options).some(option => option.value === configuredDefault)) {
+        select.value = configuredDefault;
+    }
 }
 
 function appendAzureSpeechVoiceOptions(selectElement) {
@@ -5622,6 +5763,28 @@ function appendAzureSpeechVoiceOptions(selectElement) {
             const option = document.createElement('option');
             option.value = voice.short_name;
             option.textContent = `${voice.display_name || voice.short_name} · ${voice.gender || 'Unknown'} (${voice.short_name})`;
+            option.dataset.locale = voice.locale || '';
+            group.appendChild(option);
+        });
+        selectElement.appendChild(group);
+    });
+}
+
+function appendProviderVoiceOptions(selectElement, voices, fallbackLabel) {
+    const groups = new Map();
+    (voices || []).forEach(voice => {
+        const groupLabel = voice.locale_name || voice.locale || fallbackLabel;
+        if (!groups.has(groupLabel)) groups.set(groupLabel, []);
+        groups.get(groupLabel).push(voice);
+    });
+    groups.forEach((entries, groupLabel) => {
+        const group = document.createElement('optgroup');
+        group.label = groupLabel;
+        entries.forEach(voice => {
+            const option = document.createElement('option');
+            option.value = voice.short_name || voice.voice_id;
+            const details = [voice.gender, voice.category].filter(Boolean).join(' · ');
+            option.textContent = `${voice.display_name || option.value}${details ? ` · ${details}` : ''}`;
             option.dataset.locale = voice.locale || '';
             group.appendChild(option);
         });
@@ -5688,6 +5851,10 @@ function getLangCodeForVoice(voiceName) {
 
     const azureVoice = getAzureVoice(voiceName);
     if (azureVoice) return azureVoice.locale || 'en-US';
+
+    const providerVoice = [...edgeTtsVoices, ...elevenLabsVoices]
+        .find(voice => (voice.short_name || voice.voice_id) === voiceName);
+    if (providerVoice) return providerVoice.locale || '';
 
     if (!window.availableVoices) return 'a';
     
@@ -5861,7 +6028,7 @@ function getVoiceAssignments() {
             return;
         }
 
-        if (voiceName && (window.availableVoices || isAzureSpeechEngine(engineName))) {
+        if (voiceName && (window.availableVoices || isCatalogCloudEngine(engineName))) {
             const langCode = getLangCodeForVoice(voiceName);
             assignments[speaker] = createAssignment(voiceName, langCode, speaker);
             if (isAzureSpeechEngine(engineName)) {
@@ -6327,6 +6494,8 @@ async function awrPopulateVoiceSelect(engineName) {
     const isQwen = norm.includes('qwen3') && !norm.includes('clone');
     const isPocketPreset = norm.includes('pocketttspreset');
     const isAzureSpeech = norm.includes('azurespeech');
+    const isEdgeTts = norm.includes('edgetts');
+    const isElevenLabs = norm.includes('elevenlabs');
 
     try {
         if (usesPrompts) {
@@ -6370,6 +6539,18 @@ async function awrPopulateVoiceSelect(engineName) {
                     const opt = document.createElement('option');
                     opt.value = voice.short_name;
                     opt.textContent = `${voice.display_name || voice.short_name} (${voice.locale_name || voice.locale})`;
+                    select.appendChild(opt);
+                });
+            }
+        } else if (isEdgeTts || isElevenLabs) {
+            const endpoint = isEdgeTts ? '/api/edge-tts/voices' : '/api/elevenlabs/catalog';
+            const resp = await fetch(endpoint);
+            const data = await resp.json();
+            if (data.success && data.voices) {
+                data.voices.forEach(voice => {
+                    const opt = document.createElement('option');
+                    opt.value = voice.short_name || voice.voice_id;
+                    opt.textContent = `${voice.display_name || opt.value}${voice.locale ? ` (${voice.locale})` : ''}`;
                     select.appendChild(opt);
                 });
             }
