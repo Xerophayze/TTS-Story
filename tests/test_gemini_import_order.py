@@ -4,6 +4,7 @@ import ast
 import builtins
 import importlib
 import sys
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -42,6 +43,55 @@ class GeminiStartupTests(unittest.TestCase):
         self.assertTrue(engine_lines, "No engine imports found in app.py")
         self.assertEqual(1, len(gemini_lines))
         self.assertLess(max(engine_lines), gemini_lines[0])
+
+    def test_model_discovery_uses_lazy_loaded_modern_sdk(self) -> None:
+        from src.gemini_processor import GeminiProcessor
+
+        models_api = SimpleNamespace(
+            list=lambda: [
+                SimpleNamespace(name="models/gemini-2.5-flash"),
+                SimpleNamespace(name="models/gemini-2.5-pro"),
+            ]
+        )
+        sdk = SimpleNamespace(Client=lambda **_kwargs: SimpleNamespace(models=models_api))
+
+        with mock.patch(
+            "src.gemini_processor._load_genai_sdk",
+            return_value=(sdk, True),
+        ):
+            models = GeminiProcessor.list_available_models("test-key")
+
+        self.assertEqual(
+            ["models/gemini-2.5-flash", "models/gemini-2.5-pro"],
+            models,
+        )
+
+    def test_model_discovery_uses_lazy_loaded_legacy_sdk(self) -> None:
+        from src.gemini_processor import GeminiProcessor
+
+        configured = []
+        sdk = SimpleNamespace(
+            configure=lambda **kwargs: configured.append(kwargs),
+            list_models=lambda: [
+                SimpleNamespace(
+                    name="models/gemini-flash",
+                    supported_generation_methods=["generateContent"],
+                ),
+                SimpleNamespace(
+                    name="models/embedding-only",
+                    supported_generation_methods=["embedContent"],
+                ),
+            ],
+        )
+
+        with mock.patch(
+            "src.gemini_processor._load_genai_sdk",
+            return_value=(sdk, False),
+        ):
+            models = GeminiProcessor.list_available_models("legacy-key")
+
+        self.assertEqual([{"api_key": "legacy-key"}], configured)
+        self.assertEqual(["models/gemini-flash"], models)
 
 
 if __name__ == "__main__":

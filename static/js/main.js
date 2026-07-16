@@ -565,7 +565,7 @@ function getLanguageDisplayName(localeCode) {
     return LOCALE_NAMES[localeCode] || localeCode;
 }
 
-function openHelpModal(helpId) {
+function openLegacyHelpModal(helpId) {
     const topic = HELP_TOPICS[helpId];
     if (!topic) return;
     const overlay = document.getElementById('help-modal-overlay');
@@ -663,7 +663,7 @@ function renderHelpSearchResults(query, searchIndex, sectionMap) {
         `;
         button.addEventListener('click', () => {
             closeHelpSearchModal();
-            openHelpModal(match.id);
+            openLegacyHelpModal(match.id);
         });
         resultsContainer.appendChild(button);
     });
@@ -725,7 +725,7 @@ function buildHelpTopicsList() {
                 <div class="help-topic-title">${topic.title}</div>
                 <div class="help-topic-description">Click to read more.</div>
             `;
-            card.addEventListener('click', () => openHelpModal(topicId));
+            card.addEventListener('click', () => openLegacyHelpModal(topicId));
             grid.appendChild(card);
         });
         const header = sectionEl.querySelector('.help-topics-section-header');
@@ -740,14 +740,14 @@ function buildHelpTopicsList() {
     });
 }
 
-function initHelpSystem() {
+function initLegacyHelpSystem() {
     document.querySelectorAll('.help-icon').forEach(icon => {
         icon.addEventListener('click', event => {
             event.stopPropagation();
             event.preventDefault();
             const target = event.currentTarget;
             const helpId = target.dataset.helpId;
-            openHelpModal(helpId);
+            openLegacyHelpModal(helpId);
         });
     });
     const overlay = document.getElementById('help-modal-overlay');
@@ -2662,7 +2662,14 @@ async function _checkAndShowPrepResume() {
             saved.outputs.length,
             saved.sections.length,
             () => _runGeminiPrep(geminiBtn, inputEl.value, textHash, saved),
-            async () => { await _clearPrepProgress(textHash); }
+            async () => {
+                await _clearPrepProgress(textHash);
+                await _runGeminiPrep(geminiBtn, inputEl.value, textHash, null);
+            },
+            async () => {
+                await _clearPrepProgress(textHash);
+                showNotification('Prep aborted. All progress discarded.', 'error');
+            }
         );
     }
 }
@@ -2685,7 +2692,14 @@ async function processWithGemini(buttonEl) {
             savedProgress.outputs.length,
             savedProgress.sections.length,
             () => _runGeminiPrep(buttonEl, text, textHash, savedProgress),
-            async () => { await _clearPrepProgress(textHash); }
+            async () => {
+                await _clearPrepProgress(textHash);
+                await _runGeminiPrep(buttonEl, text, textHash, null);
+            },
+            async () => {
+                await _clearPrepProgress(textHash);
+                showNotification('Prep aborted. All progress discarded.', 'error');
+            }
         );
         return;
     }
@@ -2860,7 +2874,10 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
                     outputs.length,
                     sections.length,
                     () => _runGeminiPrep(buttonEl, text, textHash, { sections, outputs, known_speakers: Array.from(knownSpeakers) }),
-                    async () => { await _clearPrepProgress(textHash); },
+                    async () => {
+                        await _clearPrepProgress(textHash);
+                        await _runGeminiPrep(buttonEl, text, textHash, null);
+                    },
                     async () => { await _clearPrepProgress(textHash); showNotification('Prep aborted. All progress discarded.', 'error'); }
                 );
                 showNotification(`Prep paused at section ${outputs.length} of ${sections.length}. Progress saved — click Resume to continue.`, 'warning');
@@ -2892,7 +2909,10 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
                 saved.outputs.length,
                 saved.sections.length,
                 () => _runGeminiPrep(buttonEl, text, textHash, saved),
-                async () => { await _clearPrepProgress(textHash); },
+                async () => {
+                    await _clearPrepProgress(textHash);
+                    await _runGeminiPrep(buttonEl, text, textHash, null);
+                },
                 async () => { await _clearPrepProgress(textHash); showNotification('Prep aborted. All progress discarded.', 'error'); }
             );
             showNotification(`Prep stopped at section ${saved.outputs.length} of ${saved.sections.length}. Progress saved — click Resume to continue.`, 'warning');
@@ -3105,7 +3125,7 @@ document.addEventListener('DOMContentLoaded', () => {
             has_speaker_tags: false
         });
     }
-    initHelpSystem();
+    window.TTSStoryHelp?.init();
 });
 
 function initVoiceDropdownFilters() {
@@ -3178,24 +3198,65 @@ function hideAnalysis() {
 
 // Tab switching
 function initTabs() {
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    tabButtons.forEach(button => {
+    const tabList = document.querySelector('.tabs');
+    const tabButtons = Array.from(document.querySelectorAll('.tab-button'));
+    const tabContents = Array.from(document.querySelectorAll('.tab-content'));
+    if (!tabButtons.length) return;
+    if (tabList) {
+        tabList.setAttribute('role', 'tablist');
+        tabList.setAttribute('aria-label', 'TTS-Story pages');
+    }
+
+    function activateTab(button) {
+        const tabName = button.dataset.tab;
+
+        tabButtons.forEach(btn => {
+            const isActive = btn === button;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-selected', String(isActive));
+            btn.setAttribute('tabindex', isActive ? '0' : '-1');
+        });
+
+        tabContents.forEach(content => {
+            const isActive = content.id === `${tabName}-tab`;
+            content.classList.toggle('active', isActive);
+            content.setAttribute('aria-hidden', String(!isActive));
+        });
+    }
+
+    tabButtons.forEach((button, index) => {
+        const tabName = button.dataset.tab;
+        const panel = document.getElementById(`${tabName}-tab`);
+        button.id = button.id || `${tabName}-tab-button`;
+        button.setAttribute('role', 'tab');
+        button.setAttribute('aria-controls', `${tabName}-tab`);
+        if (panel) {
+            panel.setAttribute('role', 'tabpanel');
+            panel.setAttribute('aria-labelledby', button.id);
+        }
         button.addEventListener('click', () => {
-            const tabName = button.dataset.tab;
-            
-            // Update buttons
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            
-            // Update content
-            tabContents.forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`${tabName}-tab`).classList.add('active');
+            activateTab(button);
+        });
+        button.addEventListener('keydown', event => {
+            let targetIndex = null;
+            if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                targetIndex = (index + 1) % tabButtons.length;
+            } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                targetIndex = (index - 1 + tabButtons.length) % tabButtons.length;
+            } else if (event.key === 'Home') {
+                targetIndex = 0;
+            } else if (event.key === 'End') {
+                targetIndex = tabButtons.length - 1;
+            }
+            if (targetIndex === null) return;
+            event.preventDefault();
+            const target = tabButtons[targetIndex];
+            target.click();
+            target.focus();
         });
     });
+
+    activateTab(tabButtons.find(button => button.classList.contains('active')) || tabButtons[0]);
 }
 
 // Setup event listeners
@@ -6490,9 +6551,12 @@ async function awrPopulateVoiceSelect(engineName) {
     const usesPrompts = norm.includes('chatterbox') || norm.includes('voxcpm')
         || (norm.includes('pockettts') && !norm.includes('pocketttspreset'))
         || (norm.includes('qwen3') && norm.includes('clone'))
+        || norm.includes('omnivoice')
+        || norm.includes('indextts')
         || norm.includes('dotstts');
     const isQwen = norm.includes('qwen3') && !norm.includes('clone');
     const isPocketPreset = norm.includes('pocketttspreset');
+    const isKittenTts = norm.includes('kittentts');
     const isAzureSpeech = norm.includes('azurespeech');
     const isEdgeTts = norm.includes('edgetts');
     const isElevenLabs = norm.includes('elevenlabs');
@@ -6531,6 +6595,13 @@ async function awrPopulateVoiceSelect(engineName) {
                     select.appendChild(opt);
                 });
             }
+        } else if (isKittenTts) {
+            KITTEN_TTS_VOICES.forEach(voiceName => {
+                const opt = document.createElement('option');
+                opt.value = voiceName;
+                opt.textContent = voiceName;
+                select.appendChild(opt);
+            });
         } else if (isAzureSpeech) {
             const resp = await fetch('/api/azure-speech/voices');
             const data = await resp.json();

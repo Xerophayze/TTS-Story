@@ -50,6 +50,8 @@ from src.custom_voice_store import (
     save_custom_voice,
 )
 from src.document_extractor import extract_text_from_file, get_supported_formats
+from src.help_center import create_help_blueprint
+from src.library_metadata import get_custom_chapter_title
 from src.atlas_cloud_processor import (
     AtlasCloudProcessor,
     AtlasCloudProcessorError,
@@ -153,6 +155,7 @@ logging.getLogger('werkzeug').setLevel(logging.WARNING)
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+app.register_blueprint(create_help_blueprint())
 
 # Configuration
 CONFIG_FILE = "config.json"
@@ -9165,16 +9168,25 @@ def _update_metadata_chapter(job_id: str, job_dir: Path, chapter_entry: Dict[str
     rel_path = chapter_entry.get("relative_path")
     chapter_index = chapter_entry.get("index")
     updated = False
-    for entry in chapters:
+    for position, entry in enumerate(chapters):
         if rel_path and entry.get("relative_path") == rel_path:
+            custom_title = get_custom_chapter_title(metadata, chapter_index, position)
+            if custom_title:
+                chapter_entry["title"] = custom_title
             entry.update(chapter_entry)
             updated = True
             break
         if chapter_index is not None and entry.get("index") == chapter_index:
+            custom_title = get_custom_chapter_title(metadata, chapter_index, position)
+            if custom_title:
+                chapter_entry["title"] = custom_title
             entry.update(chapter_entry)
             updated = True
             break
     if not updated:
+        custom_title = get_custom_chapter_title(metadata, chapter_index)
+        if custom_title:
+            chapter_entry["title"] = custom_title
         chapters.append(chapter_entry)
     metadata["chapters"] = chapters
     metadata["chapter_count"] = len(chapters)

@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TTS-Story - Multi-Voice TTS</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2326324a'/%3E%3Cpath d='M18 22h6v20h-6zM28 22h6v20h-6zM38 22h6v20h-6z' fill='%23a78bfa'/%3E%3Ccircle cx='32' cy='16' r='4' fill='%23fcd34d'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23fcd34d'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="/static/css/style.css?v=32">
+    <link rel="stylesheet" href="/static/css/style.css?v=33">
+    <link rel="stylesheet" href="/static/css/help.css?v=3">
 </head>
 <body>
     <div class="container">
@@ -355,7 +356,10 @@
         <div id="queue-tab" class="tab-content">
             <div class="queue-header">
                 <div>
-                    <h2>Job Queue</h2>
+                    <div class="section-title-inline">
+                        <h2>Job Queue</h2>
+                        <button type="button" class="help-icon" data-help-id="job-queue" aria-label="Help: Job Queue">?</button>
+                    </div>
                     <p>Monitor active and pending audio generation jobs.</p>
                 </div>
                 <div style="display:flex;gap:8px;">
@@ -1168,6 +1172,7 @@
                         <div class="engine-panel" id="engine-panel-pocket-tts">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>Pocket TTS</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-pocket-tts" aria-label="Help: Pocket TTS">?</button>
                             </div>
                             <p class="help-text" style="margin-top:0;">CPU-only Pocket TTS with voice prompts (.wav/.mp3 or .safetensors). Built-in voices run faster than cloning prompts.</p>
                             <div class="settings-form-grid">
@@ -1223,8 +1228,9 @@
                         <div class="engine-panel" id="engine-panel-kitten-tts">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>KittenTTS</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-kitten-tts" aria-label="Help: KittenTTS">?</button>
                             </div>
-                            <p class="help-text" style="margin-top:0;">Ultra-lightweight (&lt;25MB) CPU-only TTS. No GPU required. Install: <code>pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl</code></p>
+                            <p class="help-text" style="margin-top:0;">Lightweight CPU-only TTS with model choices from roughly 25–80 MB; the recommended mini model is about 80 MB. No GPU required. Setup installs the supported runtime automatically.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="kitten-tts-model-id">Model ID</label>
@@ -1262,13 +1268,14 @@
                         <div class="engine-panel" id="engine-panel-index-tts">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>IndexTTS</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-index-tts" aria-label="Help: IndexTTS">?</button>
                             </div>
                             <p class="help-text" style="margin-top:0;">Zero-shot voice cloning by Bilibili. Requires an isolated venv under <code>engines/index-tts/</code>. Uses the existing Voice Prompts library for reference audio.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="index-tts-model-version">Model Version</label>
                                     <select id="index-tts-model-version">
-                                        <option value="IndexTTS-2">IndexTTS-2 (recommended, emotion control)</option>
+                                        <option value="IndexTTS-2">IndexTTS-2 (recommended cloning model)</option>
                                         <option value="IndexTTS-1.5">IndexTTS-1.5 (stable, English-improved)</option>
                                         <option value="IndexTTS">IndexTTS-1.0 (legacy)</option>
                                     </select>
@@ -1355,6 +1362,7 @@
                         <div class="engine-panel" id="engine-panel-dots-tts">
                             <div class="section-title-inline settings-panel-title">
                                 <h4>Dot.TTS</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-dots-tts" aria-label="Help: Dot.TTS">?</button>
                             </div>
                             <p class="help-text" style="margin-top:0;">2B zero-shot voice cloning by RedNote. Requires an isolated venv under <code>engines/dots-tts/</code>. Reference audio should include matching transcript text.</p>
                             <div class="settings-form-grid">
@@ -1997,34 +2005,93 @@
         </div>
     </div>
 
-    <div class="modal-overlay hidden" id="help-search-modal-overlay">
-        <div class="modal hidden" id="help-search-modal" style="max-width: 720px; width: 95%;">
-            <div class="modal-header">
-                <h3>Search Help</h3>
-                <button class="modal-close" id="help-search-modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="help-search-input">Search topics</label>
-                    <input type="text" id="help-search-input" placeholder="Type a topic name or keyword">
-                </div>
-                <div id="help-search-results" class="help-search-results"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="help-search-close-btn">Close</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Help Tab -->
     <div id="help-tab" class="tab-content">
-        <div class="section">
-            <div class="section-title-inline">
-                <h2>Help Center</h2>
-                <button id="help-search-btn" class="btn btn-secondary btn-sm" type="button">Search</button>
+        <div class="help-center" aria-labelledby="help-center-title">
+            <header class="help-center-hero">
+                <div class="help-center-hero-copy">
+                    <div class="help-center-eyebrow">
+                        <span>Bundled user guide</span>
+                        <span id="help-center-version">Loading guide…</span>
+                    </div>
+                    <h2 id="help-center-title">Make your first line—and your whole audiobook—with confidence.</h2>
+                    <p>Follow complete workflows, compare every engine, configure optional online services, and learn how to review or repair audio without starting over.</p>
+                </div>
+                <div class="help-center-search-wrap" role="search">
+                    <label for="help-center-search">Search the guide</label>
+                    <div class="help-center-search-control">
+                        <span class="help-center-search-icon" aria-hidden="true">⌕</span>
+                        <input
+                            id="help-center-search"
+                            type="search"
+                            autocomplete="off"
+                            placeholder="Try “first audio”, “429”, “voice clone”, or an engine name"
+                            aria-controls="help-center-search-results"
+                            aria-expanded="false"
+                        >
+                        <button id="help-center-search-clear" class="help-center-search-clear hidden" type="button">Clear</button>
+                        <kbd>/</kbd>
+                    </div>
+                    <div id="help-center-search-results" class="help-center-search-results hidden" aria-live="polite"></div>
+                </div>
+            </header>
+
+            <div id="help-center-status" class="help-center-status hidden" role="status" aria-live="polite"></div>
+
+            <div id="help-center-home" class="help-center-home">
+                <section class="help-start-panel" aria-labelledby="help-start-title">
+                    <div>
+                        <span class="help-start-kicker">New to TTS-Story?</span>
+                        <h3 id="help-start-title">Take the guided path</h3>
+                        <p>These five guides take you from the opening screen to reviewed audio while preserving safe defaults.</p>
+                    </div>
+                    <div class="help-start-steps">
+                        <button type="button" data-help-article="first-run"><span>1</span>First-run checklist</button>
+                        <button type="button" data-help-article="choose-engine"><span>2</span>Choose an engine</button>
+                        <button type="button" data-help-article="online-services"><span>3</span>Optional online setup</button>
+                        <button type="button" data-help-article="quick-start"><span>4</span>Generate first audio</button>
+                        <button type="button" data-help-article="job-review"><span>5</span>Review and correct</button>
+                    </div>
+                </section>
+                <div id="help-center-categories" class="help-center-categories"></div>
             </div>
-            <p class="help-text">Browse tips and walkthroughs for each part of the Generate page.</p>
-            <div id="help-topics-list" class="help-topics-list"></div>
+
+            <div id="help-center-reader" class="help-center-reader hidden">
+                <aside class="help-center-sidebar" aria-label="User guide topics">
+                    <button id="help-center-home-button" class="help-center-all-topics" type="button">← All topics</button>
+                    <nav id="help-center-sidebar-nav"></nav>
+                </aside>
+
+                <main class="help-center-article-panel">
+                    <div class="help-center-toolbar">
+                        <span id="help-center-breadcrumb">User Guide</span>
+                        <button id="help-center-back-to-app" class="btn btn-secondary btn-sm" type="button">Back to Generate</button>
+                    </div>
+                    <header class="help-center-article-header">
+                        <h1 id="help-center-article-title">Guide</h1>
+                        <p id="help-center-article-summary"></p>
+                        <span id="help-center-article-meta"></span>
+                    </header>
+                    <nav id="help-center-toc" class="help-center-toc hidden" aria-label="On this page"></nav>
+                    <article id="help-center-article-body" class="help-center-article"></article>
+
+                    <section id="help-center-related" class="help-center-related hidden">
+                        <h2>Keep going</h2>
+                        <div id="help-center-related-links"></div>
+                    </section>
+
+                    <nav class="help-center-article-nav" aria-label="Previous and next guides">
+                        <button id="help-center-previous" class="help-article-nav-button hidden" type="button">
+                            <span>← Previous</span>
+                            <span></span>
+                        </button>
+                        <button id="help-center-next" class="help-article-nav-button help-article-nav-next hidden" type="button">
+                            <span>Next →</span>
+                            <span></span>
+                        </button>
+                    </nav>
+                </main>
+            </div>
         </div>
     </div>
 
@@ -2225,24 +2292,14 @@
         </div>
     </div>
 
-    <div class="modal-overlay hidden" id="help-modal-overlay">
-        <div class="modal hidden" id="help-modal" style="max-width: 720px; width: 95%;">
-            <div class="modal-header">
-                <h3 id="help-modal-title">Help</h3>
-                <button class="modal-close" id="help-modal-close">&times;</button>
-            </div>
-            <div class="modal-body" id="help-modal-body"></div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="help-modal-close-btn">Close</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Alt Word Registry Modal -->
     <div class="modal-overlay hidden" id="alt-word-registry-overlay">
         <div class="modal hidden" id="alt-word-registry-modal" style="max-width: 760px; width: 95%;">
             <div class="modal-header">
-                <h3>🔤 Alt Word Registry</h3>
+                <div class="section-title-inline">
+                    <h3>🔤 Alt Word Registry</h3>
+                    <button type="button" class="help-icon" data-help-id="alt-word-registry" aria-label="Help: Alternate Word Registry">?</button>
+                </div>
                 <button class="modal-close" id="alt-word-registry-close">&times;</button>
             </div>
             <div class="modal-body">
@@ -2301,14 +2358,22 @@
                             <div class="awr-preview-field">
                                 <label class="awr-label" for="awr-preview-engine">TTS Engine</label>
                                 <select id="awr-preview-engine" class="awr-select">
-                                    <option value="kokoro">Kokoro</option>
-                                    <option value="chatterbox_turbo_local">Chatterbox</option>
-                                    <option value="chatterbox_turbo_api">Chatterbox API</option>
+                                    <option value="kokoro">Kokoro · Local</option>
+                                    <option value="kokoro_replicate">Kokoro · Replicate</option>
+                                    <option value="chatterbox_turbo_local">Chatterbox · Local</option>
+                                    <option value="chatterbox_turbo_replicate">Chatterbox · Replicate</option>
                                     <option value="voxcpm_local">VoxCPM 1.5</option>
                                     <option value="pocket_tts">Pocket TTS · Clone</option>
                                     <option value="pocket_tts_preset">Pocket TTS · Preset</option>
-                                    <option value="qwen3_custom">Qwen3-TTS</option>
+                                    <option value="qwen3_custom">Qwen3-TTS · Custom Voice</option>
                                     <option value="qwen3_clone">Qwen3-TTS · Clone</option>
+                                    <option value="omnivoice_clone">OmniVoice · Clone</option>
+                                    <option value="kitten_tts">KittenTTS</option>
+                                    <option value="index_tts">IndexTTS</option>
+                                    <option value="dots_tts">Dot.TTS</option>
+                                    <option value="azure_speech">Microsoft Azure Speech</option>
+                                    <option value="edge_tts">Microsoft Edge TTS</option>
+                                    <option value="elevenlabs">ElevenLabs</option>
                                 </select>
                             </div>
                             <div class="awr-preview-field awr-preview-field-voice">
@@ -2333,9 +2398,10 @@
         </div>
     </div>
 
-    <script src="/static/js/main.js?v=37"></script>
+    <script src="/static/js/help.js?v=3"></script>
+    <script src="/static/js/main.js?v=39"></script>
     <script src="/static/js/queue.js?v=4"></script>
-    <script src="/static/js/library.js?v=37"></script>
+    <script src="/static/js/library.js?v=38"></script>
     <script src="/static/js/voice-manager.js?v=14"></script>
     <script src="/static/js/settings.js?v=10"></script>
 </body>

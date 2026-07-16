@@ -306,9 +306,6 @@ function wireBookToggleEvents() {
         });
     });
 
-    if (typeof initHelpSystem === 'function') {
-        initHelpSystem();
-    }
 }
 
 // Library voice dropdown filter state
@@ -825,9 +822,6 @@ function displayLibraryItems(items) {
         document.body.dataset.chapterMenuBound = 'true';
     }
 
-    if (typeof initHelpSystem === 'function') {
-        initHelpSystem();
-    }
 }
 
 // Library Metrics Modal
@@ -1729,9 +1723,6 @@ function renderChunkReviewModal(data) {
     wireChapterRebuildEvents(jobId);
     wireChapterReviewRebuildEvent(jobId, data.review_chapter_index);
     wireBatchRebuildEvents(jobId, chunks, engine);
-    if (typeof initHelpSystem === 'function') {
-        initHelpSystem();
-    }
 }
 
 function wireChapterReviewRebuildEvent(jobId, chapterIndex) {
@@ -2878,8 +2869,11 @@ async function populateLibraryVoiceSelects(engine) {
             || engineName.includes('voxcpm')
             || (engineName.includes('pockettts') && !isPocketPreset)
             || (engineName.includes('qwen3') && engineName.includes('clone'))
+            || (engineName.includes('omnivoice') && engineName.includes('clone'))
+            || engineName.includes('indextts')
             || engineName.includes('dotstts');
         const isQwenEngine = engineName.includes('qwen3');
+        const isKittenTts = engineName.includes('kittentts');
         const isAzureSpeech = engineName.includes('azurespeech');
         const isEdgeTts = engineName.includes('edgetts');
         const isElevenLabs = engineName.includes('elevenlabs');
@@ -2918,6 +2912,9 @@ async function populateLibraryVoiceSelects(engine) {
                         isPrompt: false
                     }));
                 }
+            } else if (isKittenTts) {
+                chunkVoices = ['Bella', 'Jasper', 'Luna', 'Bruno', 'Rosie', 'Hugo', 'Kiki', 'Leo']
+                    .map(voice => ({ id: voice, name: voice, isPrompt: false }));
             } else if (isAzureSpeech) {
                 const data = await getAzureSpeechVoicesCached();
                 if (data.success && data.voices) {
@@ -3022,8 +3019,11 @@ async function populateLibraryVoiceSelects(engine) {
             || engineName.includes('voxcpm')
             || (engineName.includes('pockettts') && !isPocketPreset)
             || (engineName.includes('qwen3') && engineName.includes('clone'))
+            || (engineName.includes('omnivoice') && engineName.includes('clone'))
+            || engineName.includes('indextts')
             || engineName.includes('dotstts');
         const isQwenEngine = engineName.includes('qwen3');
+        const isKittenTts = engineName.includes('kittentts');
         const isAzureSpeech = engineName.includes('azurespeech');
         const isEdgeTts = engineName.includes('edgetts');
         const isElevenLabs = engineName.includes('elevenlabs');
@@ -3062,6 +3062,9 @@ async function populateLibraryVoiceSelects(engine) {
                         isPrompt: false
                     }));
                 }
+            } else if (isKittenTts) {
+                bulkVoices = ['Bella', 'Jasper', 'Luna', 'Bruno', 'Rosie', 'Hugo', 'Kiki', 'Leo']
+                    .map(voice => ({ id: voice, name: voice, isPrompt: false }));
             } else if (isAzureSpeech) {
                 const data = await getAzureSpeechVoicesCached();
                 if (data.success && data.voices) {
@@ -3163,9 +3166,10 @@ async function populateLibraryVoiceSelects(engine) {
         select.dataset.selectedEngine = '';
         select.innerHTML = `
             <option value="">${currentEngineLabel}</option>
-            <option value="kokoro">Kokoro</option>
-            <option value="chatterbox_turbo_local">Chatterbox</option>
-            <option value="chatterbox_turbo_api">Chatterbox API</option>
+            <option value="kokoro">Kokoro · Local</option>
+            <option value="kokoro_replicate">Kokoro · Replicate</option>
+            <option value="chatterbox_turbo_local">Chatterbox · Local</option>
+            <option value="chatterbox_turbo_replicate">Chatterbox · Replicate</option>
             <option value="voxcpm_local">VoxCPM 1.5</option>
             <option value="pocket_tts">Pocket TTS · Clone Voices</option>
             <option value="pocket_tts_preset">Pocket TTS · Preset Voices</option>
@@ -3173,6 +3177,8 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="qwen3_clone">Qwen3-TTS · Voice Clone</option>
             <option value="omnivoice_clone">OmniVoice · Voice Clone</option>
             <option value="omnivoice_design">OmniVoice · Voice Design</option>
+            <option value="kitten_tts">KittenTTS</option>
+            <option value="index_tts">IndexTTS</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
             <option value="azure_speech">Microsoft Azure Speech</option>
             <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
@@ -3303,9 +3309,10 @@ async function populateLibraryVoiceSelects(engine) {
         const speaker = select.getAttribute('data-speaker');
         select.innerHTML = `
             <option value="">-- Same engine --</option>
-            <option value="kokoro">Kokoro</option>
-            <option value="chatterbox_turbo_local">Chatterbox</option>
-            <option value="chatterbox_turbo_api">Chatterbox API</option>
+            <option value="kokoro">Kokoro · Local</option>
+            <option value="kokoro_replicate">Kokoro · Replicate</option>
+            <option value="chatterbox_turbo_local">Chatterbox · Local</option>
+            <option value="chatterbox_turbo_replicate">Chatterbox · Replicate</option>
             <option value="voxcpm_local">VoxCPM 1.5</option>
             <option value="pocket_tts">Pocket TTS · Clone Voices</option>
             <option value="pocket_tts_preset">Pocket TTS · Preset Voices</option>
@@ -3313,6 +3320,8 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="qwen3_clone">Qwen3-TTS · Voice Clone</option>
             <option value="omnivoice_clone">OmniVoice · Voice Clone</option>
             <option value="omnivoice_design">OmniVoice · Voice Design</option>
+            <option value="kitten_tts">KittenTTS</option>
+            <option value="index_tts">IndexTTS</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
             <option value="azure_speech">Microsoft Azure Speech</option>
             <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
@@ -4254,14 +4263,22 @@ function _ensureLibraryAwrEntryModal() {
                             <div class="awr-preview-field">
                                 <label class="awr-label">TTS Engine</label>
                                 <select id="lib-awr-preview-engine" class="awr-select">
-                                    <option value="kokoro">Kokoro</option>
-                                    <option value="chatterbox_turbo_local">Chatterbox</option>
-                                    <option value="chatterbox_turbo_api">Chatterbox API</option>
+                                    <option value="kokoro">Kokoro · Local</option>
+                                    <option value="kokoro_replicate">Kokoro · Replicate</option>
+                                    <option value="chatterbox_turbo_local">Chatterbox · Local</option>
+                                    <option value="chatterbox_turbo_replicate">Chatterbox · Replicate</option>
                                     <option value="voxcpm_local">VoxCPM 1.5</option>
                                     <option value="pocket_tts">Pocket TTS · Clone</option>
                                     <option value="pocket_tts_preset">Pocket TTS · Preset</option>
-                                    <option value="qwen3_custom">Qwen3-TTS</option>
+                                    <option value="qwen3_custom">Qwen3-TTS · Custom Voice</option>
                                     <option value="qwen3_clone">Qwen3-TTS · Clone</option>
+                                    <option value="omnivoice_clone">OmniVoice · Clone</option>
+                                    <option value="kitten_tts">KittenTTS</option>
+                                    <option value="index_tts">IndexTTS</option>
+                                    <option value="dots_tts">Dot.TTS</option>
+                                    <option value="azure_speech">Microsoft Azure Speech</option>
+                                    <option value="edge_tts">Microsoft Edge TTS</option>
+                                    <option value="elevenlabs">ElevenLabs</option>
                                 </select>
                             </div>
                             <div class="awr-preview-field awr-preview-field-voice">
@@ -4350,9 +4367,12 @@ async function _libAwrPopulateVoices(engineName) {
     const usesPrompts = norm.includes('chatterbox') || norm.includes('voxcpm')
         || (norm.includes('pockettts') && !norm.includes('pocketttspreset'))
         || (norm.includes('qwen3') && norm.includes('clone'))
+        || (norm.includes('omnivoice') && norm.includes('clone'))
+        || norm.includes('indextts')
         || norm.includes('dotstts');
     const isQwen = norm.includes('qwen3') && !norm.includes('clone');
     const isPocketPreset = norm.includes('pocketttspreset');
+    const isKittenTts = norm.includes('kittentts');
     const isAzureSpeech = norm.includes('azurespeech');
     const isEdgeTts = norm.includes('edgetts');
     const isElevenLabs = norm.includes('elevenlabs');
@@ -4391,6 +4411,13 @@ async function _libAwrPopulateVoices(engineName) {
                     select.appendChild(opt);
                 });
             }
+        } else if (isKittenTts) {
+            ['Bella', 'Jasper', 'Luna', 'Bruno', 'Rosie', 'Hugo', 'Kiki', 'Leo'].forEach(voiceName => {
+                const opt = document.createElement('option');
+                opt.value = voiceName;
+                opt.textContent = voiceName;
+                select.appendChild(opt);
+            });
         } else if (isAzureSpeech) {
             const resp = await fetch('/api/azure-speech/voices');
             const data = await resp.json();

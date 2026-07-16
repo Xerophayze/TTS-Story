@@ -51,8 +51,8 @@ huggingface-hub
 # Pocket TTS runtime
 pocket-tts==1.0.3
 
-# KittenTTS runtime (CPU-only, <25MB model)
-# Install manually: pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl
+# KittenTTS runtime (CPU-only; default mini model ~80MB, nano-int8 ~25MB)
+# Installed automatically by setup.bat from the pinned 0.8.0 wheel.
 
 # Extra language-specific dependencies
 pyopenjtalk

@@ -1,6 +1,7 @@
 """KittenTTS engine adapter.
 
-KittenTTS is an ultra-lightweight (<25MB) CPU-optimized TTS engine.
+KittenTTS is a lightweight CPU-optimized TTS engine. The recommended mini
+model is about 80 MB; the experimental nano-int8 option is about 25 MB.
 Install: pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl
 """
 from __future__ import annotations

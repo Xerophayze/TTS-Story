@@ -139,7 +139,10 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         # Convert MP3 to WAV to prevent artifacts
         from ..audio_effects import convert_mp3_to_wav_if_needed
         prompt_path, temp_mp3_conv = convert_mp3_to_wav_if_needed(prompt_path)
-        ref_text = self._get_ref_text(prompt_path)
+        ref_text = self._resolve_ref_text(
+            prompt_path,
+            _kwargs.get("prompt_text") or self.default_prompt_text,
+        )
 
         try:
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -230,7 +233,10 @@ class OmniVoiceCloneEngine(TtsEngineBase):
             prompt_path = self._resolve_prompt_path(
                 assignment.audio_prompt_path or self.default_prompt
             )
-            ref_text = self._get_ref_text(prompt_path) if prompt_path else None
+            prompt_text = (assignment.extra or {}).get("prompt_text")
+            if not prompt_text and not assignment.audio_prompt_path:
+                prompt_text = self.default_prompt_text
+            ref_text = self._resolve_ref_text(prompt_path, prompt_text) if prompt_path else None
             fx_settings = VoiceFXSettings.from_payload(assignment.fx_payload)
             spd = assignment.speed_override or speed
 
@@ -413,6 +419,15 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         key_data = f"{path.name}:{stat.st_size}:{stat.st_mtime}"
         cache_key = hashlib.md5(key_data.encode()).hexdigest()[:16]
         return self._transcript_cache.get(cache_key)
+
+    def _resolve_ref_text(
+        self,
+        prompt_path: str,
+        explicit_text: Optional[str] = None,
+    ) -> Optional[str]:
+        """Prefer the transcript supplied by Settings or the speaker assignment."""
+        normalized = str(explicit_text or "").strip()
+        return normalized or self._get_ref_text(prompt_path)
 
     def _load_persistent_transcripts(self) -> None:
         if self._transcripts_file.exists():

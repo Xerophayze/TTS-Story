@@ -111,6 +111,7 @@ class GeminiProcessor:
     def list_available_models(cls, api_key: str) -> list[str]:
         """Return list of Gemini models that support text generation."""
 
+        genai, using_new_sdk = _load_genai_sdk()
         if genai is None:
             raise GeminiProcessorError(
                 "google-genai is not installed. Please install it to use Gemini features: pip install google-genai"
@@ -120,7 +121,7 @@ class GeminiProcessor:
             raise GeminiProcessorError("Gemini API key is required")
 
         try:
-            if USING_NEW_SDK:
+            if using_new_sdk:
                 client = genai.Client(api_key=api_key)
                 models = client.models.list()
                 available = []

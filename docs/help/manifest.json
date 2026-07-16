@@ -1,0 +1,581 @@
+{
+  "title": "TTS-Story User Guide",
+  "subtitle": "From first launch to a finished, reviewed audiobook",
+  "version": "2026.07.15.1",
+  "categories": [
+    {
+      "id": "start-here",
+      "title": "Start Here",
+      "description": "Understand the workflow, complete first-run choices, and make your first audio.",
+      "article_ids": [
+        "welcome",
+        "first-run",
+        "choose-engine",
+        "online-services",
+        "quick-start",
+        "workflow-map"
+      ]
+    },
+    {
+      "id": "create-audio",
+      "title": "Create Audio",
+      "description": "Prepare text, identify speakers, assign voices, and configure a generation job.",
+      "article_ids": [
+        "input-text",
+        "speaker-tags",
+        "prep-text",
+        "alt-word-registry",
+        "text-statistics",
+        "assign-voices",
+        "generation-options",
+        "chapters-and-sections",
+        "projects"
+      ]
+    },
+    {
+      "id": "tts-engines",
+      "title": "TTS Engines",
+      "description": "Choose an engine and learn the controls, strengths, tradeoffs, and best practices for each one.",
+      "article_ids": [
+        "engine-overview",
+        "engine-kokoro",
+        "engine-chatterbox",
+        "engine-voxcpm",
+        "engine-pocket-tts",
+        "engine-qwen3",
+        "engine-omnivoice",
+        "engine-kitten-tts",
+        "engine-index-tts",
+        "engine-dots-tts",
+        "engine-azure-speech",
+        "engine-edge-tts",
+        "engine-elevenlabs"
+      ]
+    },
+    {
+      "id": "llm-preparation",
+      "title": "LLM Text Preparation",
+      "description": "Configure Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama and preserve your source text safely.",
+      "article_ids": [
+        "llm-overview",
+        "llm-cloud",
+        "llm-local",
+        "llm-prompts"
+      ]
+    },
+    {
+      "id": "jobs",
+      "title": "Jobs and Review",
+      "description": "Monitor generation, interpret timing, and correct individual chunks without starting over.",
+      "article_ids": [
+        "job-queue",
+        "job-review",
+        "generation-times"
+      ]
+    },
+    {
+      "id": "library",
+      "title": "Audio Library",
+      "description": "Play, repair, rebuild, package, and download completed projects.",
+      "article_ids": [
+        "audio-library",
+        "library-editing-repair",
+        "audiobook-exports"
+      ]
+    },
+    {
+      "id": "voices",
+      "title": "Voices",
+      "description": "Browse built-ins, make Kokoro blends, manage reference clips, and design new voices.",
+      "article_ids": [
+        "available-voices",
+        "kokoro-voices",
+        "custom-kokoro-blends",
+        "voice-prompts",
+        "voice-creation",
+        "auto-assign-voices"
+      ]
+    },
+    {
+      "id": "settings-performance",
+      "title": "Settings and Performance",
+      "description": "Understand defaults, tune quality and speed, and know where local data is stored.",
+      "article_ids": [
+        "settings",
+        "settings-audio",
+        "performance-tuning",
+        "data-storage"
+      ]
+    },
+    {
+      "id": "troubleshooting",
+      "title": "Troubleshooting",
+      "description": "Resolve common cloud, GPU, CPU, pronunciation, and job problems and prepare useful bug reports.",
+      "article_ids": [
+        "troubleshooting-overview",
+        "cloud-errors",
+        "gpu-cpu-errors",
+        "audio-quality",
+        "report-an-issue"
+      ]
+    }
+  ],
+  "aliases": {
+    "paralinguistic-tags": "speaker-tags",
+    "speaker-edit": "assign-voices",
+    "audio-library-actions": "audio-library",
+    "qwen-voice-creation": "voice-creation",
+    "settings-quick": "settings",
+    "settings-engines": "engine-overview",
+    "settings-llm": "llm-overview",
+    "engine-api-keys": "online-services",
+    "engine-chatterbox-local": "engine-chatterbox",
+    "engine-chatterbox-cloud": "engine-chatterbox"
+  },
+  "articles": [
+    {
+      "id": "welcome",
+      "file": "start-here/welcome.md",
+      "title": "Welcome to TTS-Story",
+      "summary": "Learn what each page does and how a manuscript becomes a reviewed audiobook.",
+      "keywords": ["overview", "interface", "navigation", "beginner"],
+      "related": ["quick-start", "workflow-map", "choose-engine"]
+    },
+    {
+      "id": "first-run",
+      "file": "start-here/first-run.md",
+      "title": "First-Run Checklist",
+      "summary": "Confirm local capabilities and configure only the online services you plan to use.",
+      "keywords": ["setup", "health", "cuda", "api key", "credentials", "restart"],
+      "related": ["online-services", "choose-engine", "settings"]
+    },
+    {
+      "id": "quick-start",
+      "file": "start-here/quick-start.md",
+      "title": "Generate Your First Audio",
+      "summary": "A safe end-to-end walkthrough from pasted text to a completed Library item.",
+      "keywords": ["first audio", "tutorial", "generate", "beginner", "walkthrough"],
+      "related": ["input-text", "assign-voices", "job-queue"]
+    },
+    {
+      "id": "workflow-map",
+      "file": "start-here/workflow-map.md",
+      "title": "How the Pages Work Together",
+      "summary": "See how Generate, Job Queue, Library, Available Voices, and Settings share one workflow.",
+      "keywords": ["workflow", "generate", "queue", "library", "voices", "settings"],
+      "related": ["welcome", "job-queue", "audio-library"]
+    },
+    {
+      "id": "choose-engine",
+      "file": "start-here/choose-engine.md",
+      "title": "Choose the Right Engine",
+      "summary": "Select a practical local or cloud engine based on hardware, voice needs, language, privacy, and budget.",
+      "keywords": ["engine comparison", "local", "cloud", "cpu", "gpu", "voice cloning"],
+      "related": ["engine-overview", "generation-times", "online-services"]
+    },
+    {
+      "id": "online-services",
+      "file": "start-here/online-services.md",
+      "title": "Configure Online Services Safely",
+      "summary": "Set up cloud LLM and speech providers, protect API keys, and understand cost and privacy boundaries.",
+      "keywords": ["api keys", "cloud", "privacy", "billing", "Replicate", "Azure", "ElevenLabs"],
+      "related": ["llm-cloud", "engine-azure-speech", "engine-elevenlabs"]
+    },
+
+    {
+      "id": "input-text",
+      "file": "create-audio/input-text.md",
+      "title": "Enter or Import Your Text",
+      "summary": "Paste a story or import supported document formats while keeping a clean source copy.",
+      "keywords": ["paste", "document", "pdf", "docx", "epub", "drag drop", "input"],
+      "related": ["speaker-tags", "prep-text", "projects"]
+    },
+    {
+      "id": "speaker-tags",
+      "file": "create-audio/speaker-tags.md",
+      "title": "Speaker and Expression Tags",
+      "summary": "Structure multi-voice text correctly and use paralinguistic tags only with engines that support them.",
+      "keywords": ["speaker tags", "narrator", "alice", "paralinguistic", "laugh", "sigh"],
+      "related": ["text-statistics", "assign-voices", "engine-chatterbox"]
+    },
+    {
+      "id": "prep-text",
+      "file": "create-audio/prep-text.md",
+      "title": "Prepare Text with an LLM",
+      "summary": "Optionally clean, tag, or normalize a manuscript while reviewing every change before synthesis.",
+      "keywords": ["Prep Text", "LLM", "cleanup", "speaker detection", "prompt preset"],
+      "related": ["llm-overview", "llm-prompts", "speaker-tags"]
+    },
+    {
+      "id": "alt-word-registry",
+      "file": "create-audio/alt-word-registry.md",
+      "title": "Alternate Word Registry",
+      "summary": "Create tested pronunciation substitutions that apply before text reaches the TTS engine.",
+      "keywords": ["alt words", "pronunciation", "phonetic", "replacement", "mispronounced"],
+      "related": ["audio-quality", "job-review", "audio-library"]
+    },
+    {
+      "id": "text-statistics",
+      "file": "create-audio/text-statistics.md",
+      "title": "Analyze Text and Review Statistics",
+      "summary": "Use automatic analysis to confirm speaker count, chunks, word count, and duration before generating.",
+      "keywords": ["analyze", "statistics", "speakers", "chunks", "duration"],
+      "related": ["speaker-tags", "assign-voices", "generation-times"]
+    },
+    {
+      "id": "assign-voices",
+      "file": "create-audio/assign-voices.md",
+      "title": "Assign and Test Voices",
+      "summary": "Give each detected speaker a compatible voice, reference prompt, and restrained FX settings.",
+      "keywords": ["voice assignment", "speaker", "quick test", "pitch", "speed", "FX"],
+      "related": ["available-voices", "voice-prompts", "auto-assign-voices"]
+    },
+    {
+      "id": "generation-options",
+      "file": "create-audio/generation-options.md",
+      "title": "Generation and Output Options",
+      "summary": "Choose the job engine, format, bitrate, ACX processing, and chapter behavior.",
+      "keywords": ["MP3", "WAV", "OGG", "bitrate", "ACX", "generate", "output"],
+      "related": ["chapters-and-sections", "audiobook-exports", "settings-audio"]
+    },
+    {
+      "id": "chapters-and-sections",
+      "file": "create-audio/chapters-and-sections.md",
+      "title": "Chapters, Books, and Sections",
+      "summary": "Review automatic heading detection before creating separate chapter files or a combined story.",
+      "keywords": ["chapter", "book", "section", "heading", "split", "full story"],
+      "related": ["generation-options", "audiobook-exports", "audio-library"]
+    },
+    {
+      "id": "projects",
+      "file": "create-audio/projects.md",
+      "title": "Save and Restore Projects",
+      "summary": "Preserve in-progress text, assignments, and generation choices before experimenting.",
+      "keywords": ["project", "save", "load", "restore", "draft"],
+      "related": ["data-storage", "input-text", "quick-start"]
+    },
+
+    {
+      "id": "engine-overview",
+      "file": "engines/overview.md",
+      "title": "Engine Reference and Comparison",
+      "summary": "Compare all selectable generation engines and the internal OmniVoice design workflow.",
+      "keywords": ["engine", "comparison", "requirements", "languages", "cloning", "cloud"],
+      "related": ["choose-engine", "performance-tuning", "generation-times"]
+    },
+    {
+      "id": "engine-kokoro",
+      "file": "engines/kokoro.md",
+      "title": "Kokoro: Local and Replicate",
+      "summary": "Use lightweight built-in multilingual voices locally or through Replicate, including custom blends.",
+      "keywords": ["Kokoro", "built-in voices", "Replicate", "blend", "local GPU"],
+      "related": ["kokoro-voices", "custom-kokoro-blends", "online-services"],
+      "engine_ids": ["kokoro", "kokoro_replicate"]
+    },
+    {
+      "id": "engine-chatterbox",
+      "file": "engines/chatterbox.md",
+      "title": "Chatterbox Turbo: Local and Replicate",
+      "summary": "Create expressive English narration with reference voice prompts and supported non-verbal tags.",
+      "keywords": ["Chatterbox", "Turbo", "Replicate", "voice clone", "laugh", "reference"],
+      "related": ["voice-prompts", "speaker-tags", "engine-overview"],
+      "engine_ids": ["chatterbox_turbo_local", "chatterbox_turbo_replicate"]
+    },
+    {
+      "id": "engine-voxcpm",
+      "file": "engines/voxcpm.md",
+      "title": "VoxCPM 1.5",
+      "summary": "Use local English or Chinese voice cloning with automatic reference transcription and quality controls.",
+      "keywords": ["VoxCPM", "voice clone", "English", "Chinese", "CFG", "timesteps"],
+      "related": ["voice-prompts", "performance-tuning", "engine-overview"],
+      "engine_ids": ["voxcpm_local"]
+    },
+    {
+      "id": "engine-pocket-tts",
+      "file": "engines/pocket-tts.md",
+      "title": "Pocket TTS: Presets and Voice Clone",
+      "summary": "Generate locally on CPU with preset English voices or a reference recording.",
+      "keywords": ["Pocket TTS", "CPU", "preset", "voice clone", "threads"],
+      "related": ["voice-prompts", "performance-tuning", "engine-kitten-tts"],
+      "engine_ids": ["pocket_tts", "pocket_tts_preset"]
+    },
+    {
+      "id": "engine-qwen3",
+      "file": "engines/qwen3.md",
+      "title": "Qwen3-TTS: Custom Voice, Clone, and Design",
+      "summary": "Choose built-in instructed voices, clone a recording, or design reusable voices with separate Qwen models.",
+      "keywords": ["Qwen3", "CustomVoice", "VoiceDesign", "clone", "instruction", "flash attention"],
+      "related": ["voice-creation", "voice-prompts", "performance-tuning"],
+      "engine_ids": ["qwen3_custom", "qwen3_clone"]
+    },
+    {
+      "id": "engine-omnivoice",
+      "file": "engines/omnivoice.md",
+      "title": "OmniVoice: Clone and Voice Design",
+      "summary": "Use multilingual reference cloning and instruction-based voice design in an isolated local runtime.",
+      "keywords": ["OmniVoice", "multilingual", "voice clone", "voice design", "diffusion"],
+      "related": ["voice-creation", "voice-prompts", "performance-tuning"],
+      "engine_ids": ["omnivoice_clone", "omnivoice_design"]
+    },
+    {
+      "id": "engine-kitten-tts",
+      "file": "engines/kitten-tts.md",
+      "title": "KittenTTS",
+      "summary": "Use a lightweight CPU engine with eight built-in voices and minimal setup.",
+      "keywords": ["KittenTTS", "CPU", "lightweight", "built-in", "Jasper", "Bella"],
+      "related": ["engine-pocket-tts", "performance-tuning", "choose-engine"],
+      "engine_ids": ["kitten_tts"]
+    },
+    {
+      "id": "engine-index-tts",
+      "file": "engines/index-tts.md",
+      "title": "IndexTTS",
+      "summary": "Run IndexTTS-2 zero-shot cloning in its isolated environment and tune sampling conservatively.",
+      "keywords": ["IndexTTS", "IndexTTS-2", "clone", "FP16", "diffusion", "beam"],
+      "related": ["voice-prompts", "gpu-cpu-errors", "performance-tuning"],
+      "engine_ids": ["index_tts"]
+    },
+    {
+      "id": "engine-dots-tts",
+      "file": "engines/dots-tts.md",
+      "title": "Dot.TTS",
+      "summary": "Produce 48 kHz zero-shot clones using a clean reference and, ideally, its exact transcript.",
+      "keywords": ["Dot.TTS", "dots.tts", "48 kHz", "clone", "transcript", "SOAR", "MeanFlow"],
+      "related": ["voice-prompts", "gpu-cpu-errors", "audio-quality"],
+      "engine_ids": ["dots_tts"]
+    },
+    {
+      "id": "engine-azure-speech",
+      "file": "engines/azure-speech.md",
+      "title": "Microsoft Azure AI Speech",
+      "summary": "Configure a regional Speech resource and use discovered neural voices, styles, roles, and SSML prosody.",
+      "keywords": ["Azure", "Speech", "key", "region", "SSML", "style", "role"],
+      "related": ["online-services", "cloud-errors", "engine-edge-tts"],
+      "engine_ids": ["azure_speech"]
+    },
+    {
+      "id": "engine-edge-tts",
+      "file": "engines/edge-tts.md",
+      "title": "Microsoft Edge TTS (Experimental)",
+      "summary": "Use a large online voice catalog without an API key while understanding the unofficial service boundary.",
+      "keywords": ["Edge TTS", "Microsoft", "experimental", "no key", "voice catalog", "online"],
+      "related": ["engine-azure-speech", "cloud-errors", "generation-times"],
+      "engine_ids": ["edge_tts"]
+    },
+    {
+      "id": "engine-elevenlabs",
+      "file": "engines/elevenlabs.md",
+      "title": "ElevenLabs",
+      "summary": "Load account voices and models, tune stability and similarity, and manage quota and concurrency.",
+      "keywords": ["ElevenLabs", "API key", "stability", "similarity", "style", "quota"],
+      "related": ["online-services", "cloud-errors", "generation-times"],
+      "engine_ids": ["elevenlabs"]
+    },
+
+    {
+      "id": "llm-overview",
+      "file": "llm/overview.md",
+      "title": "LLM Preparation Overview",
+      "summary": "Decide when AI text preparation helps, what it changes, and how to review it safely.",
+      "keywords": ["LLM", "Prep Text", "Gemini", "Atlas Cloud", "OpenRouter", "local"],
+      "related": ["prep-text", "llm-cloud", "llm-prompts"]
+    },
+    {
+      "id": "llm-cloud",
+      "file": "llm/cloud-providers.md",
+      "title": "Gemini, Atlas Cloud, and OpenRouter",
+      "summary": "Configure supported cloud LLM providers and retrieve models available to your key.",
+      "keywords": ["Gemini", "Atlas Cloud", "OpenRouter", "model discovery", "API key"],
+      "related": ["online-services", "llm-prompts", "cloud-errors"]
+    },
+    {
+      "id": "llm-local",
+      "file": "llm/local-providers.md",
+      "title": "LM Studio and Ollama",
+      "summary": "Connect TTS-Story to a local OpenAI-compatible LLM server for private text preparation.",
+      "keywords": ["LM Studio", "Ollama", "localhost", "local LLM", "base URL"],
+      "related": ["llm-overview", "performance-tuning", "gpu-cpu-errors"]
+    },
+    {
+      "id": "llm-prompts",
+      "file": "llm/prompts.md",
+      "title": "Prompt Presets, Chunking, and Review",
+      "summary": "Write safer preparation prompts, choose chunk behavior, and prevent accidental rewriting.",
+      "keywords": ["prompt preset", "chunking", "speaker profiles", "temperature", "review"],
+      "related": ["prep-text", "llm-overview", "speaker-tags"]
+    },
+
+    {
+      "id": "job-queue",
+      "file": "jobs/job-queue.md",
+      "title": "Monitor the Job Queue",
+      "summary": "Understand queued, processing, paused, completed, failed, and cancelled job states.",
+      "keywords": ["queue", "job", "status", "pause", "resume", "cancel", "ETA"],
+      "related": ["generation-times", "job-review", "audio-library"]
+    },
+    {
+      "id": "job-review",
+      "file": "jobs/review-and-regenerate.md",
+      "title": "Review and Regenerate Chunks",
+      "summary": "Correct text, voice, pronunciation, and FX at chunk or speaker level without redoing a whole book.",
+      "keywords": ["review chunks", "regenerate", "speaker", "edit text", "FX", "recompile"],
+      "related": ["alt-word-registry", "library-editing-repair", "audio-quality"]
+    },
+    {
+      "id": "generation-times",
+      "file": "jobs/generation-times.md",
+      "title": "Generation Time and ETA",
+      "summary": "Estimate jobs from chunk count and measured performance instead of relying on hardware-independent promises.",
+      "keywords": ["generation time", "ETA", "speed", "real time factor", "metrics", "first run"],
+      "related": ["performance-tuning", "job-queue", "choose-engine"]
+    },
+
+    {
+      "id": "audio-library",
+      "file": "library/audio-library.md",
+      "title": "Use the Audio Library",
+      "summary": "Play full stories or chapters, rename collections, inspect metrics, and download completed work.",
+      "keywords": ["library", "play", "chapter", "download", "metrics", "time codes", "alt words"],
+      "related": ["job-review", "library-editing-repair", "audiobook-exports"]
+    },
+    {
+      "id": "library-editing-repair",
+      "file": "library/editing-and-repair.md",
+      "title": "Edit, Rebuild, and Repair Library Items",
+      "summary": "Restore review data, regenerate selected audio, and rebuild missing combined outputs from saved chunks.",
+      "keywords": ["repair", "rebuild", "restore review", "regenerate", "missing audio"],
+      "related": ["audio-library", "job-review", "data-storage"]
+    },
+    {
+      "id": "audiobook-exports",
+      "file": "library/audiobook-exports.md",
+      "title": "Audiobook Exports, Metadata, and Time Codes",
+      "summary": "Prepare MP3, M4B, chapter files, metadata, ACX-oriented output, and video chapter timestamps.",
+      "keywords": ["M4B", "MP3", "ACX", "metadata", "chapter", "time codes", "download"],
+      "related": ["generation-options", "chapters-and-sections", "audio-library"]
+    },
+
+    {
+      "id": "available-voices",
+      "file": "voices/available-voices.md",
+      "title": "Voice Management Overview",
+      "summary": "Understand built-in voices, custom blends, designed voices, and reference prompt libraries.",
+      "keywords": ["voices", "management", "built-in", "blend", "prompt", "design"],
+      "related": ["assign-voices", "voice-prompts", "voice-creation"]
+    },
+    {
+      "id": "kokoro-voices",
+      "file": "voices/kokoro-voices.md",
+      "title": "Kokoro Voices and Previews",
+      "summary": "Browse built-in multilingual voices, generate previews, and select a voice that matches the text language.",
+      "keywords": ["Kokoro", "voice preview", "language", "built-in"],
+      "related": ["engine-kokoro", "custom-kokoro-blends", "assign-voices"]
+    },
+    {
+      "id": "custom-kokoro-blends",
+      "file": "voices/kokoro-blends.md",
+      "title": "Custom Kokoro Voice Blends",
+      "summary": "Blend compatible Kokoro voices with reusable names and sensible weights.",
+      "keywords": ["Kokoro", "blend", "weights", "custom voice"],
+      "related": ["kokoro-voices", "engine-kokoro", "assign-voices"]
+    },
+    {
+      "id": "voice-prompts",
+      "file": "voices/voice-prompts.md",
+      "title": "Reference Voice Prompts",
+      "summary": "Upload, label, preview, archive, and reuse clean reference clips for cloning engines.",
+      "keywords": ["voice prompt", "reference audio", "clone", "upload", "recording", "transcript"],
+      "related": ["available-voices", "engine-chatterbox", "engine-dots-tts"]
+    },
+    {
+      "id": "voice-creation",
+      "file": "voices/voice-creation.md",
+      "title": "Create Voices with Qwen3 or OmniVoice",
+      "summary": "Turn a written voice description into a preview and save the result as a reusable prompt.",
+      "keywords": ["voice creation", "Qwen3", "OmniVoice", "design", "instruction", "preview"],
+      "related": ["engine-qwen3", "engine-omnivoice", "voice-prompts"]
+    },
+    {
+      "id": "auto-assign-voices",
+      "file": "voices/auto-assign.md",
+      "title": "Generate and Auto-Assign Voices",
+      "summary": "Generate voices from speaker profiles or name-match saved prompts, then verify every assignment.",
+      "keywords": ["auto assign", "generate voices", "speaker profile", "match threshold"],
+      "related": ["assign-voices", "voice-creation", "prep-text"]
+    },
+
+    {
+      "id": "settings",
+      "file": "settings/settings.md",
+      "title": "Settings Reference",
+      "summary": "Understand global defaults, engine tabs, save behavior, and when per-job choices override settings.",
+      "keywords": ["settings", "default engine", "save", "reset", "configuration"],
+      "related": ["settings-audio", "engine-overview", "data-storage"]
+    },
+    {
+      "id": "settings-audio",
+      "file": "settings/audio-generation.md",
+      "title": "Audio and Generation Settings",
+      "summary": "Tune chunking, crossfade, silence, cloud concurrency, speech speed, and GPU cleanup.",
+      "keywords": ["chunk size", "crossfade", "silence", "parallel chunks", "speed", "VRAM"],
+      "related": ["performance-tuning", "generation-options", "generation-times"]
+    },
+    {
+      "id": "performance-tuning",
+      "file": "settings/performance.md",
+      "title": "Performance Tuning for GPU and CPU Systems",
+      "summary": "Start with defaults, measure one representative chapter, and change one control at a time.",
+      "keywords": ["performance", "GPU", "CPU", "CUDA", "VRAM", "threads", "quality"],
+      "related": ["settings-audio", "generation-times", "gpu-cpu-errors"]
+    },
+    {
+      "id": "data-storage",
+      "file": "settings/data-storage.md",
+      "title": "Local Data, API Keys, and Backups",
+      "summary": "Know what TTS-Story stores locally and which folders to back up or keep out of source control.",
+      "keywords": ["config.json", "data", "static audio", "backup", "API keys", "privacy"],
+      "related": ["online-services", "projects", "report-an-issue"]
+    },
+
+    {
+      "id": "troubleshooting-overview",
+      "file": "troubleshooting/overview.md",
+      "title": "Troubleshooting Checklist",
+      "summary": "Isolate whether a problem comes from startup, text, an engine, credentials, generation, or final export.",
+      "keywords": ["troubleshooting", "error", "health", "restart", "logs"],
+      "related": ["cloud-errors", "gpu-cpu-errors", "report-an-issue"]
+    },
+    {
+      "id": "cloud-errors",
+      "file": "troubleshooting/cloud-errors.md",
+      "title": "Cloud Credentials, Quota, and Network Errors",
+      "summary": "Interpret authentication, payment, throttling, timeout, and provider availability failures.",
+      "keywords": ["401", "403", "402", "429", "timeout", "quota", "API key"],
+      "related": ["online-services", "engine-azure-speech", "engine-elevenlabs"]
+    },
+    {
+      "id": "gpu-cpu-errors",
+      "file": "troubleshooting/gpu-cpu-errors.md",
+      "title": "GPU, CPU, Model, and Dependency Errors",
+      "summary": "Handle CUDA memory problems, first-run model downloads, isolated runtimes, and missing tools.",
+      "keywords": ["CUDA", "out of memory", "model download", "venv", "FFmpeg", "SoX", "Rubber Band"],
+      "related": ["performance-tuning", "troubleshooting-overview", "report-an-issue"]
+    },
+    {
+      "id": "audio-quality",
+      "file": "troubleshooting/audio-quality.md",
+      "title": "Fix Pronunciation, Pacing, Voice, and Merge Problems",
+      "summary": "Use quick tests and chunk review to correct audio quality issues at the smallest possible scope.",
+      "keywords": ["pronunciation", "pacing", "artifacts", "voice drift", "click", "silence", "quality"],
+      "related": ["alt-word-registry", "job-review", "settings-audio"]
+    },
+    {
+      "id": "report-an-issue",
+      "file": "troubleshooting/report-an-issue.md",
+      "title": "Prepare a Useful Issue Report",
+      "summary": "Collect engine versions, health data, reproduction steps, and safe logs without exposing credentials.",
+      "keywords": ["GitHub issue", "bug report", "engine versions", "logs", "reproduce", "secrets"],
+      "related": ["troubleshooting-overview", "data-storage", "gpu-cpu-errors"]
+    }
+  ]
+}

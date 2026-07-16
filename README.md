@@ -11,14 +11,15 @@ Every contribution is appreciated. Thank you for helping make this work possible
 ---
 
 # Current Updates and Notes - updated 07-15-2026
+- **Complete illustrated in-app user guide** - use the new searchable Help Center for screenshot-guided workflows, engine comparisons, setup instructions, troubleshooting, and contextual help from throughout the interface.
 - **Edge TTS and ElevenLabs support** - generate speech with dynamically discovered Edge voices or the voices and models available through your ElevenLabs account.
 - **Microsoft Azure AI Speech support** - use an Azure Speech key and region to access Microsoft's multilingual cloud voices and expression controls.
 - **Atlas Cloud and OpenRouter support** - process and prepare text using models available through either LLM provider.
 - **Dot.TTS support** - generate high-quality local voice-cloned audio using the RedNote HiLab Dot.TTS engine.
 - **Improved installation and platform support** - expanded setup, diagnostics, and audio-tool compatibility across Windows, Linux, macOS, and Pinokio.
-- **Audiobook workflow improvements** - improved section handling, chapter organization, review, regeneration, and audiobook export.
 
 ### Previous Updates
+- Improved section handling, chapter organization, review, regeneration, and audiobook export.
 - Added Pinokio installation and update support.
 - Added M4B audiobook export with chapter markers and cover art.
 - Added dynamic section-heading detection and chapter controls.
@@ -130,6 +131,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 - **Chapter Collections + Full Audiobook**: Toggle per-chapter outputs and optionally create a single combined audiobook
 
 ### UI & Configuration
+- **Bundled User Guide**: Search 53 post-install guides, follow complete workflows, and open context-specific articles from the **?** buttons throughout the interface
 - **Available Voices & Previews**: Browse all Kokoro voices grouped by language, generate preview samples
 - **Configurable Settings**: Control TTS engine, speed, chunk size, output format, bitrate, crossfade
 - **Dynamic LLM Controls**: Save cloud API keys and fetch available Gemini, Atlas Cloud, OpenRouter, or local models on demand
@@ -308,6 +310,12 @@ python app.py
 
 ## Usage
 
+### Built-in User Guide
+
+Open the **Help** tab for the complete bundled guide. It includes a first-run checklist, a screenshot-guided first-audio walkthrough, all TTS and LLM provider setup, voice assignment, Alternate Word Registry behavior, job and Library workflows, performance guidance, and troubleshooting. Search works across every article, and the **?** buttons beside interface controls open the relevant guide directly.
+
+The same canonical Markdown articles are available in [`docs/help`](docs/help) for reading on GitHub or offline. Start with [Welcome to TTS-Story](docs/help/start-here/welcome.md), [First-Run Checklist](docs/help/start-here/first-run.md), or [Generate Your First Audio](docs/help/start-here/quick-start.md).
+
 ### Selecting a TTS Engine
 
 TTS-Story supports sixteen TTS engine options. In the **Settings** tab, choose your preferred default engine:
@@ -458,7 +466,7 @@ IndexTTS (by Bilibili) is a state-of-the-art zero-shot voice cloning engine with
 KittenTTS is an ultra-lightweight, CPU-only TTS engine — ideal for machines without a GPU:
 
 - **No GPU Required**: Runs entirely on CPU, no CUDA needed
-- **Tiny Footprint**: Model weights under 25MB, fast to download and load
+- **Small CPU Models**: The recommended mini model is about 80 MB; the experimental nano-int8 option is about 25 MB
 - **8 Built-in Voices**: Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki, Leo
 - **Multiple Model Sizes**: Choose from `kitten-tts-mini-0.8` (recommended), `kitten-tts-micro-0.8`, or `kitten-tts-nano-0.8` (fp32/int8) for speed vs. quality trade-offs
 - **English Only**: Optimised for English narration
@@ -690,6 +698,7 @@ Any settings you override in the Generate tab (format, bitrate, engine) are sent
 ```
 TTS-Story/
 ├── app.py                 # Flask web server
+├── docs/help/             # Canonical Markdown source for the bundled user guide
 ├── requirements.txt       # Python dependencies
 ├── setup.bat             # Windows setup script
 ├── run.bat               # Windows run script
@@ -698,6 +707,7 @@ TTS-Story/
 │   ├── tts_engine.py     # TTS engine registry and factory
 │   ├── replicate_api.py  # Replicate API integration (Kokoro)
 │   ├── text_processor.py # Text chunking and parsing
+│   ├── help_center.py    # Validated Markdown catalog and in-app Help API
 │   ├── audio_merger.py   # Audio file merging
 │   ├── voice_manager.py  # Voice configuration and preview sample metadata
 │   ├── voice_sample_generator.py # Batch generation of voice preview samples
@@ -725,13 +735,16 @@ TTS-Story/
 │   └── dots-tts/                     # Dot.TTS worker, cloned repo, model cache, and isolated venv
 ├── static/
 │   ├── css/
-│   │   └── style.css
+│   │   ├── style.css
+│   │   └── help.css       # Responsive Help Center reader styles
 │   ├── js/
+│   │   ├── help.js        # Search, deep links, and contextual Help navigation
 │   │   ├── main.js
 │   │   ├── queue.js
 │   │   ├── library.js
 │   │   ├── voice-manager.js
 │   │   └── settings.js
+│   ├── help/screenshots/   # Privacy-safe screenshots embedded in the user guide
 │   ├── audio/            # Generated audio files (per-job subdirectories)
 │   └── samples/          # Voice preview samples and manifest.json
 ├── data/
@@ -743,6 +756,8 @@ TTS-Story/
 ## API Endpoints
 
 - `GET /` - Main web interface
+- `GET /api/help/catalog` - Get the searchable bundled guide catalog
+- `GET /api/help/articles/<article_id>` - Render one bundled guide article, including aliases used by contextual help
 - `GET /api/health` - Health check (TTS engine availability, CUDA status, and loaded engines)
 - `GET /api/voices` - Get available voices and preview sample status
 - `POST /api/voices/samples` - Generate or regenerate voice preview samples
@@ -834,7 +849,7 @@ python scripts/engine_versions.py
 Use `python scripts/engine_versions.py --json` for machine-readable output. OmniVoice, IndexTTS, and Dot.TTS use isolated environments, so the report lists their configured model identifiers separately from packages installed in the main environment.
 
 ### KittenTTS · CPU
-- No GPU required — ultra-lightweight (<25MB model)
+- No GPU required — the default mini model is about 80 MB, with smaller variants down to roughly 25 MB
 - 8 built-in English voices
 - Default chunk size: 300 chars (tunable in Settings → Engine Settings)
 - No API costs
