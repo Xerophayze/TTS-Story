@@ -22,8 +22,13 @@ if exist ".git" (
             exit /b 1
         )
         echo.
-        echo Running setup.bat...
-        call setup.bat
+        echo Running fast dependency-aware update...
+        call setup.bat --update
+        if errorlevel 1 (
+            echo ERROR: Update setup failed.
+            pause
+            exit /b 1
+        )
         echo.
         echo ✅ Update complete.
         pause
@@ -63,8 +68,10 @@ if errorlevel 1 (
 
 echo.
 echo Cloning or updating repository...
+set "EXISTING_INSTALL=0"
 if exist "%REPO_DIR%" (
     if exist "%REPO_DIR%\.git" (
+        set "EXISTING_INSTALL=1"
         echo Repository found. Pulling latest updates...
         pushd "%REPO_DIR%"
         git pull
@@ -94,7 +101,17 @@ echo.
 echo Running setup.bat...
 if exist "%REPO_DIR%\setup.bat" (
     pushd "%REPO_DIR%"
-    call setup.bat
+    if "%EXISTING_INSTALL%"=="1" (
+        call setup.bat --update
+    ) else (
+        call setup.bat
+    )
+    if errorlevel 1 (
+        echo ERROR: Setup failed.
+        popd
+        pause
+        exit /b 1
+    )
     popd
 ) else (
     echo ERROR: setup.bat not found in %REPO_DIR%.

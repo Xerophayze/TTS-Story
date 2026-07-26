@@ -25,9 +25,17 @@ set "BLACKWELL_TORCH_VERSION=2.8.0"
 set "BLACKWELL_TORCHVISION_VERSION=0.23.0"
 set "BLACKWELL_TORCHAUDIO_VERSION=2.8.0"
 set "UPDATE_MODE=0"
+set "REPAIR_MODE=0"
+if not "%~1"=="" if /i not "%~1"=="--update" if /i not "%~1"=="--repair" (
+    echo ERROR: Unknown setup option: %~1
+    echo Use --update for a fast update or --repair for full reconciliation.
+    exit /b 1
+)
 if /i "%~1"=="--update" set "UPDATE_MODE=1"
-if "%UPDATE_MODE%"=="1" echo Pinokio update mode enabled. Existing environments will be reused when valid.
-if exist ".setup_complete" del /q ".setup_complete" >nul 2>&1
+if /i "%~1"=="--repair" set "REPAIR_MODE=1"
+if "%~1"=="" if exist ".setup_complete" set "UPDATE_MODE=1"
+if "%UPDATE_MODE%"=="1" echo Fast update mode enabled. Existing environments will be reused when valid.
+if "%REPAIR_MODE%"=="1" echo Repair mode enabled. Setup will perform full dependency reconciliation.
 
 REM Check Python installation. Prefer an existing project venv during updates,
 REM because Pinokio may invoke setup.bat from a Conda base Python.
@@ -39,7 +47,10 @@ set "VENV_PY_MM="
 set "VENV_CFG_MM="
 set "VENV_CFG_VERSION="
 if exist "%VENV_PYTHON%" (
-    for /f "delims=" %%V in ('"%VENV_PYTHON%" -c "import sys; print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))" 2^>nul') do set "VENV_PY_MM=%%V"
+    set "VENV_VERSION_FILE=%TEMP%\tts_story_venv_version_!RANDOM!_!RANDOM!.txt"
+    "%VENV_PYTHON%" -c "import sys; print(str(sys.version_info[0])+chr(46)+str(sys.version_info[1]))" >"!VENV_VERSION_FILE!" 2>nul
+    if not errorlevel 1 if exist "!VENV_VERSION_FILE!" set /p VENV_PY_MM=<"!VENV_VERSION_FILE!"
+    if exist "!VENV_VERSION_FILE!" del /q "!VENV_VERSION_FILE!" >nul 2>&1
     if exist "venv\pyvenv.cfg" (
         for /f "tokens=2 delims==" %%V in ('findstr /B /C:"version" "venv\pyvenv.cfg" 2^>nul') do set "VENV_CFG_VERSION=%%V"
         set "VENV_CFG_VERSION=!VENV_CFG_VERSION: =!"
@@ -130,6 +141,27 @@ if not "%PYTHON_MM%"=="3.11" (
 )
 echo Found Python %PYTHON_VERSION%
 :PythonReady
+
+if "%UPDATE_MODE%"=="1" if "%REPAIR_MODE%"=="0" if exist ".setup_complete" if exist "%VENV_PYTHON%" (
+    "%VENV_PYTHON%" scripts\setup_state.py matches --platform windows >nul 2>&1
+    if not errorlevel 1 (
+        "%VENV_PYTHON%" -c "import flask, soundfile, torch" >nul 2>&1
+        if not errorlevel 1 (
+            echo.
+            echo Dependency definitions are unchanged and the existing environment passed its health check.
+            echo No setup work is required for this update.
+            echo.
+            echo ========================================
+            echo Setup Complete!
+            echo ========================================
+            exit /b 0
+        )
+        echo Existing environment failed the fast health check. Running dependency reconciliation.
+    ) else (
+        echo Dependency definitions changed or setup state is unavailable. Running dependency reconciliation.
+    )
+)
+if exist ".setup_complete" del /q ".setup_complete" >nul 2>&1
 
 set "HAS_NVIDIA=0"
 set "GPU_NAME="
@@ -470,7 +502,7 @@ if errorlevel 1 (
 )
 if not "%PREFETCH_KITTEN_TTS_MODEL%"=="0" (
     echo Prefetching KittenTTS model cache ^(set PREFETCH_KITTEN_TTS_MODEL=0 to skip^)...
-    powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$p=Start-Process -FilePath '%~dp0venv\Scripts\python.exe' -ArgumentList @('%~dp0scripts\prefetch_kitten_tts.py','--model-id','KittenML/kitten-tts-mini-0.8') -NoNewWindow -PassThru; if (-not $p.WaitForExit(300000)) { Write-Host 'KittenTTS prefetch timed out after 300 seconds.'; try { $p.Kill() } catch {}; exit 124 }; exit $p.ExitCode"
+    python scripts\run_with_timeout.py --timeout 300 -- "%~dp0venv\Scripts\python.exe" "%~dp0scripts\prefetch_kitten_tts.py" --model-id "KittenML/kitten-tts-mini-0.8"
     if errorlevel 1 (
         echo WARNING: KittenTTS model prefetch failed. First generation will retry the download.
     )
@@ -739,6 +771,11 @@ if errorlevel 1 (
     )
 )
 
+python scripts\setup_state.py write --platform windows
+if errorlevel 1 (
+    echo ERROR: Failed to record completed setup state.
+    exit /b 1
+)
 type nul > ".setup_complete"
 echo.
 echo ========================================

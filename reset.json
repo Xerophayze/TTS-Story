@@ -9,6 +9,12 @@
     {
       "method": "fs.rm",
       "params": {
+        "path": ".setup_state.json"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
         "path": "venv"
       }
     },

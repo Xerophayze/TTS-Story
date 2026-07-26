@@ -10,9 +10,9 @@ Every contribution is appreciated. Thank you for helping make this work possible
 
 ---
 
-# Current Updates and Notes - updated 07-25-2026
+# Current Updates and Notes - updated 07-26-2026
 - **Pinokio and macOS installation fixes** - corrected Apple Silicon PyTorch installation and improved compatibility with Pinokio-managed Python environments.
-- **More reliable cross-platform setup** - added platform-aware dependency handling and improved how Pinokio verifies, starts, updates, and resets an installation.
+- **Faster, more reliable cross-platform setup** - added dependency-aware updates, platform-aware installation handling, explicit repair options, and improved Pinokio install verification.
 - **Complete illustrated in-app user guide** - use the new searchable Help Center for screenshot-guided workflows, engine comparisons, setup instructions, troubleshooting, and contextual help from throughout the interface.
 - **Edge TTS and ElevenLabs support** - generate speech with dynamically discovered Edge voices or the voices and models available through your ElevenLabs account.
 - **Microsoft Azure AI Speech support** - use an Azure Speech key and region to access Microsoft's multilingual cloud voices and expression controls.
@@ -268,6 +268,29 @@ If an older Pinokio install stopped partway through setup, select **Factory
 Reset**, then run **Install** again. Local model downloads and voice generation
 can be substantially slower on lower-memory Macs; cloud TTS and LLM providers
 remain available without running those models locally.
+
+#### Fast Updates and Repair
+
+Pinokio's **Update** action and `install-update.bat` use a dependency-aware fast
+update. Documentation and application-code-only changes reuse the existing
+environment after a lightweight health check. Setup performs dependency
+reconciliation only when its dependency definitions changed or the environment
+cannot start.
+
+Running `setup.bat` or `./setup.sh` on a completed installation also selects the
+fast update automatically. To deliberately perform comprehensive validation and
+dependency repair, run:
+
+```bash
+# Windows
+setup.bat --repair
+
+# Linux/macOS
+./setup.sh --repair
+```
+
+The first update from a version that predates this behavior may perform one
+normal reconciliation pass to establish the setup fingerprint.
 
 2. **Start the application**
 ```bash

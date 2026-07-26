@@ -18,9 +18,17 @@ echo "  - If setup fails, delete the 'venv' folder and re-run setup.sh"
 echo "  - GPU users: update to the latest NVIDIA drivers"
 
 UPDATE_MODE=0
-if [ "${1:-}" = "--update" ]; then
+REPAIR_MODE=0
+if [ "${1:-}" = "--update" ] || { [ -z "${1:-}" ] && [ -f ".setup_complete" ]; }; then
     UPDATE_MODE=1
-    echo "Pinokio update mode enabled. Existing environments will be reused when valid."
+    echo "Fast update mode enabled. Existing environments will be reused when valid."
+elif [ "${1:-}" = "--repair" ]; then
+    REPAIR_MODE=1
+    echo "Repair mode enabled. Setup will perform full dependency reconciliation."
+elif [ -n "${1:-}" ]; then
+    echo "ERROR: Unknown setup option: ${1}"
+    echo "Use --update for a fast update or --repair for full reconciliation."
+    exit 1
 fi
 
 # PyTorch versions (matching setup.bat)
@@ -34,7 +42,7 @@ BLACKWELL_TORCHVISION_VERSION="0.23.0"
 BLACKWELL_TORCHAUDIO_VERSION="2.8.0"
 PLATFORM="$(uname -s)"
 ARCHITECTURE="$(uname -m)"
-rm -f .setup_complete
+SETUP_PLATFORM_ID="$(printf '%s-%s' "$PLATFORM" "$ARCHITECTURE" | tr '[:upper:]' '[:lower:]')"
 
 # 1/12 Check Python installation
 echo
@@ -129,6 +137,25 @@ if ! tts_story_python_supported python; then
     echo "Delete the 'venv' folder, install a supported Python version, and rerun setup.sh."
     exit 1
 fi
+
+if [ "$UPDATE_MODE" -eq 1 ] && [ "$REPAIR_MODE" -eq 0 ] && [ -f ".setup_complete" ]; then
+    if python scripts/setup_state.py matches --platform "$SETUP_PLATFORM_ID" >/dev/null 2>&1; then
+        if python -c "import flask, soundfile, torch" >/dev/null 2>&1; then
+            echo
+            echo "Dependency definitions are unchanged and the existing environment passed its health check."
+            echo "No setup work is required for this update."
+            echo
+            echo "========================================"
+            echo "Setup Complete!"
+            echo "========================================"
+            exit 0
+        fi
+        echo "Existing environment failed the fast health check. Running dependency reconciliation."
+    else
+        echo "Dependency definitions changed or setup state is unavailable. Running dependency reconciliation."
+    fi
+fi
+rm -f .setup_complete
 
 # 4/12 Upgrade pip
 echo
@@ -746,6 +773,7 @@ else
     python scripts/torch_cuda_probe.py
 fi
 
+python scripts/setup_state.py write --platform "$SETUP_PLATFORM_ID"
 touch .setup_complete
 echo
 echo "========================================"
