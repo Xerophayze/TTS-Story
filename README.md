@@ -217,7 +217,7 @@ All voice selection dropdowns (main screen and library) now show:
 ## Installation
 
 ### Prerequisites
-- Python 3.9 or higher
+- Python 3.9 through 3.12
 - NVIDIA GPU with CUDA support (optional, for local GPU inference)
 - Internet connection (for downloading dependencies)
 
@@ -250,12 +250,30 @@ with `sm_120` support. The installer detects compute capability `12.x` or RTX
 PyTorch wheels ever lag a new GPU architecture, rerun setup with
 `USE_TORCH_NIGHTLY=1` to opt into PyTorch nightly CUDA 12.8 wheels.
 
-3. **Start the application**
+### Pinokio Installation (Windows, Linux, and macOS)
+
+1. Open the TTS-Story community page in Pinokio and select **Install**.
+2. Let the install terminal reach **Setup Complete**. Pinokio will only show the
+   app as installed after setup reaches its final verification.
+3. Select **Start**, then open **Open Web UI** when it appears.
+
+On macOS, including Apple Silicon M1/M2/M3/M4 systems, setup installs the native
+macOS PyTorch wheels from PyPI. It does not request the Linux/Windows
+`torch+cpu` package, which is unavailable for macOS. Apple Silicon uses unified
+memory, so a separate VRAM value is not shown. Most local engines can run on
+CPU; engines that support Apple's MPS backend may use it automatically.
+
+If an older Pinokio install stopped partway through setup, select **Factory
+Reset**, then run **Install** again. Local model downloads and voice generation
+can be substantially slower on lower-memory Macs; cloud TTS and LLM providers
+remain available without running those models locally.
+
+2. **Start the application**
 ```bash
 run.bat
 ```
 
-4. **Open your browser**
+3. **Open your browser**
 ```
 http://localhost:5000
 ```

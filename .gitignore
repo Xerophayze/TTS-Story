@@ -81,6 +81,7 @@ config.json.syncbak
 
 # Sync state
 .sync_state.json
+.setup_complete
 
 # Huggingface cache
 .cache/

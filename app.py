@@ -51,7 +51,13 @@ from src.custom_voice_store import (
 )
 from src.document_extractor import extract_text_from_file, get_supported_formats
 from src.help_center import create_help_blueprint
-from src.library_metadata import get_custom_chapter_title
+from src.library_metadata import (
+    can_reuse_active_review_job,
+    get_custom_chapter_title,
+    infer_collection_title_from_chunks,
+    merge_generated_library_metadata,
+)
+from src.library_cleanup import remove_directory_with_retries
 from src.atlas_cloud_processor import (
     AtlasCloudProcessor,
     AtlasCloudProcessorError,
@@ -1803,6 +1809,7 @@ def _persist_job_state(job_id: str, job_entry: Optional[Dict[str, Any]] = None, 
             )
             ON CONFLICT(job_id) DO UPDATE SET
                 status=excluded.status,
+                created_at=COALESCE(jobs.created_at, excluded.created_at),
                 updated_at=excluded.updated_at,
                 text_preview=excluded.text_preview,
                 text_path=excluded.text_path,
@@ -1850,7 +1857,8 @@ def _load_jobs_from_db() -> Dict[str, Dict[str, Any]]:
         job_id = row["job_id"]
         loaded[job_id] = {
             "status": row["status"],
-            "created_at": row["created_at"],
+            "created_at": row["created_at"] or row["updated_at"],
+            "updated_at": row["updated_at"],
             "text_preview": row["text_preview"],
             "text_path": row["text_path"],
             "text_length": row["text_length"],
@@ -3428,6 +3436,7 @@ def handle_remove_readonly(func, path, exc_info):
         func(path)
     except Exception as err:  # pragma: no cover - safeguard
         logger.error(f"Failed to remove read-only attribute for {path}: {err}")
+        raise
 
 def process_job_worker():
     """Background worker that processes jobs from the queue"""
@@ -6306,6 +6315,11 @@ def get_job_chunks(job_id: str):
                 "full_story_requested": job_entry.get("full_story_requested"),
                 "has_active_regen": _has_active_regen_tasks(job_entry),
                 "engine": job_entry.get("engine"),
+                "post_process_active": bool(job_entry.get("post_process_active")),
+                "post_process_percent": int(job_entry.get("post_process_percent") or 0),
+                "post_process_done": int(job_entry.get("post_process_done") or 0),
+                "post_process_total": int(job_entry.get("post_process_total") or 0),
+                "post_process_label": job_entry.get("post_process_label"),
             }
 
         payload = {
@@ -6617,7 +6631,7 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
             entry["post_process_active"] = True
 
     chapter_outputs = []
-    for chapter in chapters:
+    for chapter_step, chapter in enumerate(chapters, start=1):
         rel_chunk_files = chapter.get("chunk_files") or []
         chunk_paths = [str(job_dir / rel_path) for rel_path in rel_chunk_files]
         if not chunk_paths:
@@ -6633,17 +6647,27 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
         chapter_dir.mkdir(parents=True, exist_ok=True)
         output_path = chapter_dir / output_filename
         logger.info(f"Output path: {output_path}")
+        chapter_label = chapter.get("title") or f"chapter {chapter_step}"
+        with queue_lock:
+            entry = jobs.get(job_id)
+            if entry:
+                entry["post_process_label"] = f"Merging {chapter_label}"
         merger.merge_wav_files(
             input_files=chunk_paths,
             output_path=str(output_path),
             format=output_format,
             cleanup_chunks=False,
+            progress_callback=lambda ratio, step=chapter_step: _update_review_post_progress(
+                job_id,
+                step,
+                ratio,
+            ),
         )
         with queue_lock:
             entry = jobs.get(job_id)
             if entry:
                 entry["post_process_done"] = min(
-                    len(chapter_outputs) + 1,
+                    chapter_step,
                     int(entry.get("post_process_total") or 0) or 0,
                 )
         # Verify output was created with content
@@ -6668,6 +6692,11 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
         chunk_paths = [str(job_dir / rel_path) for rel_path in all_full_story_chunks]
         full_story_name = f"full_story.{output_format}"
         full_story_path = job_dir / full_story_name
+        full_story_step = len(chapters) + 1
+        with queue_lock:
+            entry = jobs.get(job_id)
+            if entry:
+                entry["post_process_label"] = "Merging full story"
         merger.merge_wav_files(
             input_files=chunk_paths,
             output_path=str(full_story_path),
@@ -6675,7 +6704,7 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
             cleanup_chunks=False,
             progress_callback=lambda ratio: _update_review_post_progress(
                 job_id,
-                int((jobs.get(job_id, {}).get("post_process_total") or 1)),
+                full_story_step,
                 ratio,
             ),
         )
@@ -6683,7 +6712,7 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
             entry = jobs.get(job_id)
             if entry:
                 entry["post_process_done"] = min(
-                    int(entry.get("post_process_total") or 0) or 0,
+                    full_story_step,
                     int(entry.get("post_process_total") or 0) or 0,
                 )
         full_story_entry = {
@@ -6696,7 +6725,7 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
     book_outputs = []
     if book_mode:
         # Merge book-level audio files
-        for book in manifest.get("books", []):
+        for book_index, book in enumerate(manifest.get("books", []), start=1):
             book_chunk_files = book.get("chunk_files") or []
             if not book_chunk_files:
                 continue
@@ -6717,17 +6746,30 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
             output_path = book_dir_path / output_filename
             
             logger.info(f"Merging book-level audio: {len(chunk_paths)} chunks into {output_path}")
+            book_step = len(chapters) + (1 if all_full_story_chunks else 0) + book_index
+            book_label = book.get("title") or f"book {book_index}"
+            with queue_lock:
+                entry = jobs.get(job_id)
+                if entry:
+                    entry["post_process_label"] = f"Merging {book_label}"
             merger.merge_wav_files(
                 input_files=chunk_paths,
                 output_path=str(output_path),
                 format=output_format,
                 cleanup_chunks=False,
-                progress_callback=lambda ratio, idx=len(book_outputs) + 1: _update_review_post_progress(
+                progress_callback=lambda ratio, step=book_step: _update_review_post_progress(
                     job_id,
-                    len(chapters) + idx,
+                    step,
                     ratio,
                 ),
             )
+            with queue_lock:
+                entry = jobs.get(job_id)
+                if entry:
+                    entry["post_process_done"] = min(
+                        book_step,
+                        int(entry.get("post_process_total") or 0) or 0,
+                    )
             
             rel_path = Path(rel_book_dir) / output_filename
             book_outputs.append({
@@ -6737,7 +6779,11 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
                 "relative_path": rel_path.as_posix(),
             })
 
-    metadata = {
+    # Recompilation updates generated output records, but must never discard
+    # user-authored Library metadata such as collection/audiobook titles,
+    # chapter renames, author, cover details, or word replacements.
+    metadata = load_job_metadata(job_dir) or {}
+    generated_metadata = {
         "chapter_mode": job_entry.get("chapter_mode"),
         "book_mode": book_mode,
         "output_format": output_format,
@@ -6749,8 +6795,17 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
         "intro_silence_ms": int(max(0, merge_options.get("intro_silence_ms") or 0)),
         "inter_chunk_silence_ms": int(max(0, merge_options.get("inter_chunk_silence_ms") or 0)),
         "acx_compliance": bool(merge_options.get("acx_compliance", False)),
-        "word_replacements": job_entry.get("word_replacements") or [],
+        "word_replacements": (
+            job_entry.get("word_replacements")
+            or metadata.get("word_replacements")
+            or []
+        ),
     }
+    metadata = merge_generated_library_metadata(
+        metadata,
+        generated_metadata,
+        job_entry.get("chunks") or [],
+    )
     save_job_metadata(job_dir, metadata)
 
     invalidate_library_cache()
@@ -6765,6 +6820,7 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
             entry["post_process_percent"] = 100
             entry["post_process_active"] = False
             entry["post_process_done"] = int(entry.get("post_process_total") or entry.get("post_process_done") or 0)
+            entry["post_process_label"] = "Recompile complete"
             entry["chapter_outputs"] = chapter_outputs
             entry["completed_at"] = job_end_time.isoformat()
             if full_story_entry:
@@ -8646,12 +8702,16 @@ def _build_library_listing():
             _lib_has_chunks = _lib_chunks_meta_path.exists() or _lib_manifest_path.exists()
             _lib_engine = None
             _lib_timing_metrics = None
+            _lib_inferred_title = None
             if _lib_chunks_meta_path.exists():
                 try:
                     with _lib_chunks_meta_path.open("r", encoding="utf-8") as f:
                         _lib_cmeta = json.load(f)
                         _lib_engine = _lib_cmeta.get("engine")
                         _lib_timing_metrics = _lib_cmeta.get("timing_metrics")
+                        _lib_inferred_title = infer_collection_title_from_chunks(
+                            _lib_cmeta.get("chunks") or []
+                        )
                 except Exception:
                     pass
             # Also check live job entry for timing_metrics (may be more up-to-date)
@@ -8671,7 +8731,7 @@ def _build_library_listing():
                     "format": metadata.get("output_format", chapters_data[0]["format"]),
                     "chapter_mode": metadata.get("chapter_mode", False),
                     "book_mode": metadata.get("book_mode", False),
-                    "collection_title": metadata.get("collection_title"),
+                    "collection_title": metadata.get("collection_title") or _lib_inferred_title,
                     "books": chapters_data if metadata.get("book_mode") else [],
                     "chapters": chapters_data,
                     "full_story": full_story_entry,
@@ -8697,7 +8757,7 @@ def _build_library_listing():
                     "format": metadata.get("output_format", full_story_entry.get("format")),
                     "chapter_mode": metadata.get("chapter_mode", False),
                     "book_mode": metadata.get("book_mode", False),
-                    "collection_title": metadata.get("collection_title"),
+                    "collection_title": metadata.get("collection_title") or _lib_inferred_title,
                     "books": [],
                     "chapters": [],
                     "full_story": full_story_entry,
@@ -8980,6 +9040,20 @@ def restore_library_item_to_review(job_id):
         if not job_dir.exists():
             return jsonify({"success": False, "error": "Item not found"}), 404
 
+        reused_payload = None
+        with queue_lock:
+            existing_job = jobs.get(job_id)
+            if can_reuse_active_review_job(existing_job, job_dir):
+                reused_payload = {
+                    "success": True,
+                    "job_id": job_id,
+                    "chunk_count": len(existing_job.get("chunks") or []),
+                    "already_restored": True,
+                    "has_active_regen": _has_active_regen_tasks(existing_job),
+                }
+        if reused_payload is not None:
+            return jsonify(reused_payload)
+
         manifest_path = job_dir / "review_manifest.json"
         chunks_meta_path = job_dir / "chunks_metadata.json"
 
@@ -8995,6 +9069,7 @@ def restore_library_item_to_review(job_id):
         if chunks_meta_path.exists():
             with chunks_meta_path.open("r", encoding="utf-8") as handle:
                 chunks_meta = json.load(handle)
+        metadata = load_job_metadata(job_dir) or {}
 
         config_snapshot = load_config()
         engine_name = chunks_meta.get("engine") or config_snapshot.get("tts_engine", "kokoro")
@@ -9051,10 +9126,24 @@ def restore_library_item_to_review(job_id):
                 "full_story_requested": manifest.get("full_story_requested", False),
                 "job_dir": str(job_dir),
                 "config_snapshot": _redact_config_secrets(config_snapshot),
+                "merge_options": {
+                    "output_format": metadata.get("output_format") or config_snapshot.get("output_format"),
+                    "crossfade_duration": float(metadata.get("crossfade_duration") or 0),
+                    "intro_silence_ms": int(metadata.get("intro_silence_ms") or 0),
+                    "inter_chunk_silence_ms": int(metadata.get("inter_chunk_silence_ms") or 0),
+                    "output_bitrate_kbps": int(metadata.get("output_bitrate_kbps") or 0),
+                    "acx_compliance": bool(metadata.get("acx_compliance", False)),
+                },
+                "word_replacements": metadata.get("word_replacements") or [],
                 "chunks": valid_chunks,
                 "regen_tasks": {},
                 "engine": engine_name,
                 "restored_at": datetime.now().isoformat(),
+                "created_at": (
+                    metadata.get("created_at")
+                    or chunks_meta.get("created_at")
+                    or datetime.fromtimestamp(job_dir.stat().st_ctime).isoformat()
+                ),
             }
 
         invalidate_library_cache()
@@ -10101,19 +10190,33 @@ def delete_library_item(job_id):
                 "error": "Item not found"
             }), 404
         
-        # Delete directory and all contents (handle Windows read-only files)
-        import shutil
-        shutil.rmtree(job_dir, onerror=handle_remove_readonly)
-        
-        # Remove from jobs dict if present
-        if job_id in jobs:
-            del jobs[job_id]
+        # Delete both persisted job-side data and Library audio. The helper
+        # retries transient Windows locks and verifies each path is truly gone.
+        remove_directory_with_retries(JOBS_DATA_DIR / job_id)
+        remove_directory_with_retries(job_dir)
+
+        with queue_lock:
+            jobs.pop(job_id, None)
+            cancel_flags.pop(job_id, None)
+            pause_flags.pop(job_id, None)
+            cancel_events.pop(job_id, None)
+        with _get_jobs_db_connection() as conn:
+            conn.execute("DELETE FROM jobs WHERE job_id=?", (job_id,))
+            conn.commit()
         invalidate_library_cache()
         
         return jsonify({
             "success": True
         })
         
+    except PermissionError as e:
+        logger.warning("Library item %s could not be completely deleted: %s", job_id, e)
+        invalidate_library_cache()
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "retryable": True,
+        }), 409
     except Exception as e:
         logger.error(f"Error deleting library item: {e}", exc_info=True)
         return jsonify({
@@ -10195,7 +10298,11 @@ def get_queue():
                         "job_id": job_id,
                         "status": job_info.get("status", "unknown"),
                         "progress": job_info.get("progress", 0),
-                        "created_at": job_info.get("created_at", ""),
+                        "created_at": (
+                            job_info.get("created_at")
+                            or job_info.get("updated_at")
+                            or ""
+                        ),
                         "text_preview": job_info.get("text_preview", ""),
                         "output_file": job_info.get("output_file", ""),
                         "error": job_info.get("error", ""),
@@ -10218,7 +10325,7 @@ def get_queue():
                         "post_process_percent": job_info.get("post_process_percent", 0),
                     })
                 
-                all_jobs.sort(key=lambda x: x['created_at'], reverse=True)
+                all_jobs.sort(key=lambda x: x.get("created_at") or "", reverse=True)
             
             return jsonify({
                 "success": True,

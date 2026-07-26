@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/scripts/unix_torch.sh"
+
 echo "========================================"
 echo "Starting TTS-Story"
 echo "========================================"
@@ -14,10 +19,15 @@ echo "  - GPU users: update to the latest NVIDIA drivers"
 echo "  - Run 'git pull' to pull the latest updates"
 echo
 
-# Check that virtual environment exists
+# Check that setup completed and the virtual environment exists
 if [ ! -f "venv/bin/activate" ]; then
     echo "ERROR: Virtual environment not found."
     echo "Please run ./setup.sh first."
+    exit 1
+fi
+if [ ! -f ".setup_complete" ]; then
+    echo "ERROR: Setup has not completed successfully for this installation."
+    echo "Please rerun ./setup.sh before starting TTS-Story."
     exit 1
 fi
 
@@ -38,7 +48,11 @@ fi
 
 # Ensure CPU-only torch on systems without NVIDIA GPUs
 if [ "$HAS_NVIDIA" -eq 0 ]; then
-    echo "CPU-only system detected. Ensuring CPU PyTorch is installed..."
+    if [ "$(uname -s)" = "Darwin" ]; then
+        echo "macOS system detected. Ensuring native PyTorch is installed..."
+    else
+        echo "CPU-only system detected. Ensuring CPU PyTorch is installed..."
+    fi
     
     TORCH_PIN="2.6.0"
     TORCHVISION_PIN="0.21.0"
@@ -55,22 +69,20 @@ if [ "$HAS_NVIDIA" -eq 0 ]; then
     # 2. No torch installed
     # 3. CUDA build detected on CPU-only system
     if [ "${FORCE_TORCH_REINSTALL:-0}" = "1" ] || [ -z "$TORCH_INSTALLED" ]; then
-        echo "Installing CPU-only PyTorch..."
-        pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-        pip install --upgrade --force-reinstall \
-            torch==${TORCH_PIN}+cpu \
-            torchvision==${TORCHVISION_PIN}+cpu \
-            torchaudio==${TORCHAUDIO_PIN}+cpu \
-            --index-url https://download.pytorch.org/whl/cpu
+        echo "Installing PyTorch for this platform..."
+        python -m pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
+        tts_story_install_cpu_torch python \
+            "torch==${TORCH_PIN}" \
+            "torchvision==${TORCHVISION_PIN}" \
+            "torchaudio==${TORCHAUDIO_PIN}"
         pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
     elif echo "$TORCH_INSTALLED" | grep -q "+cu"; then
-        echo "CUDA build detected on CPU-only system. Reinstalling CPU-only torch..."
-        pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-        pip install --upgrade --force-reinstall \
-            torch==${TORCH_PIN}+cpu \
-            torchvision==${TORCHVISION_PIN}+cpu \
-            torchaudio==${TORCHAUDIO_PIN}+cpu \
-            --index-url https://download.pytorch.org/whl/cpu
+        echo "CUDA build detected on a non-NVIDIA system. Reinstalling PyTorch for this platform..."
+        python -m pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
+        tts_story_install_cpu_torch python \
+            "torch==${TORCH_PIN}" \
+            "torchvision==${TORCHVISION_PIN}" \
+            "torchaudio==${TORCHAUDIO_PIN}"
         pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
     else
         echo "Detected PyTorch: $TORCH_INSTALLED"

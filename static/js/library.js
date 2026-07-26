@@ -6,8 +6,10 @@ let chunkReviewModalData = null;
 let chapterReviewMode = false;
 let libraryChunkVoiceOverrides = {};
 let libraryChunkRegenWatchers = {};
+let libraryBulkRegenWatcher = null;
+let libraryRecompileProgressWatcher = null;
 const LIBRARY_CHUNK_POLL_INTERVAL_MS = 2000;
-const LIBRARY_CHUNK_MAX_ATTEMPTS = 60;
+const LIBRARY_CHUNK_MAX_ERROR_BACKOFF_MS = 15000;
 
 // Library item playback state (only one item should play at a time)
 let activeLibraryPlayer = null;
@@ -81,6 +83,7 @@ function ensureChunkReviewCloseHandlers() {
     const modalOverlay = document.getElementById('chunk-review-modal-overlay');
     const modalCloseBtn = document.getElementById('chunk-review-modal-close');
     const modalCloseFooterBtn = document.getElementById('chunk-review-close-btn');
+    const recompileBtn = document.getElementById('chunk-review-recompile-btn');
     if (modalOverlay && !modalOverlay.dataset.closeBound) {
         modalOverlay.addEventListener('click', (e) => {
             if (e.target === modalOverlay) {
@@ -96,6 +99,10 @@ function ensureChunkReviewCloseHandlers() {
     if (modalCloseFooterBtn && !modalCloseFooterBtn.dataset.closeBound) {
         modalCloseFooterBtn.addEventListener('click', closeChunkReviewModal);
         modalCloseFooterBtn.dataset.closeBound = 'true';
+    }
+    if (recompileBtn && !recompileBtn.dataset.recompileBound) {
+        recompileBtn.addEventListener('click', recompileLibraryAudio);
+        recompileBtn.dataset.recompileBound = 'true';
     }
     if (!document.body.dataset.chunkReviewEscBound) {
         document.addEventListener('keydown', (event) => {
@@ -306,6 +313,74 @@ function wireBookToggleEvents() {
         });
     });
 
+}
+
+function setLibraryRecompileButtonState(hasActiveRegen, label = '') {
+    const button = document.getElementById('chunk-review-recompile-btn');
+    if (!button || button.dataset.recompileBusy === 'true') return;
+    button.disabled = Boolean(hasActiveRegen);
+    button.textContent = label || (hasActiveRegen ? 'Waiting for regeneration...' : 'Recompile Audio');
+}
+
+function setLibraryBulkActionState(isActive) {
+    const button = document.getElementById('chunk-review-rebuild-selected');
+    if (!button) return;
+    const hasSelection = Boolean(document.querySelector('.bulk-speaker-checkbox:checked'));
+    button.disabled = Boolean(isActive) || !hasSelection;
+    button.textContent = isActive ? 'Regeneration in progress...' : 'Regen Selected Speakers';
+}
+
+async function requestLibraryReviewRestore(jobId) {
+    const response = await fetch(`/api/library/${jobId}/restore-review`, { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to prepare this Library item for review');
+    }
+    return data;
+}
+
+async function fetchLibraryReviewPayload(jobId) {
+    const response = await fetch(`/api/jobs/${jobId}/chunks`);
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load regeneration status');
+    }
+    return data;
+}
+
+function syncLibraryChunkRegenState(jobId, payload = {}) {
+    const regenTasks = payload.regen_tasks || {};
+    const activeChunkIds = [];
+    Object.entries(regenTasks).forEach(([chunkId, task]) => {
+        const status = task?.status;
+        if (!status) return;
+        updateLibraryChunkStatus(chunkId, status);
+        if (status === 'queued' || status === 'running') {
+            activeChunkIds.push(chunkId);
+        }
+    });
+    if (activeChunkIds.length) {
+        const requestedTimes = activeChunkIds
+            .map(chunkId => Date.parse(regenTasks[chunkId]?.requested_at))
+            .filter(timestamp => Number.isFinite(timestamp));
+        startLibraryBulkRegenWatcher(jobId, activeChunkIds, {
+            resumed: true,
+            startedAt: requestedTimes.length ? Math.min(...requestedTimes) : Date.now(),
+        });
+    }
+    setLibraryRecompileButtonState(Boolean(payload.review?.has_active_regen));
+}
+
+async function refreshLibraryRecompileState(jobId) {
+    try {
+        const payload = await fetchLibraryReviewPayload(jobId);
+        setLibraryRecompileButtonState(Boolean(payload.review?.has_active_regen));
+        return payload;
+    } catch (error) {
+        console.error('Failed to refresh Library regeneration state:', error);
+        setLibraryRecompileButtonState(true, 'Status unavailable');
+        return null;
+    }
 }
 
 // Library voice dropdown filter state
@@ -1319,19 +1394,64 @@ async function openAudiobookMetadataModal(jobId) {
 }
 
 // Delete library item
+function releaseLibraryItemAudio(jobId) {
+    const jobAudioPath = `/static/audio/${jobId}/`;
+    const players = new Set([
+        activeLibraryPlayer,
+        libraryActiveAudio,
+        chunkSequenceAudio,
+        previewAudio,
+        ...document.querySelectorAll('audio'),
+    ].filter(Boolean));
+
+    players.forEach(player => {
+        const sourceUrls = [
+            player.currentSrc,
+            player.getAttribute?.('src'),
+            player.src,
+            ...Array.from(player.querySelectorAll?.('source') || []).map(source => source.src),
+        ].filter(Boolean);
+        if (!sourceUrls.some(url => String(url).includes(jobAudioPath))) return;
+
+        try {
+            player.pause();
+            player.removeAttribute?.('src');
+            player.querySelectorAll?.('source')?.forEach(source => source.removeAttribute('src'));
+            player.load?.();
+        } catch (error) {
+            console.warn('Could not fully release Library audio before deletion:', error);
+        }
+        if (activeLibraryPlayer === player) {
+            activeLibraryPlayer = null;
+            activeLibraryUpdateControls = null;
+        }
+        if (libraryActiveAudio === player) libraryActiveAudio = null;
+        if (chunkSequenceAudio === player) chunkSequenceAudio = null;
+        if (previewAudio === player) previewAudio = null;
+    });
+
+    stopLibraryChunkAudio();
+    stopChunkSequence();
+    stopPreviewAudio();
+}
+
 async function deleteLibraryItem(jobId) {
     if (!confirm('Are you sure you want to delete this audio file?')) {
         return;
     }
-    
+
     try {
+        releaseLibraryItemAudio(jobId);
+        // Give an in-flight Flask audio response a moment to observe the
+        // browser abort before Windows filesystem deletion begins.
+        await new Promise(resolve => setTimeout(resolve, 200));
         const response = await fetch(`/api/library/${jobId}`, {
             method: 'DELETE'
         });
         
         const data = await response.json();
         
-        if (data.success) {
+        if (response.ok && data.success) {
             loadLibrary(); // Reload library
         } else {
             alert('Error deleting item: ' + data.error);
@@ -1396,22 +1516,33 @@ async function restoreToReview(jobId) {
     if (modal) modal.classList.remove('hidden');
     if (body) body.innerHTML = '<div class="chunk-review-loading">Loading chunks...</div>';
     if (titleEl) titleEl.textContent = 'Review Chunks';
+    setLibraryRecompileButtonState(true, 'Loading...');
 
     try {
         const response = await fetch(`/api/library/${jobId}/chunks`);
         const data = await response.json();
 
-        if (!data.success) {
+        if (!response.ok || !data.success) {
             if (body) body.innerHTML = `<div class="chunk-review-error">Error: ${data.error}</div>`;
+            setLibraryRecompileButtonState(true, 'Unavailable');
             return;
         }
 
         chunkReviewModalData = data;
         renderChunkReviewModal(data);
+        try {
+            await requestLibraryReviewRestore(jobId);
+            const reviewPayload = await fetchLibraryReviewPayload(jobId);
+            syncLibraryChunkRegenState(jobId, reviewPayload);
+        } catch (statusError) {
+            console.error('Error preparing Library review state:', statusError);
+            setLibraryRecompileButtonState(true, 'Status unavailable');
+        }
 
     } catch (error) {
         console.error('Error loading chunks:', error);
         if (body) body.innerHTML = '<div class="chunk-review-error">Failed to load chunk data.</div>';
+        setLibraryRecompileButtonState(true, 'Unavailable');
     }
 }
 
@@ -1435,10 +1566,18 @@ function closeChunkReviewModal() {
         }
     });
     libraryChunkRegenWatchers = {};
+    stopLibraryBulkRegenWatcher();
+    stopLibraryRecompileProgressWatcher();
     chunkReviewModalJobId = null;
     chunkReviewModalData = null;
     libraryChunkVoiceOverrides = {};
     chapterReviewMode = false;
+    const recompileBtn = document.getElementById('chunk-review-recompile-btn');
+    if (recompileBtn) {
+        recompileBtn.dataset.recompileBusy = 'false';
+        recompileBtn.disabled = true;
+        recompileBtn.textContent = 'Recompile Audio';
+    }
     if (titleEl) titleEl.textContent = 'Review Chunks';
 }
 
@@ -1690,6 +1829,23 @@ function renderChunkReviewModal(data) {
                 ${fullStoryControls}
             </div>
         </div>
+        <section id="library-regen-progress" class="library-regen-progress" hidden aria-live="polite">
+            <div class="library-regen-progress-heading">
+                <strong id="library-regen-progress-title">Regenerating selected speakers</strong>
+                <span id="library-regen-progress-percent">0%</span>
+            </div>
+            <div class="library-regen-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div id="library-regen-progress-fill" class="library-regen-progress-fill"></div>
+            </div>
+            <div class="library-regen-progress-details">
+                <span id="library-regen-progress-count">Preparing regeneration...</span>
+                <span id="library-regen-progress-time">Elapsed: 0s · Estimating time remaining...</span>
+            </div>
+            <div id="library-regen-progress-current" class="library-regen-progress-current">
+                Waiting for the first chunk to begin...
+            </div>
+            <div id="library-regen-progress-statuses" class="library-regen-progress-statuses"></div>
+        </section>
         <div class="bulk-speaker-section">
             <div class="bulk-speaker-header">
                 <strong>Bulk Speaker Regeneration</strong>
@@ -1765,7 +1921,7 @@ function wireBatchRebuildEvents(jobId, chunks, engine) {
     const updateSelectedState = () => {
         if (!rebuildSelected) return;
         const selected = checkboxes.filter(box => box.checked);
-        rebuildSelected.disabled = selected.length === 0;
+        rebuildSelected.disabled = selected.length === 0 || Boolean(libraryBulkRegenWatcher);
     };
 
     if (selectAll) {
@@ -1813,20 +1969,39 @@ function wireBatchRebuildEvents(jobId, chunks, engine) {
             rebuildSelected.disabled = true;
             rebuildSelected.textContent = 'Regenerating...';
             try {
+                await requestLibraryReviewRestore(jobId);
+                setLibraryRecompileButtonState(true);
+                const queuedChunkIds = [];
                 for (const card of selectedCards) {
                     const speaker = card.getAttribute('data-speaker') || 'default';
                     const engineSelect = card.querySelector('.bulk-speaker-engine-select');
                     const engineOverride = engineSelect?.value || engine;
                     const button = card.querySelector('.bulk-speaker-regen');
                     if (button) {
-                        await triggerBulkSpeakerRegen(jobId, speaker, chunks, engineOverride, button);
+                        const queued = await triggerBulkSpeakerRegen(
+                            jobId,
+                            speaker,
+                            chunks,
+                            engineOverride,
+                            button,
+                            { skipRestore: true }
+                        );
+                        if (!queued) {
+                            throw new Error(`Failed to queue regeneration for ${speaker}`);
+                        }
+                        queuedChunkIds.push(...queued);
                     }
+                }
+                if (queuedChunkIds.length) {
+                    startLibraryBulkRegenWatcher(jobId, queuedChunkIds);
                 }
             } catch (error) {
                 console.error('Bulk regen selected error:', error);
                 alert(error.message || 'Failed to regenerate selected speakers');
             } finally {
-                rebuildSelected.textContent = originalText;
+                rebuildSelected.textContent = libraryBulkRegenWatcher
+                    ? 'Regeneration in progress...'
+                    : originalText;
                 updateSelectedState();
             }
         });
@@ -3452,7 +3627,14 @@ function updateBulkRegenButtonState(checkbox) {
     btn.disabled = !(isChecked && hasVoice);
 }
 
-async function triggerBulkSpeakerRegen(jobId, speaker, chunks, engine, button) {
+async function triggerBulkSpeakerRegen(
+    jobId,
+    speaker,
+    chunks,
+    engine,
+    button,
+    { skipRestore = false } = {}
+) {
     const body = document.getElementById('chunk-review-modal-body');
     const card = button.closest('.bulk-speaker-card');
     const select = card?.querySelector('.bulk-speaker-voice-select');
@@ -3541,9 +3723,12 @@ async function triggerBulkSpeakerRegen(jobId, speaker, chunks, engine, button) {
     button.textContent = `Regenerating ${speakerChunks.length}...`;
 
     try {
-        // First restore the job to review mode
-        await fetch(`/api/library/${jobId}/restore-review`, { method: 'POST' });
+        if (!skipRestore) {
+            await requestLibraryReviewRestore(jobId);
+        }
+        setLibraryRecompileButtonState(true);
 
+        const queuedChunkIds = [];
         // Regenerate each chunk for this speaker
         for (const chunk of speakerChunks) {
             const chunkId = chunk.id;
@@ -3573,23 +3758,34 @@ async function triggerBulkSpeakerRegen(jobId, speaker, chunks, engine, button) {
             });
 
             const data = await response.json();
-            if (data.success) {
-                updateLibraryChunkStatus(chunkId, 'queued');
-                startLibraryChunkRegenWatcher(jobId, chunkId);
+            if (!response.ok || !data.success) {
+                throw new Error(
+                    data.error || `Failed to queue chunk ${chunkId} for ${speaker}`
+                );
             }
+            updateLibraryChunkStatus(chunkId, 'queued');
+            queuedChunkIds.push(chunkId);
         }
 
+        if (!skipRestore && queuedChunkIds.length) {
+            startLibraryBulkRegenWatcher(jobId, queuedChunkIds);
+        }
         button.textContent = 'Queued!';
         setTimeout(() => {
             button.textContent = 'Regenerate All';
             button.disabled = false;
         }, 2000);
+        return queuedChunkIds;
 
     } catch (error) {
         console.error('Bulk regen error:', error);
-        alert(error.message || 'Failed to queue bulk regeneration');
+        if (!skipRestore) {
+            alert(error.message || 'Failed to queue bulk regeneration');
+        }
         button.textContent = 'Regenerate All';
         button.disabled = false;
+        await refreshLibraryRecompileState(jobId);
+        return false;
     }
 }
 
@@ -3708,7 +3904,8 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
 
     try {
         // First restore the job to review mode if not already
-        await fetch(`/api/library/${jobId}/restore-review`, { method: 'POST' });
+        await requestLibraryReviewRestore(jobId);
+        setLibraryRecompileButtonState(true);
 
         const requestBody = {
             chunk_id: chunkId,
@@ -3724,7 +3921,7 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
         });
 
         const data = await response.json();
-        if (!data.success) {
+        if (!response.ok || !data.success) {
             throw new Error(data.error || 'Failed to queue regeneration');
         }
 
@@ -3736,6 +3933,7 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
         console.error('Regen error:', error);
         alert(error.message || 'Failed to regenerate chunk');
         setRegenButtonBusy(button, false);
+        await refreshLibraryRecompileState(jobId);
     }
 }
 
@@ -3758,6 +3956,8 @@ function updateLibraryChunkStatus(chunkId, status) {
         badge = '<span class="review-chip error">Failed</span>';
     } else if (status === 'completed') {
         badge = '<span class="review-chip success">Updated</span>';
+    } else if (status === 'unknown') {
+        badge = '<span class="review-chip error">Refresh needed</span>';
     }
 
     const regenButton = card.querySelector('.library-chunk-regen');
@@ -3765,7 +3965,7 @@ function updateLibraryChunkStatus(chunkId, status) {
         setRegenButtonBusy(regenButton, true, '⟳ Queued...');
     } else if (status === 'running') {
         setRegenButtonBusy(regenButton, true, '⟳ Rendering...');
-    } else if (status === 'completed' || status === 'failed') {
+    } else if (status === 'completed' || status === 'failed' || status === 'unknown') {
         setRegenButtonBusy(regenButton, false);
     }
 
@@ -3777,70 +3977,468 @@ function updateLibraryChunkStatus(chunkId, status) {
     }
 }
 
+function formatLibraryRegenDuration(totalSeconds) {
+    const seconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    if (minutes < 60) return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const minuteRemainder = minutes % 60;
+    return minuteRemainder ? `${hours}h ${minuteRemainder}m` : `${hours}h`;
+}
+
+function updateLibraryCompletedChunk(chunkId, chunk) {
+    if (!chunk?.file_url) return;
+    const card = document.querySelector(`.library-chunk-card[data-chunk-id="${chunkId}"]`);
+    if (card) {
+        const playBtn = card.querySelector('.library-chunk-play');
+        const cacheToken = chunk.regenerated_at || Date.now().toString();
+        const newUrl = `${chunk.file_url}?t=${encodeURIComponent(cacheToken)}`;
+        if (playBtn) {
+            playBtn.setAttribute('data-audio-url', newUrl);
+            playBtn.disabled = false;
+        }
+        const voiceLabelEl = card.querySelector('.library-chunk-voice-label');
+        const newVoiceLabel = chunk.voice || chunk.voice_label;
+        if (voiceLabelEl && newVoiceLabel) {
+            voiceLabelEl.textContent = newVoiceLabel;
+        }
+    }
+    const cachedChunk = (chunkReviewModalData?.chunks || []).find(item => item.id === chunkId);
+    if (cachedChunk) {
+        Object.assign(cachedChunk, chunk);
+    }
+}
+
+function renderLibraryBulkRegenProgress(watcher, payload = {}) {
+    const panel = document.getElementById('library-regen-progress');
+    if (!panel || !watcher) return;
+
+    const tasks = payload.regen_tasks || {};
+    const chunks = payload.chunks || [];
+    const chunkById = new Map(chunks.map(chunk => [String(chunk.id), chunk]));
+    const counts = { completed: 0, running: 0, queued: 0, failed: 0, unknown: 0 };
+    let runningChunkId = null;
+
+    watcher.chunkIds.forEach(chunkId => {
+        let status = tasks[chunkId]?.status;
+        if (!status) {
+            status = payload.review?.has_active_regen ? 'queued' : 'unknown';
+        }
+        if (!(status in counts)) status = 'unknown';
+        counts[status] += 1;
+        if (status === 'running' && !runningChunkId) runningChunkId = chunkId;
+        updateLibraryChunkStatus(chunkId, status);
+        if (status === 'completed') {
+            updateLibraryCompletedChunk(chunkId, chunkById.get(String(chunkId)));
+        }
+    });
+
+    const total = watcher.chunkIds.length;
+    const finished = counts.completed + counts.failed;
+    const percent = total ? Math.round((finished / total) * 100) : 0;
+    const elapsedSeconds = (Date.now() - watcher.startedAt) / 1000;
+    const remaining = counts.queued + counts.running;
+    const completedDurations = watcher.chunkIds
+        .map(chunkId => tasks[chunkId])
+        .filter(task => task?.status === 'completed' && task.started_at && task.completed_at)
+        .map(task => (Date.parse(task.completed_at) - Date.parse(task.started_at)) / 1000)
+        .filter(duration => Number.isFinite(duration) && duration > 0);
+
+    let timeText = `Elapsed: ${formatLibraryRegenDuration(elapsedSeconds)}`;
+    if (remaining > 0 && completedDurations.length) {
+        const averageSeconds = completedDurations.reduce((sum, duration) => sum + duration, 0) / completedDurations.length;
+        timeText += ` · About ${formatLibraryRegenDuration(averageSeconds * remaining)} remaining`;
+    } else if (remaining > 0) {
+        timeText += ' · Estimating time remaining...';
+    }
+
+    const title = document.getElementById('library-regen-progress-title');
+    const percentEl = document.getElementById('library-regen-progress-percent');
+    const fill = document.getElementById('library-regen-progress-fill');
+    const track = panel.querySelector('.library-regen-progress-track');
+    const count = document.getElementById('library-regen-progress-count');
+    const time = document.getElementById('library-regen-progress-time');
+    const current = document.getElementById('library-regen-progress-current');
+    const statuses = document.getElementById('library-regen-progress-statuses');
+
+    panel.hidden = false;
+    panel.classList.toggle('has-errors', counts.failed > 0);
+    panel.classList.toggle('is-complete', remaining === 0 && counts.unknown === 0);
+    if (title) {
+        title.textContent = remaining > 0
+            ? (watcher.resumed ? 'Regeneration in progress' : 'Regenerating selected speakers')
+            : (counts.failed ? 'Regeneration finished with errors' : 'Regeneration complete');
+    }
+    if (percentEl) percentEl.textContent = `${percent}%`;
+    if (fill) fill.style.width = `${percent}%`;
+    if (track) track.setAttribute('aria-valuenow', String(percent));
+    if (count) count.textContent = `${finished} of ${total} chunks finished`;
+    if (time) time.textContent = timeText;
+    if (statuses) {
+        statuses.innerHTML = `
+            <span class="library-regen-stat success">${counts.completed} updated</span>
+            <span class="library-regen-stat active">${counts.running} rendering</span>
+            <span class="library-regen-stat queued">${counts.queued} queued</span>
+            <span class="library-regen-stat error">${counts.failed} failed</span>
+        `;
+    }
+
+    if (current) {
+        if (runningChunkId) {
+            const chunk = chunkById.get(String(runningChunkId));
+            const position = watcher.chunkIds.indexOf(runningChunkId) + 1;
+            const speaker = chunk?.speaker || 'default';
+            const preview = String(chunk?.text || '').replace(/\s+/g, ' ').trim();
+            current.textContent = `Rendering chunk ${position} of ${total} · ${speaker}${preview ? ` · ${preview.slice(0, 90)}${preview.length > 90 ? '…' : ''}` : ''}`;
+        } else if (remaining > 0) {
+            current.textContent = 'Waiting for the next queued chunk to begin rendering...';
+        } else if (counts.unknown > 0) {
+            current.textContent = 'Some chunk statuses could not be confirmed. Refresh the Library item before recompiling.';
+        } else if (counts.failed > 0) {
+            current.textContent = `${counts.failed} chunk${counts.failed === 1 ? '' : 's'} failed. Review the failed chunks before recompiling.`;
+        } else {
+            current.textContent = `All ${total} chunks were updated successfully. You can now recompile the audio.`;
+        }
+    }
+
+    setLibraryRecompileButtonState(
+        remaining > 0 || Boolean(payload.review?.has_active_regen),
+        remaining > 0 ? `Regenerating ${finished} of ${total}...` : ''
+    );
+    setLibraryBulkActionState(remaining > 0 || Boolean(payload.review?.has_active_regen));
+    return { ...counts, total, finished, remaining };
+}
+
+function stopLibraryBulkRegenWatcher() {
+    if (libraryBulkRegenWatcher?.timer) {
+        clearTimeout(libraryBulkRegenWatcher.timer);
+    }
+    libraryBulkRegenWatcher = null;
+}
+
+function startLibraryBulkRegenWatcher(jobId, chunkIds, { resumed = false, startedAt = Date.now() } = {}) {
+    const uniqueChunkIds = [...new Set((chunkIds || []).map(String))];
+    if (!uniqueChunkIds.length) return;
+
+    stopLibraryBulkRegenWatcher();
+    uniqueChunkIds.forEach(chunkId => {
+        const key = `${jobId}:${chunkId}`;
+        if (libraryChunkRegenWatchers[key]?.timer) {
+            clearTimeout(libraryChunkRegenWatchers[key].timer);
+        }
+        delete libraryChunkRegenWatchers[key];
+        updateLibraryChunkStatus(chunkId, 'queued');
+    });
+
+    const watcher = {
+        jobId,
+        chunkIds: uniqueChunkIds,
+        startedAt,
+        resumed,
+        failures: 0,
+        timer: null,
+    };
+    libraryBulkRegenWatcher = watcher;
+    renderLibraryBulkRegenProgress(watcher, {
+        regen_tasks: Object.fromEntries(uniqueChunkIds.map(chunkId => [chunkId, { status: 'queued' }])),
+        review: { has_active_regen: true },
+        chunks: chunkReviewModalData?.chunks || [],
+    });
+    pollLibraryBulkRegenStatus(watcher);
+}
+
+async function pollLibraryBulkRegenStatus(watcher) {
+    if (chunkReviewModalJobId !== watcher.jobId || libraryBulkRegenWatcher !== watcher) return;
+
+    try {
+        const payload = await fetchLibraryReviewPayload(watcher.jobId);
+        watcher.failures = 0;
+        const progress = renderLibraryBulkRegenProgress(watcher, payload);
+        const hasActiveRegen = Boolean(payload.review?.has_active_regen);
+        if (progress && progress.remaining === 0 && !hasActiveRegen) {
+            libraryBulkRegenWatcher = null;
+            return;
+        }
+    } catch (error) {
+        console.error('Bulk regeneration progress error:', error);
+        watcher.failures += 1;
+        const current = document.getElementById('library-regen-progress-current');
+        if (current) {
+            current.textContent = 'Temporarily unable to retrieve progress. Retrying automatically...';
+        }
+    }
+
+    const retryDelay = Math.min(
+        LIBRARY_CHUNK_POLL_INTERVAL_MS * (2 ** Math.min(watcher.failures, 3)),
+        LIBRARY_CHUNK_MAX_ERROR_BACKOFF_MS
+    );
+    watcher.timer = setTimeout(() => pollLibraryBulkRegenStatus(watcher), retryDelay);
+}
+
 function startLibraryChunkRegenWatcher(jobId, chunkId) {
     const key = `${jobId}:${chunkId}`;
     if (libraryChunkRegenWatchers[key]) {
         clearTimeout(libraryChunkRegenWatchers[key].timer);
     }
 
-    const entry = { attempts: 0, timer: null };
+    const initialChunk = (chunkReviewModalData?.chunks || []).find(chunk => chunk.id === chunkId);
+    const entry = {
+        failures: 0,
+        timer: null,
+        initialRegeneratedAt: initialChunk?.regenerated_at || null,
+    };
     libraryChunkRegenWatchers[key] = entry;
 
     pollLibraryChunkStatus(jobId, chunkId, entry);
 }
 
 async function pollLibraryChunkStatus(jobId, chunkId, entry) {
-    entry.attempts++;
-
-    try {
-        const response = await fetch(`/api/jobs/${jobId}/chunks`);
-        const data = await response.json();
-
-        if (data.success) {
-            const chunks = data.chunks || [];
-            const regenTasks = data.regen_tasks || {};
-            const task = regenTasks[chunkId];
-            const status = task ? task.status : null;
-
-            updateLibraryChunkStatus(chunkId, status || 'completed');
-
-            // Update audio URL if completed
-            if (!status || status === 'completed' || status === 'failed') {
-                resetChunkRegenButton(chunkId);
-                const chunk = chunks.find(c => c.id === chunkId);
-                if (chunk && chunk.file_url) {
-                    const card = document.querySelector(`.library-chunk-card[data-chunk-id="${chunkId}"]`);
-                    if (card) {
-                        const playBtn = card.querySelector('.library-chunk-play');
-                        const cacheToken = chunk.regenerated_at || Date.now().toString();
-                        const newUrl = `${chunk.file_url}?t=${encodeURIComponent(cacheToken)}`;
-                        if (playBtn) {
-                            playBtn.setAttribute('data-audio-url', newUrl);
-                            playBtn.disabled = false;
-                        }
-                        // Update voice label (API returns 'voice', not 'voice_label')
-                        const voiceLabelEl = card.querySelector('.library-chunk-voice-label');
-                        const newVoiceLabel = chunk.voice || chunk.voice_label;
-                        if (voiceLabelEl && newVoiceLabel) {
-                            voiceLabelEl.textContent = newVoiceLabel;
-                        }
-                    }
-                }
-
-                delete libraryChunkRegenWatchers[`${jobId}:${chunkId}`];
-                return;
-            }
-        }
-    } catch (err) {
-        console.error('Poll error:', err);
-    }
-
-    if (entry.attempts >= LIBRARY_CHUNK_MAX_ATTEMPTS) {
-        delete libraryChunkRegenWatchers[`${jobId}:${chunkId}`];
+    const watcherKey = `${jobId}:${chunkId}`;
+    if (chunkReviewModalJobId !== jobId || libraryChunkRegenWatchers[watcherKey] !== entry) {
+        delete libraryChunkRegenWatchers[watcherKey];
         return;
     }
 
-    entry.timer = setTimeout(() => pollLibraryChunkStatus(jobId, chunkId, entry), LIBRARY_CHUNK_POLL_INTERVAL_MS);
+    try {
+        const data = await fetchLibraryReviewPayload(jobId);
+        entry.failures = 0;
+
+        const chunks = data.chunks || [];
+        const chunk = chunks.find(item => item.id === chunkId);
+        const task = (data.regen_tasks || {})[chunkId];
+        const hasActiveRegen = Boolean(data.review?.has_active_regen);
+        let status = task?.status || null;
+
+        if (!status) {
+            const timestampChanged = Boolean(
+                chunk?.regenerated_at
+                && chunk.regenerated_at !== entry.initialRegeneratedAt
+            );
+            if (hasActiveRegen) {
+                status = 'queued';
+            } else {
+                status = timestampChanged ? 'completed' : 'unknown';
+            }
+        }
+
+        updateLibraryChunkStatus(chunkId, status);
+        setLibraryRecompileButtonState(hasActiveRegen);
+
+        if (status === 'completed' || status === 'failed' || status === 'unknown') {
+            resetChunkRegenButton(chunkId);
+            if (status === 'completed' && chunk?.file_url) {
+                const card = document.querySelector(`.library-chunk-card[data-chunk-id="${chunkId}"]`);
+                if (card) {
+                    const playBtn = card.querySelector('.library-chunk-play');
+                    const cacheToken = chunk.regenerated_at || Date.now().toString();
+                    const newUrl = `${chunk.file_url}?t=${encodeURIComponent(cacheToken)}`;
+                    if (playBtn) {
+                        playBtn.setAttribute('data-audio-url', newUrl);
+                        playBtn.disabled = false;
+                    }
+                    // Update voice label (API returns 'voice', not 'voice_label')
+                    const voiceLabelEl = card.querySelector('.library-chunk-voice-label');
+                    const newVoiceLabel = chunk.voice || chunk.voice_label;
+                    if (voiceLabelEl && newVoiceLabel) {
+                        voiceLabelEl.textContent = newVoiceLabel;
+                    }
+                }
+                const cachedChunk = (chunkReviewModalData?.chunks || []).find(item => item.id === chunkId);
+                if (cachedChunk) {
+                    Object.assign(cachedChunk, chunk);
+                }
+            }
+            delete libraryChunkRegenWatchers[watcherKey];
+            return;
+        }
+    } catch (err) {
+        console.error('Poll error:', err);
+        entry.failures += 1;
+    }
+
+    const retryDelay = Math.min(
+        LIBRARY_CHUNK_POLL_INTERVAL_MS * (2 ** Math.min(entry.failures, 3)),
+        LIBRARY_CHUNK_MAX_ERROR_BACKOFF_MS
+    );
+    entry.timer = setTimeout(() => pollLibraryChunkStatus(jobId, chunkId, entry), retryDelay);
+}
+
+function renderLibraryRecompileProgress({
+    percent = 0,
+    done = 0,
+    total = 0,
+    label = 'Preparing audio files...',
+    elapsedSeconds = 0,
+    completed = false,
+    failed = false,
+} = {}) {
+    const panel = document.getElementById('library-regen-progress');
+    if (!panel) return;
+    const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    const title = document.getElementById('library-regen-progress-title');
+    const percentEl = document.getElementById('library-regen-progress-percent');
+    const fill = document.getElementById('library-regen-progress-fill');
+    const track = panel.querySelector('.library-regen-progress-track');
+    const count = document.getElementById('library-regen-progress-count');
+    const time = document.getElementById('library-regen-progress-time');
+    const current = document.getElementById('library-regen-progress-current');
+    const statuses = document.getElementById('library-regen-progress-statuses');
+
+    panel.hidden = false;
+    panel.classList.toggle('is-complete', completed);
+    panel.classList.toggle('has-errors', failed);
+    if (title) {
+        title.textContent = failed
+            ? 'Recompile failed'
+            : (completed ? 'Recompile complete' : 'Recompiling project audio');
+    }
+    if (percentEl) percentEl.textContent = `${safePercent}%`;
+    if (fill) fill.style.width = `${safePercent}%`;
+    if (track) track.setAttribute('aria-valuenow', String(safePercent));
+    if (count) {
+        count.textContent = total > 0
+            ? `${Math.min(done, total)} of ${total} audio outputs finished`
+            : 'Preparing output plan...';
+    }
+    if (time) {
+        let timeText = `Elapsed: ${formatLibraryRegenDuration(elapsedSeconds)}`;
+        if (!completed && !failed && safePercent > 2 && safePercent < 100) {
+            const estimatedRemaining = elapsedSeconds * ((100 - safePercent) / safePercent);
+            timeText += ` · About ${formatLibraryRegenDuration(estimatedRemaining)} remaining`;
+        } else if (!completed && !failed) {
+            timeText += ' · Estimating time remaining...';
+        }
+        time.textContent = timeText;
+    }
+    if (current) current.textContent = label;
+    if (statuses) {
+        statuses.innerHTML = failed
+            ? '<span class="library-regen-stat error">Recompile failed</span>'
+            : (completed
+                ? '<span class="library-regen-stat success">New audio files are ready</span>'
+                : '<span class="library-regen-stat active">Merging chunks into project audio</span>');
+    }
+}
+
+function stopLibraryRecompileProgressWatcher() {
+    if (libraryRecompileProgressWatcher?.timer) {
+        clearTimeout(libraryRecompileProgressWatcher.timer);
+    }
+    libraryRecompileProgressWatcher = null;
+}
+
+function startLibraryRecompileProgressWatcher(jobId) {
+    stopLibraryRecompileProgressWatcher();
+    const watcher = {
+        jobId,
+        startedAt: Date.now(),
+        failures: 0,
+        timer: null,
+        lastTotal: 0,
+        seenActive: false,
+    };
+    libraryRecompileProgressWatcher = watcher;
+    renderLibraryRecompileProgress();
+    pollLibraryRecompileProgress(watcher);
+}
+
+async function pollLibraryRecompileProgress(watcher) {
+    if (chunkReviewModalJobId !== watcher.jobId || libraryRecompileProgressWatcher !== watcher) return;
+    try {
+        const payload = await fetchLibraryReviewPayload(watcher.jobId);
+        watcher.failures = 0;
+        const review = payload.review || {};
+        if (review.post_process_active) watcher.seenActive = true;
+        const total = Number(review.post_process_total) || 0;
+        const done = Number(review.post_process_done) || 0;
+        if (total > 0) watcher.lastTotal = total;
+        if (watcher.seenActive) {
+            renderLibraryRecompileProgress({
+                percent: review.post_process_percent || 0,
+                done,
+                total,
+                label: review.post_process_label || 'Preparing audio files...',
+                elapsedSeconds: (Date.now() - watcher.startedAt) / 1000,
+            });
+        }
+    } catch (error) {
+        console.error('Recompile progress error:', error);
+        watcher.failures += 1;
+        const current = document.getElementById('library-regen-progress-current');
+        if (current) {
+            current.textContent = 'Temporarily unable to retrieve recompile progress. Retrying automatically...';
+        }
+    }
+    const retryDelay = Math.min(
+        750 * (2 ** Math.min(watcher.failures, 3)),
+        LIBRARY_CHUNK_MAX_ERROR_BACKOFF_MS
+    );
+    watcher.timer = setTimeout(() => pollLibraryRecompileProgress(watcher), retryDelay);
+}
+
+async function recompileLibraryAudio() {
+    const jobId = chunkReviewModalJobId;
+    const button = document.getElementById('chunk-review-recompile-btn');
+    if (!jobId || !button) return;
+    let reviewStateLoaded = false;
+    let hasActiveRegen = true;
+
+    button.dataset.recompileBusy = 'true';
+    button.disabled = true;
+    button.textContent = 'Recompiling...';
+
+    try {
+        await requestLibraryReviewRestore(jobId);
+        const reviewPayload = await fetchLibraryReviewPayload(jobId);
+        reviewStateLoaded = true;
+        hasActiveRegen = Boolean(reviewPayload.review?.has_active_regen);
+        if (hasActiveRegen) {
+            throw new Error('Wait for all chunk regenerations to finish');
+        }
+
+        startLibraryRecompileProgressWatcher(jobId);
+        const response = await fetch(`/api/jobs/${jobId}/review/finish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to recompile audio');
+        }
+
+        const completedTotal = libraryRecompileProgressWatcher?.lastTotal || 1;
+        stopLibraryRecompileProgressWatcher();
+        renderLibraryRecompileProgress({
+            percent: 100,
+            done: completedTotal,
+            total: completedTotal,
+            label: 'Audio recompiled successfully',
+            completed: true,
+        });
+        button.textContent = 'Recompile complete';
+        await new Promise(resolve => setTimeout(resolve, 900));
+        closeChunkReviewModal();
+        loadLibrary();
+    } catch (error) {
+        console.error('Recompile error:', error);
+        stopLibraryRecompileProgressWatcher();
+        renderLibraryRecompileProgress({
+            percent: 0,
+            label: error.message || 'Failed to recompile audio',
+            failed: true,
+        });
+        alert(error.message || 'Failed to recompile audio');
+    } finally {
+        button.dataset.recompileBusy = 'false';
+        if (chunkReviewModalJobId === jobId) {
+            setLibraryRecompileButtonState(!reviewStateLoaded || hasActiveRegen);
+        } else {
+            button.disabled = true;
+            button.textContent = 'Recompile Audio';
+        }
+    }
 }
 
 // FX button state helpers

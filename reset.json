@@ -3,6 +3,12 @@
     {
       "method": "fs.rm",
       "params": {
+        "path": ".setup_complete"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
         "path": "venv"
       }
     },

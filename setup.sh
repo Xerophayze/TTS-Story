@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/scripts/unix_torch.sh"
+
 echo "========================================"
 echo "TTS-Story Setup (Linux/macOS)"
 echo "========================================"
@@ -27,6 +32,9 @@ POCKET_TTS_VERSION="1.0.3"
 BLACKWELL_TORCH_VERSION="2.8.0"
 BLACKWELL_TORCHVISION_VERSION="0.23.0"
 BLACKWELL_TORCHAUDIO_VERSION="2.8.0"
+PLATFORM="$(uname -s)"
+ARCHITECTURE="$(uname -m)"
+rm -f .setup_complete
 
 # 1/12 Check Python installation
 echo
@@ -40,11 +48,9 @@ fi
 PYTHON_VERSION=$(python3 --version 2>&1)
 echo "Found $PYTHON_VERSION"
 
-# Check Python version (3.9+ required)
-PYTHON_MAJOR=$(python3 -c 'import sys; print(sys.version_info.major)')
-PYTHON_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
-if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 9 ]); then
-    echo "ERROR: Python 3.9 or higher is required. Found: $PYTHON_VERSION"
+# Check Python version (3.9-3.12 supported)
+if ! tts_story_python_supported python3; then
+    echo "ERROR: Python 3.9 through 3.12 is required. Found: $PYTHON_VERSION"
     exit 1
 fi
 
@@ -102,10 +108,10 @@ if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
         echo "Existing venv Python cannot start. Recreating venv."
         rm -rf venv
         python3 -m venv venv
-    elif [ "$VENV_MM" = "3.11" ] || [ "$UPDATE_MODE" -eq 1 ]; then
+    elif tts_story_python_supported venv/bin/python; then
         echo "Virtual environment already exists, skipping..."
     else
-        echo "Existing venv Python is not 3.11 (detected: ${VENV_MM:-unknown}). Recreating venv."
+        echo "Existing venv Python is outside the supported 3.9-3.12 range (detected: ${VENV_MM:-unknown}). Recreating venv."
         rm -rf venv
         python3 -m venv venv
     fi
@@ -118,6 +124,11 @@ echo
 echo "[3/12] Activating virtual environment..."
 # shellcheck disable=SC1091
 source venv/bin/activate
+if ! tts_story_python_supported python; then
+    echo "ERROR: The virtual environment must use Python 3.9 through 3.12."
+    echo "Delete the 'venv' folder, install a supported Python version, and rerun setup.sh."
+    exit 1
+fi
 
 # 4/12 Upgrade pip
 echo
@@ -144,7 +155,11 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 fi
 
 if [ "$HAS_NVIDIA" -eq 0 ]; then
-    echo "No NVIDIA GPU detected. Using CPU-only installs."
+    if [ "$PLATFORM" = "Darwin" ]; then
+        echo "macOS ${ARCHITECTURE} detected. Installing native macOS PyTorch wheels."
+    else
+        echo "No NVIDIA GPU detected. Using CPU-only installs."
+    fi
 else
     echo "NVIDIA GPU detected: $GPU_NAME"
     if [ -n "$GPU_COMPUTE_CAP" ]; then
@@ -240,9 +255,16 @@ else
             fi
         fi
     else
-        echo "Installing CPU-only PyTorch..."
-        pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
-        pip install --upgrade --force-reinstall torch==${TORCH_VERSION}+cpu torchvision==${TORCHVISION_VERSION}+cpu torchaudio==${TORCHAUDIO_VERSION}+cpu --index-url https://download.pytorch.org/whl/cpu
+        if [ "$PLATFORM" = "Darwin" ]; then
+            echo "Installing native macOS PyTorch..."
+        else
+            echo "Installing CPU-only PyTorch..."
+        fi
+        python -m pip uninstall -y torch torchvision torchaudio 2>/dev/null || true
+        tts_story_install_cpu_torch python \
+            "torch==${TORCH_VERSION}" \
+            "torchvision==${TORCHVISION_VERSION}" \
+            "torchaudio==${TORCHAUDIO_VERSION}"
         pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
     fi
 fi
@@ -411,12 +433,12 @@ else
                 echo "Installing matched OmniVoice torch/torchaudio CUDA 12.8 builds for GPU acceleration..."
                 if ! "$OMNIVOICE_PYTHON" -m pip install --upgrade --force-reinstall --no-deps "torch==2.8.0+cu128" "torchaudio==2.8.0+cu128" --index-url https://download.pytorch.org/whl/cu128; then
                     echo "WARNING: CUDA torch/torchaudio install failed. Trying matched CPU builds."
-                    "$OMNIVOICE_PYTHON" -m pip install --upgrade --force-reinstall --no-deps "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu || \
+                    tts_story_install_cpu_torch "$OMNIVOICE_PYTHON" --no-deps "torch==2.8.0" "torchaudio==2.8.0" || \
                         echo "WARNING: CPU torch/torchaudio install failed. OmniVoice will not be available."
                 fi
             else
-                echo "Installing matched OmniVoice torch/torchaudio CPU builds..."
-                "$OMNIVOICE_PYTHON" -m pip install --upgrade --force-reinstall --no-deps "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu || \
+                echo "Installing matched OmniVoice torch/torchaudio builds for this platform..."
+                tts_story_install_cpu_torch "$OMNIVOICE_PYTHON" --no-deps "torch==2.8.0" "torchaudio==2.8.0" || \
                     echo "WARNING: CPU torch/torchaudio install failed. OmniVoice will not be available."
             fi
             echo "Installing OmniVoice helper packages..."
@@ -599,10 +621,9 @@ else
                 fi
             fi
             if [ "$DOTS_TTS_TORCH_READY" -eq 0 ]; then
-                echo "Installing Dot.TTS CPU torch/torchaudio builds..."
-                "$DOTS_TTS_PYTHON" -m pip install --upgrade --force-reinstall --no-deps \
-                    "torch==2.8.0" "torchaudio==2.8.0" \
-                    --index-url https://download.pytorch.org/whl/cpu || true
+                echo "Installing Dot.TTS torch/torchaudio builds for this platform..."
+                tts_story_install_cpu_torch "$DOTS_TTS_PYTHON" --no-deps \
+                    "torch==2.8.0" "torchaudio==2.8.0" || true
             fi
             DOTS_TTS_RUNTIME_DEPS=(
                 transformers huggingface-hub loguru "langcodes[data]"
@@ -725,6 +746,7 @@ else
     python scripts/torch_cuda_probe.py
 fi
 
+touch .setup_complete
 echo
 echo "========================================"
 echo "Setup Complete!"

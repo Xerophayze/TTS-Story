@@ -5,13 +5,13 @@
       "method": "shell.run",
       "params": {
         "message": "{{os.platform() === 'win32' ? 'run.bat' : 'chmod +x run.sh && ./run.sh'}}",
-        "on": [{ "event": "/Running on (http://[0-9.:]+)/", "done": true }]
+        "on": [{ "event": "/(http:\\/\\/[0-9.:]+)/", "done": true }]
       }
     },
     {
       "method": "local.set",
       "params": {
-        "url": "http://localhost:5000"
+        "url": "{{input.event[1]}}"
       }
     }
   ]

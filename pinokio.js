@@ -1,20 +1,21 @@
 const path = require("path")
 
 module.exports = {
-  version: "2.0",
+  version: "8.0.0",
   title: "TTS-Story",
-  description: "Multi-Voice Text-to-Speech for Stories and Audiobooks. Supports Kokoro and Chatterbox TTS engines with GPU acceleration.",
+  description: "Multi-voice text-to-speech for stories and audiobooks, with local and cloud TTS engines plus optional LLM text processing.",
   icon: "icon.svg",
   menu: async (kernel, info) => {
     // Check installation status
     let installing = info.running("install.json")
-    let installed = info.exists("venv")
+    let installed = info.exists("venv") && info.exists(".setup_complete")
     
     if (installing) {
       return [{
         icon: "fa-solid fa-plug",
         text: "Installing...",
-        href: "install.json"
+        href: "install.json",
+        default: true
       }]
     } else if (installed) {
       let running = info.running("start.json")
@@ -26,7 +27,8 @@ module.exports = {
             {
               icon: "fa-solid fa-rocket",
               text: "Open Web UI",
-              href: memory.url
+              href: memory.url,
+              default: true
             },
             {
               icon: "fa-solid fa-terminal",
@@ -58,7 +60,8 @@ module.exports = {
           {
             icon: "fa-solid fa-power-off",
             text: "Start",
-            href: "start.json"
+            href: "start.json",
+            default: true
           },
           {
             icon: "fa-solid fa-rotate",
@@ -82,7 +85,8 @@ module.exports = {
         {
           icon: "fa-solid fa-plug",
           text: "Install",
-          href: "install.json"
+          href: "install.json",
+          default: true
         },
         {
           icon: "fa-solid fa-rotate",

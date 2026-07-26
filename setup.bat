@@ -27,6 +27,7 @@ set "BLACKWELL_TORCHAUDIO_VERSION=2.8.0"
 set "UPDATE_MODE=0"
 if /i "%~1"=="--update" set "UPDATE_MODE=1"
 if "%UPDATE_MODE%"=="1" echo Pinokio update mode enabled. Existing environments will be reused when valid.
+if exist ".setup_complete" del /q ".setup_complete" >nul 2>&1
 
 REM Check Python installation. Prefer an existing project venv during updates,
 REM because Pinokio may invoke setup.bat from a Conda base Python.
@@ -738,6 +739,7 @@ if errorlevel 1 (
     )
 )
 
+type nul > ".setup_complete"
 echo.
 echo ========================================
 echo Setup Complete!
