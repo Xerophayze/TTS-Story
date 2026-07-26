@@ -10,13 +10,14 @@ Every contribution is appreciated. Thank you for helping make this work possible
 
 ---
 
-# Current Updates and Notes - updated 07-15-2026
+# Current Updates and Notes - updated 07-25-2026
+- **Pinokio and macOS installation fixes** - corrected Apple Silicon PyTorch installation and improved compatibility with Pinokio-managed Python environments.
+- **More reliable cross-platform setup** - added platform-aware dependency handling and improved how Pinokio verifies, starts, updates, and resets an installation.
 - **Complete illustrated in-app user guide** - use the new searchable Help Center for screenshot-guided workflows, engine comparisons, setup instructions, troubleshooting, and contextual help from throughout the interface.
 - **Edge TTS and ElevenLabs support** - generate speech with dynamically discovered Edge voices or the voices and models available through your ElevenLabs account.
 - **Microsoft Azure AI Speech support** - use an Azure Speech key and region to access Microsoft's multilingual cloud voices and expression controls.
 - **Atlas Cloud and OpenRouter support** - process and prepare text using models available through either LLM provider.
 - **Dot.TTS support** - generate high-quality local voice-cloned audio using the RedNote HiLab Dot.TTS engine.
-- **Improved installation and platform support** - expanded setup, diagnostics, and audio-tool compatibility across Windows, Linux, macOS, and Pinokio.
 
 ### Previous Updates
 - Improved section handling, chapter organization, review, regeneration, and audiobook export.
