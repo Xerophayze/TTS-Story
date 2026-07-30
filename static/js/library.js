@@ -1636,7 +1636,7 @@ function renderChunkReviewModal(data) {
                         <div class="bulk-fx-row">
                             <div class="bulk-fx-control">
                                 <label>Speed</label>
-                                <input type="range" class="bulk-speed-slider" data-speaker="${escapeHtml(speaker)}" min="0.5" max="2.0" step="0.05" value="1.0">
+                                <input type="range" class="bulk-speed-slider" data-speaker="${escapeHtml(speaker)}" min="0.5" max="2.0" step="0.01" value="1.0">
                                 <span class="bulk-speed-value">1.0x</span>
                             </div>
                             <div class="bulk-fx-control">
@@ -2116,7 +2116,7 @@ function renderLibraryChunkRow(jobId, chunk, engine, idx) {
                     <div class="chunk-fx-row">
                         <div class="chunk-fx-control">
                             <label>Speed</label>
-                            <input type="range" class="chunk-speed-slider" data-chunk-id="${chunkId}" min="0.5" max="2.0" step="0.05" value="${(chunk.voice_assignment?.speed ?? chunk.fx_applied?.speed ?? 1.0).toFixed(2)}">
+                            <input type="range" class="chunk-speed-slider" data-chunk-id="${chunkId}" min="0.5" max="2.0" step="0.01" value="${(chunk.voice_assignment?.speed ?? chunk.fx_applied?.speed ?? 1.0).toFixed(2)}">
                             <span class="chunk-speed-value">${(chunk.voice_assignment?.speed ?? chunk.fx_applied?.speed ?? 1.0).toFixed(2)}x</span>
                         </div>
                         <div class="chunk-fx-control">
@@ -3710,7 +3710,7 @@ async function triggerBulkSpeakerRegen(
     const bulkPitch = parseFloat(bulkPitchSlider?.value || 0);
     const leadingSilenceSec = parseFloat(bulkLeadingSilence?.value || 0);
     const trailingSilenceSec = parseFloat(bulkTrailingSilence?.value || 0);
-    if (Math.abs(bulkSpeed - 1.0) > 0.01) {
+    if (Math.abs(bulkSpeed - 1.0) > 0.005) {
         voicePayload = { ...(voicePayload || {}), speed: parseFloat(bulkSpeed.toFixed(2)) };
     }
     if (Math.abs(bulkPitch) > 0.01) {
@@ -3889,7 +3889,7 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
     const chunkPitch = parseFloat(chunkPitchSlider?.value || 0);
     const leadingSilenceSec = parseFloat(chunkLeadingSilence?.value || 0);
     const trailingSilenceSec = parseFloat(chunkTrailingSilence?.value || 0);
-    if (Math.abs(chunkSpeed - 1.0) > 0.01) {
+    if (Math.abs(chunkSpeed - 1.0) > 0.005) {
         voicePayload = { ...(voicePayload || {}), speed: parseFloat(chunkSpeed.toFixed(2)) };
     }
     if (Math.abs(chunkPitch) > 0.01) {
@@ -4455,7 +4455,7 @@ function updateChunkApplyFxButtonState(slider) {
     const pitch = parseFloat(pitchSlider?.value || 0);
     
     // Enable if either value is changed from default
-    const hasChanges = Math.abs(speed - 1.0) > 0.01 || Math.abs(pitch) > 0.1;
+    const hasChanges = Math.abs(speed - 1.0) > 0.005 || Math.abs(pitch) > 0.1;
     if (applyBtn) applyBtn.disabled = !hasChanges;
     if (previewBtn) previewBtn.disabled = !hasChanges;
 }
@@ -4474,7 +4474,7 @@ function updateBulkApplyFxButtonState(slider) {
     const pitch = parseFloat(pitchSlider?.value || 0);
     
     // Enable if either value is changed from default
-    const hasChanges = Math.abs(speed - 1.0) > 0.01 || Math.abs(pitch) > 0.1;
+    const hasChanges = Math.abs(speed - 1.0) > 0.005 || Math.abs(pitch) > 0.1;
     applyBtn.disabled = !hasChanges;
 }
 

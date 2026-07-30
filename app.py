@@ -1038,10 +1038,22 @@ def _normalize_custom_headings(value: Optional[Any]) -> List[str]:
 
 
 def _keyword_to_regex(keyword: str) -> str:
-    escaped = re.escape(keyword.strip())
+    normalized = keyword.strip()
+    escaped = re.escape(normalized)
     if not escaped:
         return ""
-    return escaped.replace(r"\ ", r"\s+")
+    escaped = escaped.replace(r"\ ", r"\s+")
+
+    # A word boundary makes symbol-only markers impossible to match and is
+    # unreliable for languages that do not put spaces before heading numbers.
+    last_character = normalized[-1]
+    if last_character.isascii() and last_character.isalpha():
+        # Do not match prose words such as "particular", but allow compact
+        # headings such as "Episode1".
+        return escaped + r"(?![^\W\d_])"
+    if last_character.isascii() and (last_character.isdigit() or last_character == "_"):
+        return escaped + r"\b"
+    return escaped
 
 
 def _clean_heading_text(value: Optional[str]) -> str:
@@ -1067,7 +1079,7 @@ def _build_section_heading_pattern(section_headings: Optional[Any] = None) -> re
     if not keyword_regex:
         keyword_regex = "chapter"
     return re.compile(
-        rf'^\s*(?:\[[^\]]+\]\s*)*(({keyword_regex})\b[^\n\r]*)$',
+        rf'^\s*(?:\[[^\]]+\]\s*)*(({keyword_regex})[^\n\r]*)$',
         re.IGNORECASE | re.MULTILINE
     )
 

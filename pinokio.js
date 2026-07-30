@@ -4,7 +4,7 @@ module.exports = {
   version: "8.0.0",
   title: "TTS-Story",
   description: "Multi-voice text-to-speech for stories and audiobooks, with local and cloud TTS engines plus optional LLM text processing.",
-  icon: "icon.svg",
+  icon: "icon.png",
   menu: async (kernel, info) => {
     // Check installation status
     let installing = info.running("install.json")

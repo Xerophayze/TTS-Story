@@ -1,0 +1,5 @@
+{
+  "title": "TTS-Story",
+  "description": "Multi-voice text-to-speech for stories and audiobooks, with local and cloud TTS engines plus optional LLM text processing.",
+  "icon": "icon.png"
+}

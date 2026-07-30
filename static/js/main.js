@@ -1994,7 +1994,7 @@ function createAssignment(voiceName, langCode, speakerKey) {
         assignment.fx = fxPayload;
     }
     const speedValue = Number(state.speed) || 1;
-    if (Math.abs(speedValue - 1) > 0.01) {
+    if (Math.abs(speedValue - 1) > 0.005) {
         assignment.speed = Number(speedValue.toFixed(2));
     }
     return assignment;
@@ -2008,7 +2008,7 @@ function createPresetAssignment(voiceName, speakerKey) {
         assignment.fx = fxPayload;
     }
     const speedValue = Number(state.speed) || 1;
-    if (Math.abs(speedValue - 1) > 0.01) {
+    if (Math.abs(speedValue - 1) > 0.005) {
         assignment.speed = Number(speedValue.toFixed(2));
     }
     return assignment;
@@ -2076,7 +2076,7 @@ function renderFxPanel(container, speaker, options = {}) {
                 <div class="fx-field fx-inline fx-slider">
                     <label>Speed</label>
                     <div class="slider-group">
-                        <input type="range" min="0.5" max="2.0" step="0.05" value="${state.speed}" data-role="fx-speed">
+                        <input type="range" min="0.5" max="2.0" step="0.01" value="${state.speed}" data-role="fx-speed">
                         <span class="slider-value" data-role="fx-speed-value">${state.speed.toFixed(2)}x</span>
                     </div>
                 </div>
@@ -5976,7 +5976,7 @@ function buildTurboAssignment(speakerKey, referencePath) {
     }
     const state = getFxState(speakerKey);
     const speedValue = Number(state?.speed) || 1;
-    if (Math.abs(speedValue - 1) > 0.01) {
+    if (Math.abs(speedValue - 1) > 0.005) {
         assignment.speed = Number(speedValue.toFixed(2));
     }
     return Object.keys(assignment).length ? assignment : null;
@@ -6024,7 +6024,7 @@ function getVoiceAssignments() {
                 }
             }
             if (fxPayload) assignment.fx = fxPayload;
-            if (Math.abs(speedValue - 1) > 0.01) assignment.speed = Number(speedValue.toFixed(2));
+            if (Math.abs(speedValue - 1) > 0.005) assignment.speed = Number(speedValue.toFixed(2));
             assignments[speakerKey] = assignment;
         });
         return assignments;
@@ -6047,7 +6047,7 @@ function getVoiceAssignments() {
             const assignment = {};
             if (instruct) assignment.voice = instruct;
             if (fxPayload) assignment.fx = fxPayload;
-            if (Math.abs(speedValue - 1) > 0.01) assignment.speed = Number(speedValue.toFixed(2));
+            if (Math.abs(speedValue - 1) > 0.005) assignment.speed = Number(speedValue.toFixed(2));
             assignments[speakerKey] = assignment;
         });
         return assignments;
