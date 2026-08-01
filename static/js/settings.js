@@ -13,6 +13,17 @@ const LOCAL_LLM_BASE_URLS = {
 const ATLAS_CLOUD_BASE_URL = 'https://api.atlascloud.ai/v1';
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
+const OPENAI_TTS_BASE_URL = 'https://api.openai.com/v1';
+const OPENAI_TTS_MODELS = [
+    ['gpt-4o-mini-tts', 'GPT-4o mini TTS'],
+    ['gpt-4o-mini-tts-2025-12-15', 'GPT-4o mini TTS (2025-12-15 snapshot)'],
+    ['tts-1', 'TTS-1'],
+    ['tts-1-hd', 'TTS-1 HD'],
+];
+const OPENAI_TTS_VOICES = [
+    'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx',
+    'nova', 'sage', 'shimmer', 'verse', 'marin', 'cedar',
+];
 let settingsAzureSpeechVoices = [];
 let settingsEdgeTtsVoices = [];
 let settingsElevenLabsVoices = [];
@@ -536,6 +547,7 @@ function toggleEngineSettingsSections(engineName) {
         'azure_speech': 'azure-speech',
         'edge_tts': 'edge-tts',
         'elevenlabs': 'elevenlabs',
+        'openai_tts': 'openai-tts',
         'api_keys': 'api-keys'
     };
     
@@ -590,6 +602,18 @@ function setupSettingsListeners() {
     const fetchElevenLabsCatalogBtn = document.getElementById('fetch-elevenlabs-catalog');
     if (fetchElevenLabsCatalogBtn) {
         fetchElevenLabsCatalogBtn.addEventListener('click', () => fetchElevenLabsCatalog(fetchElevenLabsCatalogBtn));
+    }
+    const openAITtsCustomVoices = document.getElementById('openai-tts-custom-voices');
+    if (openAITtsCustomVoices) {
+        openAITtsCustomVoices.addEventListener('change', () => {
+            populateOpenAITtsSettingsOptions({
+                openai_tts_model: document.getElementById('openai-tts-custom-model')?.value?.trim()
+                    || document.getElementById('openai-tts-model')?.value
+                    || 'gpt-4o-mini-tts',
+                openai_tts_default_voice: document.getElementById('openai-tts-default-voice')?.value || 'coral',
+                openai_tts_custom_voices: openAITtsCustomVoices.value,
+            });
+        });
     }
     const azureDefaultVoice = document.getElementById('azure-speech-default-voice');
     if (azureDefaultVoice) {
@@ -1043,6 +1067,51 @@ function setCheckboxValue(id, checked, fallback = false) {
     el.checked = checked ?? fallback;
 }
 
+function populateOpenAITtsSettingsOptions(settings) {
+    const populate = (id, entries, selected) => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        const normalized = entries.map(entry => Array.isArray(entry) ? entry : [entry, entry]);
+        if (selected && !normalized.some(([value]) => value === selected)) {
+            normalized.push([selected, `${selected} (custom)`]);
+        }
+        select.innerHTML = '';
+        normalized.forEach(([value, label]) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            select.appendChild(option);
+        });
+        select.value = selected || normalized[0]?.[0] || '';
+    };
+
+    const customVoices = String(settings.openai_tts_custom_voices || '')
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean);
+    populate(
+        'openai-tts-model',
+        OPENAI_TTS_MODELS,
+        settings.openai_tts_model || 'gpt-4o-mini-tts'
+    );
+    setElementValue(
+        'openai-tts-custom-model',
+        OPENAI_TTS_MODELS.some(([value]) => value === settings.openai_tts_model)
+            ? ''
+            : (settings.openai_tts_model || '')
+    );
+    populate(
+        'openai-tts-default-voice',
+        [...new Set([...OPENAI_TTS_VOICES, ...customVoices])].map(value => [
+            value,
+            OPENAI_TTS_VOICES.includes(value)
+                ? value.charAt(0).toUpperCase() + value.slice(1)
+                : `${value} (custom)`,
+        ]),
+        settings.openai_tts_default_voice || 'coral'
+    );
+}
+
 // Apply settings to UI
 function applySettings(settings) {
     // Kokoro Replicate API Key
@@ -1182,6 +1251,14 @@ function applySettings(settings) {
         'JBFqnCBsd6RMkjVDRZzb',
         'ElevenLabs voices'
     );
+    setElementValue('openai-tts-api-key', settings.openai_tts_api_key || '');
+    setElementValue('openai-tts-base-url', settings.openai_tts_base_url || OPENAI_TTS_BASE_URL, OPENAI_TTS_BASE_URL);
+    populateOpenAITtsSettingsOptions(settings);
+    setElementValue('openai-tts-custom-voices', settings.openai_tts_custom_voices || '');
+    setElementValue('openai-tts-instructions', settings.openai_tts_instructions || '');
+    setElementValue('openai-tts-timeout', settings.openai_tts_timeout ?? 120, 120);
+    setElementValue('openai-tts-max-parallel', settings.openai_tts_max_parallel ?? 2, 2);
+    setElementValue('openai-tts-chunk-size', settings.openai_tts_chunk_size ?? 4000, 4000);
     setElementValue('llm-local-provider', settings.llm_local_provider || 'lmstudio', 'lmstudio');
     setElementValue('llm-local-base-url', settings.llm_local_base_url || LOCAL_LLM_BASE_URLS.lmstudio, LOCAL_LLM_BASE_URLS.lmstudio);
     setElementValue('llm-local-model', settings.llm_local_model || '');
@@ -1682,6 +1759,17 @@ async function saveSettings() {
         elevenlabs_similarity_boost: parseClampedFloat('elevenlabs-similarity-boost', 0.75),
         elevenlabs_style: parseClampedFloat('elevenlabs-style', 0),
         elevenlabs_use_speaker_boost: document.getElementById('elevenlabs-use-speaker-boost')?.checked ?? true,
+        openai_tts_api_key: document.getElementById('openai-tts-api-key')?.value || '',
+        openai_tts_base_url: document.getElementById('openai-tts-base-url')?.value?.trim() || OPENAI_TTS_BASE_URL,
+        openai_tts_model: document.getElementById('openai-tts-custom-model')?.value?.trim()
+            || document.getElementById('openai-tts-model')?.value?.trim()
+            || 'gpt-4o-mini-tts',
+        openai_tts_default_voice: document.getElementById('openai-tts-default-voice')?.value?.trim() || 'coral',
+        openai_tts_custom_voices: document.getElementById('openai-tts-custom-voices')?.value?.trim() || '',
+        openai_tts_instructions: document.getElementById('openai-tts-instructions')?.value?.trim() || '',
+        openai_tts_timeout: Math.max(10, Math.min(600, parseInt(document.getElementById('openai-tts-timeout')?.value, 10) || 120)),
+        openai_tts_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('openai-tts-max-parallel')?.value, 10) || 2)),
+        openai_tts_chunk_size: Math.max(100, Math.min(4000, parseInt(document.getElementById('openai-tts-chunk-size')?.value, 10) || 4000)),
         llm_local_provider: document.getElementById('llm-local-provider')?.value || 'lmstudio',
         llm_local_base_url: document.getElementById('llm-local-base-url')?.value || LOCAL_LLM_BASE_URLS.lmstudio,
         llm_local_model: document.getElementById('llm-local-model')?.value || '',
@@ -1918,6 +2006,15 @@ async function resetSettings() {
         elevenlabs_similarity_boost: 0.75,
         elevenlabs_style: 0,
         elevenlabs_use_speaker_boost: true,
+        openai_tts_api_key: '',
+        openai_tts_base_url: OPENAI_TTS_BASE_URL,
+        openai_tts_model: 'gpt-4o-mini-tts',
+        openai_tts_default_voice: 'coral',
+        openai_tts_custom_voices: '',
+        openai_tts_instructions: '',
+        openai_tts_timeout: 120,
+        openai_tts_max_parallel: 2,
+        openai_tts_chunk_size: 4000,
         llm_local_provider: 'lmstudio',
         llm_local_base_url: LOCAL_LLM_BASE_URLS.lmstudio,
         llm_local_model: '',

@@ -233,6 +233,7 @@
                                                 <option value="azure_speech">Microsoft Azure Speech · Cloud</option>
                                                 <option value="edge_tts">Microsoft Edge TTS · Experimental Cloud</option>
                                                 <option value="elevenlabs">ElevenLabs · Cloud</option>
+                                                <option value="openai_tts">OpenAI-compatible TTS · Cloud</option>
                                             </select>
                                         </div>
                                     </div>
@@ -761,6 +762,7 @@
                                     <option value="azure_speech">Microsoft Azure Speech · Cloud</option>
                                     <option value="edge_tts">Microsoft Edge TTS · Experimental Cloud</option>
                                     <option value="elevenlabs">ElevenLabs · Cloud</option>
+                                    <option value="openai_tts">OpenAI-compatible TTS · Cloud</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -804,6 +806,7 @@
                             <button type="button" class="engine-tab-btn" data-engine-tab="azure-speech">Azure Speech</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="edge-tts">Edge TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="elevenlabs">ElevenLabs</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="openai-tts">OpenAI TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="voxcpm">VoxCPM 1.5</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="pocket-tts">Pocket TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="qwen3">Qwen3-TTS</button>
@@ -1000,6 +1003,68 @@
                             </div>
                             <p class="help-text" id="elevenlabs-usage-status" aria-live="polite"></p>
                             <p class="help-text">Generation is billed by ElevenLabs. See the <a href="https://elevenlabs.io/pricing" target="_blank" rel="noopener noreferrer">ElevenLabs pricing page</a> for current plan limits.</p>
+                        </div>
+
+                        <div class="engine-panel" id="engine-panel-openai-tts">
+                            <div class="section-title-inline settings-panel-title">
+                                <h4>OpenAI-compatible TTS</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-openai-tts" aria-label="Help: OpenAI-compatible TTS">?</button>
+                            </div>
+                            <p class="help-text" style="margin-top:0;">Use OpenAI's speech API or another service implementing the same <code>/audio/speech</code> request.</p>
+                            <div class="settings-form-grid">
+                                <div class="form-group">
+                                    <label for="openai-tts-api-key">API Key</label>
+                                    <input type="password" id="openai-tts-api-key" autocomplete="off" placeholder="Optional for local endpoints">
+                                    <small>Stored locally and scrubbed before Git sync.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-base-url">API Base URL or Speech Endpoint</label>
+                                    <input type="url" id="openai-tts-base-url" value="https://api.openai.com/v1">
+                                    <small>Use a base ending in <code>/v1</code> or the full <code>/audio/speech</code> URL.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-model">Model</label>
+                                    <select id="openai-tts-model">
+                                        <option value="gpt-4o-mini-tts">GPT-4o mini TTS</option>
+                                        <option value="gpt-4o-mini-tts-2025-12-15">GPT-4o mini TTS (2025-12-15 snapshot)</option>
+                                        <option value="tts-1">TTS-1</option>
+                                        <option value="tts-1-hd">TTS-1 HD</option>
+                                    </select>
+                                    <small>Compatible endpoint model IDs saved previously are retained automatically.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-custom-model">Custom Compatible Model ID</label>
+                                    <input type="text" id="openai-tts-custom-model" placeholder="Leave blank to use the selected model">
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-default-voice">Default Voice or Custom Voice ID</label>
+                                    <select id="openai-tts-default-voice">
+                                        <option value="alloy">Alloy</option><option value="ash">Ash</option><option value="ballad">Ballad</option><option value="coral">Coral</option><option value="echo">Echo</option><option value="fable">Fable</option><option value="onyx">Onyx</option><option value="nova">Nova</option><option value="sage">Sage</option><option value="shimmer">Shimmer</option><option value="verse">Verse</option><option value="marin">Marin</option><option value="cedar">Cedar</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-custom-voices">Additional Voice IDs</label>
+                                    <input type="text" id="openai-tts-custom-voices" placeholder="voice_123, local-voice-name">
+                                    <small>Comma-separated IDs from an eligible OpenAI account or compatible service. TTS-Story can use existing IDs but does not create OpenAI custom voices.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-instructions">Default Voice Instructions</label>
+                                    <textarea id="openai-tts-instructions" rows="3" placeholder="Speak warmly and clearly."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-chunk-size">Chunk Size (chars)</label>
+                                    <input type="number" id="openai-tts-chunk-size" min="100" max="4000" step="100" value="4000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-timeout">Request Timeout (seconds)</label>
+                                    <input type="number" id="openai-tts-timeout" min="10" max="600" step="10" value="120">
+                                </div>
+                                <div class="form-group">
+                                    <label for="openai-tts-max-parallel">Maximum Parallel Requests</label>
+                                    <input type="number" id="openai-tts-max-parallel" min="1" max="8" step="1" value="2">
+                                </div>
+                            </div>
+                            <p class="help-text">Instruction-capable models use the prompt above; legacy TTS-1 models ignore it. Provider charges and limits apply.</p>
                         </div>
 
                         <!-- Chatterbox Local Panel -->
@@ -2374,6 +2439,7 @@
                                     <option value="azure_speech">Microsoft Azure Speech</option>
                                     <option value="edge_tts">Microsoft Edge TTS</option>
                                     <option value="elevenlabs">ElevenLabs</option>
+                                    <option value="openai_tts">OpenAI-compatible TTS</option>
                                 </select>
                             </div>
                             <div class="awr-preview-field awr-preview-field-voice">

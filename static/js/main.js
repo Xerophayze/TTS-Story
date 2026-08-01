@@ -1177,6 +1177,29 @@ async function loadElevenLabsCatalog(force = false) {
     }
 }
 
+async function loadOpenAITtsCatalog(force = false) {
+    if (openAITtsVoices.length && !force) return { voices: openAITtsVoices };
+    if (openAITtsCatalogPromise && !force) return openAITtsCatalogPromise;
+    openAITtsCatalogPromise = (async () => {
+        const response = await fetch('/api/openai-tts/catalog');
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load OpenAI TTS voices.');
+        openAITtsVoices = Array.isArray(data.voices) ? data.voices : [];
+        window.availableOpenAITtsVoices = openAITtsVoices;
+        populateDefaultVoiceSelect();
+        populateVoiceSelects();
+        return data;
+    })();
+    try {
+        return await openAITtsCatalogPromise;
+    } catch (error) {
+        showNotification(error.message || 'Unable to load OpenAI TTS voices.', 'warning');
+        return { voices: [] };
+    } finally {
+        openAITtsCatalogPromise = null;
+    }
+}
+
 function getAzureVoice(voiceName) {
     return azureSpeechVoices.find(voice => voice.short_name === voiceName) || null;
 }
@@ -1318,8 +1341,12 @@ function isElevenLabsEngine(engineName) {
     return (engineName || '').toLowerCase() === 'elevenlabs';
 }
 
+function isOpenAITtsEngine(engineName) {
+    return (engineName || '').toLowerCase() === 'openai_tts';
+}
+
 function isCatalogCloudEngine(engineName) {
-    return isAzureSpeechEngine(engineName) || isEdgeTtsEngine(engineName) || isElevenLabsEngine(engineName);
+    return isAzureSpeechEngine(engineName) || isEdgeTtsEngine(engineName) || isElevenLabsEngine(engineName) || isOpenAITtsEngine(engineName);
 }
 
 function isQwenCloneEngine(engineName) {
@@ -1344,6 +1371,7 @@ function updateEngineUI(engineName) {
     const isAzureSpeech = isAzureSpeechEngine(engineName);
     const isEdgeTts = isEdgeTtsEngine(engineName);
     const isElevenLabs = isElevenLabsEngine(engineName);
+    const isOpenAITts = isOpenAITtsEngine(engineName);
     const isCloneStyle = isQwenClone || isOmniClone;
     if (kokoroCard) {
         kokoroCard.style.display = isPrompt || isQwen || isCloneStyle ? 'none' : 'block';
@@ -1378,6 +1406,9 @@ function updateEngineUI(engineName) {
     if (isElevenLabs) {
         loadElevenLabsCatalog();
     }
+    if (isOpenAITts) {
+        loadOpenAITtsCatalog();
+    }
     // Repopulate voice selects when engine changes
     populateVoiceSelects();
 }
@@ -1397,6 +1428,7 @@ function updateAssignmentModes(engineName) {
     const isAzureSpeech = isAzureSpeechEngine(engineName);
     const isEdgeTts = isEdgeTtsEngine(engineName);
     const isElevenLabs = isElevenLabsEngine(engineName);
+    const isOpenAITts = isOpenAITtsEngine(engineName);
     getAssignmentRows().forEach(row => {
         const kokoroControl = row.querySelector('[data-role="kokoro-control"]');
         const turboControl = row.querySelector('[data-role="turbo-control"]');
@@ -1411,7 +1443,8 @@ function updateAssignmentModes(engineName) {
                     ? 'Qwen3 Speaker'
                     : (isAzureSpeech ? 'Azure Voice'
                         : (isEdgeTts ? 'Edge Voice'
-                            : (isElevenLabs ? 'ElevenLabs Voice' : row.dataset.speaker || 'Voice')));
+                            : (isElevenLabs ? 'ElevenLabs Voice'
+                                : (isOpenAITts ? 'OpenAI TTS Voice' : row.dataset.speaker || 'Voice'))));
             }
         }
         if (turboControl) {
@@ -1882,6 +1915,8 @@ let edgeTtsVoicesPromise = null;
 let elevenLabsVoices = [];
 let elevenLabsModels = [];
 let elevenLabsCatalogPromise = null;
+let openAITtsVoices = [];
+let openAITtsCatalogPromise = null;
 let qwen3Metadata = null;
 let availableGeminiPromptPresets = [];
 
@@ -3924,7 +3959,8 @@ const engineDisplayNames = {
     'omnivoice_design': 'OmniVoice · Design',
     'azure_speech': 'Microsoft Azure Speech · Cloud',
     'edge_tts': 'Microsoft Edge TTS · Experimental Cloud',
-    'elevenlabs': 'ElevenLabs · Cloud'
+    'elevenlabs': 'ElevenLabs · Cloud',
+    'openai_tts': 'OpenAI-compatible TTS · Cloud'
 };
 
 // Update mode indicator based on engine name (called when dropdown changes)
@@ -4654,6 +4690,9 @@ async function applyProjectState(project) {
         if (isElevenLabsEngine(project.engine)) {
             await loadElevenLabsCatalog();
         }
+        if (isOpenAITtsEngine(project.engine)) {
+            await loadOpenAITtsCatalog();
+        }
     }
     const defaultVoice = document.getElementById('default-voice-select');
     if (defaultVoice && project.default_voice) defaultVoice.value = project.default_voice;
@@ -5113,6 +5152,7 @@ function populateVoiceSelects() {
     const isAzureSpeech = isAzureSpeechEngine(engineName);
     const isEdgeTts = isEdgeTtsEngine(engineName);
     const isElevenLabs = isElevenLabsEngine(engineName);
+    const isOpenAITts = isOpenAITtsEngine(engineName);
     if (isAzureSpeech && !azureSpeechVoices.length) {
         setCatalogVoicePlaceholder('Loading Azure voices...');
         if (!azureSpeechVoicesPromise) loadAzureSpeechVoices();
@@ -5126,6 +5166,11 @@ function populateVoiceSelects() {
     if (isElevenLabs && !elevenLabsVoices.length) {
         setCatalogVoicePlaceholder('Loading ElevenLabs voices...');
         if (!elevenLabsCatalogPromise) loadElevenLabsCatalog();
+        return;
+    }
+    if (isOpenAITts && !openAITtsVoices.length) {
+        setCatalogVoicePlaceholder('Loading OpenAI TTS voices...');
+        if (!openAITtsCatalogPromise) loadOpenAITtsCatalog();
         return;
     }
     if (!window.availableVoices && !window.availablePocketTtsVoices && !isKittenEngine(engineName) && !isIndexTTSEngine(engineName) && !isDotsTTSEngine(engineName) && !isCatalogCloudEngine(engineName)) return;
@@ -5148,6 +5193,8 @@ function populateVoiceSelects() {
             appendProviderVoiceOptions(select, edgeTtsVoices, 'Edge voices');
         } else if (isElevenLabs) {
             appendProviderVoiceOptions(select, elevenLabsVoices, 'ElevenLabs voices');
+        } else if (isOpenAITts) {
+            appendProviderVoiceOptions(select, openAITtsVoices, 'OpenAI TTS voices');
         } else {
             appendVoiceOptions(select);
         }
@@ -5790,7 +5837,8 @@ function populateDefaultVoiceSelect() {
         ? runtimeSettings?.azure_speech_default_voice
         : (isEdgeTtsEngine(engineName)
             ? runtimeSettings?.edge_tts_default_voice
-            : (isElevenLabsEngine(engineName) ? runtimeSettings?.elevenlabs_default_voice : ''));
+            : (isElevenLabsEngine(engineName) ? runtimeSettings?.elevenlabs_default_voice
+                : (isOpenAITtsEngine(engineName) ? runtimeSettings?.openai_tts_default_voice : '')));
     const previousValue = select.value;
     select.innerHTML = '<option value="">Select Default Voice...</option>';
     if (isPocketPreset) {
@@ -5801,6 +5849,8 @@ function populateDefaultVoiceSelect() {
         appendProviderVoiceOptions(select, edgeTtsVoices, 'Edge voices');
     } else if (isElevenLabsEngine(engineName)) {
         appendProviderVoiceOptions(select, elevenLabsVoices, 'ElevenLabs voices');
+    } else if (isOpenAITtsEngine(engineName)) {
+        appendProviderVoiceOptions(select, openAITtsVoices, 'OpenAI TTS voices');
     } else {
         appendVoiceOptions(select);
     }
@@ -5913,7 +5963,7 @@ function getLangCodeForVoice(voiceName) {
     const azureVoice = getAzureVoice(voiceName);
     if (azureVoice) return azureVoice.locale || 'en-US';
 
-    const providerVoice = [...edgeTtsVoices, ...elevenLabsVoices]
+    const providerVoice = [...edgeTtsVoices, ...elevenLabsVoices, ...openAITtsVoices]
         .find(voice => (voice.short_name || voice.voice_id) === voiceName);
     if (providerVoice) return providerVoice.locale || '';
 
@@ -6560,6 +6610,7 @@ async function awrPopulateVoiceSelect(engineName) {
     const isAzureSpeech = norm.includes('azurespeech');
     const isEdgeTts = norm.includes('edgetts');
     const isElevenLabs = norm.includes('elevenlabs');
+    const isOpenAITts = norm.includes('openaitts');
 
     try {
         if (usesPrompts) {
@@ -6613,8 +6664,9 @@ async function awrPopulateVoiceSelect(engineName) {
                     select.appendChild(opt);
                 });
             }
-        } else if (isEdgeTts || isElevenLabs) {
-            const endpoint = isEdgeTts ? '/api/edge-tts/voices' : '/api/elevenlabs/catalog';
+        } else if (isEdgeTts || isElevenLabs || isOpenAITts) {
+            const endpoint = isEdgeTts ? '/api/edge-tts/voices'
+                : (isElevenLabs ? '/api/elevenlabs/catalog' : '/api/openai-tts/catalog');
             const resp = await fetch(endpoint);
             const data = await resp.json();
             if (data.success && data.voices) {

@@ -135,6 +135,14 @@ from src.engines.elevenlabs_engine import (
     DEFAULT_ELEVENLABS_OUTPUT_FORMAT,
     DEFAULT_ELEVENLABS_VOICE,
 )
+from src.engines.openai_tts_engine import (
+    OpenAITTSEngine,
+    OpenAITTSError,
+    DEFAULT_OPENAI_TTS_BASE_URL,
+    DEFAULT_OPENAI_TTS_MODEL,
+    DEFAULT_OPENAI_TTS_VOICE,
+    OPENAI_TTS_VOICES,
+)
 from src.tts_engine import (
     TTSEngine,
     KOKORO_AVAILABLE,
@@ -242,6 +250,15 @@ DEFAULT_CONFIG = {
     "elevenlabs_similarity_boost": 0.75,
     "elevenlabs_style": 0.0,
     "elevenlabs_use_speaker_boost": True,
+    "openai_tts_api_key": "",
+    "openai_tts_base_url": DEFAULT_OPENAI_TTS_BASE_URL,
+    "openai_tts_model": DEFAULT_OPENAI_TTS_MODEL,
+    "openai_tts_default_voice": DEFAULT_OPENAI_TTS_VOICE,
+    "openai_tts_custom_voices": "",
+    "openai_tts_instructions": "",
+    "openai_tts_timeout": 120,
+    "openai_tts_max_parallel": 2,
+    "openai_tts_chunk_size": 4000,
     "llm_local_provider": LLM_PROVIDER_LMSTUDIO,
     "llm_local_base_url": DEFAULT_LOCAL_LLM_BASE_URLS[LLM_PROVIDER_LMSTUDIO],
     "llm_local_model": "",
@@ -354,6 +371,7 @@ SECRET_CONFIG_KEYS = {
     "chatterbox_turbo_replicate_api_token",
     "azure_speech_key",
     "elevenlabs_api_key",
+    "openai_tts_api_key",
 }
 
 POCKET_TTS_PRESET_VOICES = [
@@ -1330,6 +1348,11 @@ def _validate_voice_assignments_for_engine(
             if not voice and not default_voice:
                 missing_voices.append(speaker)
 
+        if engine_name == "openai_tts":
+            default_voice = (config.get("openai_tts_default_voice") or "").strip()
+            if not voice and not default_voice:
+                missing_voices.append(speaker)
+
         if engine_name == "chatterbox_turbo_replicate":
             default_voice = (config.get("chatterbox_turbo_replicate_voice") or "").strip()
             if not prompt and not voice and not default_voice:
@@ -2303,6 +2326,17 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             str(bool(config.get("elevenlabs_use_speaker_boost", True))),
         )
         return f"{engine_name}::{'|'.join(parts)}"
+    if engine_name == "openai_tts":
+        parts = (
+            (config.get("openai_tts_api_key") or "").strip(),
+            (config.get("openai_tts_base_url") or DEFAULT_OPENAI_TTS_BASE_URL).strip(),
+            (config.get("openai_tts_model") or DEFAULT_OPENAI_TTS_MODEL).strip(),
+            (config.get("openai_tts_default_voice") or DEFAULT_OPENAI_TTS_VOICE).strip(),
+            (config.get("openai_tts_instructions") or "").strip(),
+            str(config.get("openai_tts_timeout") or 120),
+            str(config.get("openai_tts_max_parallel") or 2),
+        )
+        return f"{engine_name}::{'|'.join(parts)}"
     return engine_name
 
 
@@ -2585,6 +2619,22 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
                 if config.get("elevenlabs_style") is not None else 0.0
             ),
             use_speaker_boost=bool(config.get("elevenlabs_use_speaker_boost", True)),
+        )
+
+    if engine_name == "openai_tts":
+        base_url = (config.get("openai_tts_base_url") or DEFAULT_OPENAI_TTS_BASE_URL).strip()
+        api_key = (config.get("openai_tts_api_key") or "").strip()
+        if "api.openai.com" in base_url.lower() and not api_key:
+            raise ValueError("An OpenAI API key is required for the official OpenAI TTS endpoint.")
+        return get_engine(
+            "openai_tts",
+            api_key=api_key,
+            base_url=base_url,
+            model_id=(config.get("openai_tts_model") or DEFAULT_OPENAI_TTS_MODEL).strip(),
+            default_voice=(config.get("openai_tts_default_voice") or DEFAULT_OPENAI_TTS_VOICE).strip(),
+            instructions=(config.get("openai_tts_instructions") or "").strip(),
+            timeout=int(config.get("openai_tts_timeout") or 120),
+            max_parallel=int(config.get("openai_tts_max_parallel") or 2),
         )
 
     if engine_name == "kokoro_replicate":
@@ -3324,6 +3374,15 @@ def _create_text_processor_for_engine(engine_name: str, chunk_size: int, config:
             chunk_strategy="characters",
             char_soft_limit=elevenlabs_chunk_size,
             char_hard_limit=elevenlabs_chunk_size + 100,
+        )
+    if _normalize_engine_name(engine_name) == "openai_tts":
+        openai_chunk_size = 4000
+        if config:
+            openai_chunk_size = config.get("openai_tts_chunk_size", openai_chunk_size)
+        return TextProcessor(
+            chunk_strategy="characters",
+            char_soft_limit=openai_chunk_size,
+            char_hard_limit=min(openai_chunk_size + 96, 4096),
         )
     if _normalize_engine_name(engine_name) in {"pocket_tts", "pocket_tts_preset"}:
         pocket_chunk_size = 450
@@ -5317,6 +5376,34 @@ def get_elevenlabs_catalog():
         "cached": bool(cached_catalog),
     })
 
+
+@app.route('/api/openai-tts/catalog', methods=['GET'])
+def get_openai_tts_catalog():
+    """Return official voices plus locally configured compatible voice IDs."""
+    config = load_config()
+    custom = [
+        value.strip() for value in str(config.get("openai_tts_custom_voices") or "").split(",")
+        if value.strip()
+    ]
+    voice_ids = list(dict.fromkeys([*OPENAI_TTS_VOICES, *custom]))
+    voices = [{
+        "short_name": voice_id,
+        "voice_id": voice_id,
+        "display_name": voice_id.replace("_", " ").title(),
+        "locale": "",
+        "gender": "",
+    } for voice_id in voice_ids]
+    return jsonify({
+        "success": True,
+        "voices": voices,
+        "models": [
+            {"model_id": "gpt-4o-mini-tts", "name": "GPT-4o mini TTS"},
+            {"model_id": "gpt-4o-mini-tts-2025-12-15", "name": "GPT-4o mini TTS (2025-12-15 snapshot)"},
+            {"model_id": "tts-1", "name": "TTS-1"},
+            {"model_id": "tts-1-hd", "name": "TTS-1 HD"},
+        ],
+        "configured_model": config.get("openai_tts_model") or DEFAULT_OPENAI_TTS_MODEL,
+    })
 
 def _get_audio_duration(file_path: Path) -> Optional[float]:
     """Get audio duration in seconds using pydub."""
@@ -10450,6 +10537,11 @@ def health_check():
         ),
         "elevenlabs_available": True,
         "elevenlabs_configured": bool((config.get("elevenlabs_api_key") or "").strip()),
+        "openai_tts_available": True,
+        "openai_tts_configured": bool(
+            (config.get("openai_tts_api_key") or "").strip()
+            or "api.openai.com" not in (config.get("openai_tts_base_url") or DEFAULT_OPENAI_TTS_BASE_URL).lower()
+        ),
         "cuda_available": False if not KOKORO_AVAILABLE else __import__('torch').cuda.is_available(),
         "vram": vram_info,
         "loaded_engines": list(tts_engine_instances.keys()),

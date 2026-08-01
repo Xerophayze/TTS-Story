@@ -19,6 +19,7 @@ SECRET_CONFIG_KEYS = {
     "openrouter_api_key",
     "azure_speech_key",
     "elevenlabs_api_key",
+    "openai_tts_api_key",
     "gemini_api_key",
     "replicate_api_key",
     "llm_local_api_key",

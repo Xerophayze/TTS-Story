@@ -21,6 +21,7 @@ _LAZY_EXPORTS = {
     "AzureSpeechEngine": (".azure_speech_engine", "AzureSpeechEngine"),
     "EdgeTTSEngine": (".edge_tts_engine", "EdgeTTSEngine"),
     "ElevenLabsEngine": (".elevenlabs_engine", "ElevenLabsEngine"),
+    "OpenAITTSEngine": (".openai_tts_engine", "OpenAITTSEngine"),
 }
 
 
@@ -47,4 +48,5 @@ __all__ = [
     "AzureSpeechEngine",
     "EdgeTTSEngine",
     "ElevenLabsEngine",
+    "OpenAITTSEngine",
 ]

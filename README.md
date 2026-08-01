@@ -10,25 +10,21 @@ Every contribution is appreciated. Thank you for helping make this work possible
 
 ---
 
-# Current Updates and Notes - updated 07-26-2026
-- **Pinokio and macOS installation fixes** - corrected Apple Silicon PyTorch installation and improved compatibility with Pinokio-managed Python environments.
-- **Faster, more reliable cross-platform setup** - added dependency-aware updates, platform-aware installation handling, explicit repair options, and improved Pinokio install verification.
+# Current Updates and Notes - updated 07-31-2026
+- **OpenAI-compatible TTS** - generate speech through OpenAI or a custom compatible endpoint with configurable models, instructions, concurrency, and per-speaker voices.
+- **Expanded OpenAI model and voice selection** - choose from the documented speech models and built-in voices, or add eligible OpenAI custom voice IDs and provider-specific model or voice IDs.
+- **More reliable voice pacing** - speaker speed now remains consistent between quick previews, completed OmniVoice generation, and Library regeneration.
+- **Improved cross-platform installation and updates** - faster dependency-aware updates, Apple Silicon PyTorch support, and more reliable Pinokio-managed environments.
 - **Complete illustrated in-app user guide** - use the new searchable Help Center for screenshot-guided workflows, engine comparisons, setup instructions, troubleshooting, and contextual help from throughout the interface.
-- **Edge TTS and ElevenLabs support** - generate speech with dynamically discovered Edge voices or the voices and models available through your ElevenLabs account.
-- **Microsoft Azure AI Speech support** - use an Azure Speech key and region to access Microsoft's multilingual cloud voices and expression controls.
-- **Atlas Cloud and OpenRouter support** - process and prepare text using models available through either LLM provider.
-- **Dot.TTS support** - generate high-quality local voice-cloned audio using the RedNote HiLab Dot.TTS engine.
 
 ### Previous Updates
 - Improved section handling, chapter organization, review, regeneration, and audiobook export.
-- Added Pinokio installation and update support.
 - Added M4B audiobook export with chapter markers and cover art.
-- Added dynamic section-heading detection and chapter controls.
-- Improved voice-prompt audio quality and management.
+- Added Edge TTS, ElevenLabs, and Microsoft Azure Speech cloud engines.
 
 # TTS-Story
 
-A web-based Text-to-Speech application supporting multiple TTS engines including **Kokoro-82M**, **Chatterbox**, **VoxCPM 1.5**, **Qwen3 TTS** (Custom Voice, Clone, Voice Creation), **Pocket TTS** (CPU-friendly), **OmniVoice**, **KittenTTS** (ultra-lightweight CPU-only), **IndexTTS** (zero-shot voice cloning by Bilibili), **Dot.TTS** (48 kHz zero-shot voice cloning by rednote-hilab), **Microsoft Azure AI Speech**, **Microsoft Edge TTS**, and **ElevenLabs**, with local and cloud options for generating multi-voice audiobooks and stories.
+A web-based Text-to-Speech application supporting multiple TTS engines including **Kokoro-82M**, **Chatterbox**, **VoxCPM 1.5**, **Qwen3 TTS** (Custom Voice, Clone, Voice Creation), **Pocket TTS** (CPU-friendly), **OmniVoice**, **KittenTTS** (ultra-lightweight CPU-only), **IndexTTS** (zero-shot voice cloning by Bilibili), **Dot.TTS** (48 kHz zero-shot voice cloning by rednote-hilab), **Microsoft Azure AI Speech**, **Microsoft Edge TTS**, **ElevenLabs**, and **OpenAI-compatible TTS**, with local and cloud options for generating multi-voice audiobooks and stories.
 
 <div align="center">
   <table>
@@ -85,7 +81,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 ## Features
 
 ### TTS Engines
-- **Multi-Engine Support**: Choose from sixteen TTS engine options:
+- **Multi-Engine Support**: Choose from seventeen TTS engine options:
   - **Kokoro · Local GPU** - Run Kokoro-82M locally on your NVIDIA GPU
   - **Kokoro · Replicate** - Use Kokoro via Replicate cloud API
   - **Chatterbox · Local GPU** - Run Chatterbox locally with voice cloning (~8GB VRAM required)
@@ -102,6 +98,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
   - **Microsoft Azure Speech · Cloud** - Use your Azure Speech resource with dynamically discovered multilingual neural voices, styles, roles, and SSML prosody controls
   - **Microsoft Edge TTS · Experimental Cloud** - Use Microsoft's dynamically discovered consumer Edge voices without an API key
   - **ElevenLabs · Cloud** - Use the voices and text-to-speech models available through your ElevenLabs account
+  - **OpenAI-compatible TTS · Cloud** - Use OpenAI's speech API or a custom service implementing the same endpoint
 - **Unified Replicate API**: Single API token works for both Kokoro and Chatterbox Replicate engines
 - **Voice Cloning**: Upload your own voice recordings (10-15 seconds recommended) for supported cloning engines including Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, and Dot.TTS
 - **Voice Prompt Management**: Add, rename, delete, and preview custom voice prompts with drag-and-drop bulk upload
@@ -123,7 +120,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 - **OpenRouter Model Discovery**: Retrieve the text models allowed by your key's provider preferences, privacy settings, and guardrails
 - **Speaker Memory Between Chunks**: LLM requests carry forward discovered speaker tags for consistency
 - **Local GPU Processing**: Run entirely on your machine for privacy and speed
-- **Cloud API Options**: Use Replicate, Microsoft Azure Speech, experimental Edge TTS, or ElevenLabs when you don't have local GPU resources
+- **Cloud API Options**: Use Replicate, Microsoft Azure Speech, experimental Edge TTS, ElevenLabs, or OpenAI-compatible TTS when you don't have local GPU resources
 
 ### Job Management & Library
 - **Job Queue**: Submit multiple jobs, track real-time progress with ETA, cancel, and download results
@@ -360,7 +357,7 @@ The same canonical Markdown articles are available in [`docs/help`](docs/help) f
 
 ### Selecting a TTS Engine
 
-TTS-Story supports sixteen TTS engine options. In the **Settings** tab, choose your preferred default engine:
+TTS-Story supports seventeen TTS engine options. In the **Settings** tab, choose your preferred default engine:
 
 | Engine | Description | Requirements |
 |--------|-------------|--------------|
@@ -380,6 +377,7 @@ TTS-Story supports sixteen TTS engine options. In the **Settings** tab, choose y
 | **Microsoft Azure Speech · Cloud** | Regional multilingual neural voices with styles, roles, and SSML controls | Azure Speech resource key and region |
 | **Microsoft Edge TTS · Experimental Cloud** | Dynamically discovered Microsoft consumer voices | Internet connection; no API key |
 | **ElevenLabs · Cloud** | Account voices and current text-to-speech models | ElevenLabs API key and available character quota |
+| **OpenAI-compatible TTS · Cloud** | Built-in or custom voice IDs through an editable speech endpoint | Provider API key when required |
 
 You can also override the engine per-job in the **Generate** tab.
 
@@ -425,6 +423,10 @@ This provider uses Microsoft's consumer Edge speech service through the unoffici
 4. Select a default model and voice, save, then choose **ElevenLabs · Cloud** on the Generate tab.
 
 TTS-Story supports per-speaker ElevenLabs voices along with configurable stability, similarity, style, speaker boost, generation speed, previews, full jobs, and Library regeneration. Account concurrency and character limits still apply. Review [ElevenLabs pricing](https://elevenlabs.io/pricing) before large jobs.
+
+### OpenAI-compatible TTS Engine
+
+Open **Settings → Engine Settings → OpenAI TTS**, enter an API key, and keep `https://api.openai.com/v1` for the official service. You can instead enter a custom base URL or full `/audio/speech` URL; local endpoints may omit the key. Model names, built-in voices, custom voice IDs, voice instructions, request concurrency, and per-speaker speed are configurable. OpenAI usage and model access are governed by your account; review the [official speech API reference](https://platform.openai.com/docs/api-reference/audio/createSpeech) before large jobs.
 
 ### Dot.TTS Engine
 
@@ -732,6 +734,7 @@ Cloud API keys are stored locally in `config.json`. The repository sync script s
 | `azure_speech` | Microsoft Azure AI Speech regional REST API |
 | `edge_tts` | Experimental Microsoft Edge online speech service |
 | `elevenlabs` | ElevenLabs REST API with account voice/model discovery |
+| `openai_tts` | OpenAI or OpenAI-compatible `/audio/speech` endpoint |
 
 Any settings you override in the Generate tab (format, bitrate, engine) are sent along with the job payload while keeping the saved defaults intact.
 
@@ -816,6 +819,7 @@ TTS-Story/
 - `POST /api/azure-speech/voices` - Validate an entered Azure key/region and fetch its regional voice catalog
 - `GET|POST /api/edge-tts/voices` - Fetch the current experimental Edge voice catalog
 - `GET|POST /api/elevenlabs/catalog` - Validate ElevenLabs access and fetch account voices, TTS models, and permitted usage data
+- `GET /api/openai-tts/catalog` - Return built-in and configured OpenAI-compatible voice IDs
 - `POST /api/local-llm/models` - Fetch models from LM Studio or Ollama
 - `POST /api/generate` - Queue a new audio generation job
 - `GET /api/status/<job_id>` - Check status of a specific job

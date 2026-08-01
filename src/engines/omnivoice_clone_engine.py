@@ -23,7 +23,11 @@ import numpy as np
 import soundfile as sf
 
 from .base import EngineCapabilities, TtsEngineBase, VoiceAssignment
-from ..audio_effects import AudioPostProcessor, VoiceFXSettings
+from ..audio_effects import (
+    AudioPostProcessor,
+    VoiceFXSettings,
+    convert_mp3_to_wav_if_needed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,15 +140,26 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         prompt_path = self._resolve_prompt_path(prompt_path)
         if not prompt_path:
             raise ValueError("Reference audio file not found.")
-        # Convert MP3 to WAV to prevent artifacts
-        from ..audio_effects import convert_mp3_to_wav_if_needed
-        prompt_path, temp_mp3_conv = convert_mp3_to_wav_if_needed(prompt_path)
         ref_text = self._resolve_ref_text(
             prompt_path,
             _kwargs.get("prompt_text") or self.default_prompt_text,
         )
 
+        prompt_fx, output_fx = self._split_reference_and_output_fx(
+            fx_settings,
+            speed_override=speed,
+        )
+        prompt_path, temp_mp3_conv = convert_mp3_to_wav_if_needed(prompt_path)
+        temp_prompt = None
+
         try:
+            if prompt_fx:
+                temp_prompt = self.post_processor.prepare_prompt_audio(
+                    prompt_path,
+                    prompt_fx,
+                )
+                if temp_prompt:
+                    prompt_path = str(temp_prompt)
             with tempfile.TemporaryDirectory() as tmp_dir:
                 output_path = str(Path(tmp_dir) / "preview.wav")
                 job = {
@@ -153,7 +168,10 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                     "device": self.device,
                     "dtype": self.dtype,
                     "num_step": self.num_step,
-                    "speed": speed,
+                    # Speaker speed is encoded into the temporary reference
+                    # prompt above. Keep model output speed neutral so the
+                    # requested adjustment is not applied twice.
+                    "speed": 1.0,
                     "post_process": self.post_process,
                     "chunks": [{
                         "text": text,
@@ -166,9 +184,15 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                 self._run_worker(job)
                 audio, sr = sf.read(output_path, dtype="float32")
         finally:
+            if temp_prompt:
+                Path(temp_prompt).unlink(missing_ok=True)
             if temp_mp3_conv:
                 temp_mp3_conv.unlink(missing_ok=True)
-        return self.post_processor.apply_post_pipeline(audio, self.sample_rate, None)
+        return self.post_processor.apply_post_pipeline(
+            audio,
+            self.sample_rate,
+            output_fx,
+        )
 
     def generate_batch(
         self,
@@ -226,52 +250,83 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         # Build flat worker chunk list
         worker_chunks: List[Dict] = []
         chunk_meta_list: List[Dict] = []
-        for seg_idx, segment in enumerate(segments):
-            speaker = segment["speaker"]
-            chunks = segment["chunks"]
-            assignment = self._voice_assignment_for(voice_config, speaker)
-            prompt_path = self._resolve_prompt_path(
-                assignment.audio_prompt_path or self.default_prompt
-            )
-            prompt_text = (assignment.extra or {}).get("prompt_text")
-            if not prompt_text and not assignment.audio_prompt_path:
-                prompt_text = self.default_prompt_text
-            ref_text = self._resolve_ref_text(prompt_path, prompt_text) if prompt_path else None
-            fx_settings = VoiceFXSettings.from_payload(assignment.fx_payload)
-            spd = assignment.speed_override or speed
-
-            temp_prompt = None
-            if prompt_path and fx_settings:
-                temp_prompt = self.post_processor.prepare_prompt_audio(
-                    prompt_path, fx_settings
+        converted_prompt_cache: Dict[str, str] = {}
+        prepared_prompt_cache: Dict[tuple, str] = {}
+        temp_prompt_files: List[Path] = []
+        try:
+            for seg_idx, segment in enumerate(segments):
+                speaker = segment["speaker"]
+                chunks = segment["chunks"]
+                assignment = self._voice_assignment_for(voice_config, speaker)
+                source_prompt_path = self._resolve_prompt_path(
+                    assignment.audio_prompt_path or self.default_prompt
                 )
-                if temp_prompt:
-                    prompt_path = str(temp_prompt)
-                    fx_settings = VoiceFXSettings(
-                        pitch_semitones=0.0, speed=1.0, tone=fx_settings.tone
-                    ) if fx_settings.tone != "neutral" else None
+                prompt_text = (assignment.extra or {}).get("prompt_text")
+                if not prompt_text and not assignment.audio_prompt_path:
+                    prompt_text = self.default_prompt_text
+                ref_text = (
+                    self._resolve_ref_text(source_prompt_path, prompt_text)
+                    if source_prompt_path else None
+                )
+                fx_settings = VoiceFXSettings.from_payload(assignment.fx_payload)
+                prompt_fx, output_fx = self._split_reference_and_output_fx(
+                    fx_settings,
+                    speed_override=assignment.speed_override,
+                )
 
-            for chunk_idx, chunk_text in enumerate(chunks):
-                order_index = segment["_chunk_order_start"] + chunk_idx
-                output_path = str(output_dir / f"chunk_{order_index:04d}.wav")
-                worker_chunks.append({
-                    "text": chunk_text,
-                    "ref_audio": prompt_path,
-                    "ref_text": ref_text,
-                    "output_path": output_path,
-                    "_order_index": order_index,
-                })
-                chunk_meta_list.append({
-                    "speaker": speaker,
-                    "text": chunk_text,
-                    "segment_index": seg_idx,
-                    "chunk_index": chunk_idx,
-                    "order_index": order_index,
-                    "fx_settings": fx_settings,
-                    "temp_prompt": temp_prompt,
-                })
+                prompt_path = source_prompt_path
+                if source_prompt_path:
+                    prompt_path = converted_prompt_cache.get(source_prompt_path)
+                    if not prompt_path:
+                        prompt_path, conversion_temp = convert_mp3_to_wav_if_needed(
+                            source_prompt_path
+                        )
+                        converted_prompt_cache[source_prompt_path] = prompt_path
+                        if conversion_temp:
+                            temp_prompt_files.append(conversion_temp)
+
+                    if prompt_fx:
+                        transform_key = (
+                            prompt_path,
+                            round(prompt_fx.pitch_semitones, 4),
+                            round(prompt_fx.speed, 4),
+                        )
+                        prepared_path = prepared_prompt_cache.get(transform_key)
+                        if not prepared_path:
+                            prepared_temp = self.post_processor.prepare_prompt_audio(
+                                prompt_path,
+                                prompt_fx,
+                            )
+                            prepared_path = str(prepared_temp or prompt_path)
+                            prepared_prompt_cache[transform_key] = prepared_path
+                            if prepared_temp:
+                                temp_prompt_files.append(prepared_temp)
+                        prompt_path = prepared_path
+
+                for chunk_idx, chunk_text in enumerate(chunks):
+                    order_index = segment["_chunk_order_start"] + chunk_idx
+                    output_path = str(output_dir / f"chunk_{order_index:04d}.wav")
+                    worker_chunks.append({
+                        "text": chunk_text,
+                        "ref_audio": prompt_path,
+                        "ref_text": ref_text,
+                        "output_path": output_path,
+                        "_order_index": order_index,
+                    })
+                    chunk_meta_list.append({
+                        "speaker": speaker,
+                        "text": chunk_text,
+                        "segment_index": seg_idx,
+                        "chunk_index": chunk_idx,
+                        "order_index": order_index,
+                        "fx_settings": output_fx,
+                    })
+        except Exception:
+            self._cleanup_temp_prompts(temp_prompt_files)
+            raise
 
         if not worker_chunks:
+            self._cleanup_temp_prompts(temp_prompt_files)
             return []
 
         job = {
@@ -318,21 +373,16 @@ class OmniVoiceCloneEngine(TtsEngineBase):
             return bool(_pending_exception) or (callable(cancel_cb) and cancel_cb())
 
         try:
-            self._run_worker(job, chunk_done_cb=_on_chunk_done, cancel_cb=_cancel_or_pause_cb)
-        except RuntimeError:
-            # If cancellation/pause was requested before the first chunk finished,
-            # there may be no pending exception yet; the poll thread terminates
-            # the worker and the app-level cancel flag is raised after this returns.
-            if not _pending_exception and not _cancel_or_pause_cb():
-                raise
-
-        # Clean up temp prompt files
-        seen_temps: set = set()
-        for meta in chunk_meta_list:
-            tp = meta.get("temp_prompt")
-            if tp and tp not in seen_temps:
-                seen_temps.add(tp)
-                Path(tp).unlink(missing_ok=True)
+            try:
+                self._run_worker(job, chunk_done_cb=_on_chunk_done, cancel_cb=_cancel_or_pause_cb)
+            except RuntimeError:
+                # If cancellation/pause was requested before the first chunk finished,
+                # there may be no pending exception yet; the poll thread terminates
+                # the worker and the app-level cancel flag is raised after this returns.
+                if not _pending_exception and not _cancel_or_pause_cb():
+                    raise
+        finally:
+            self._cleanup_temp_prompts(temp_prompt_files)
 
         # Re-raise any exception captured from the stderr thread (e.g. JobPaused)
         if _pending_exception:
@@ -350,6 +400,47 @@ class OmniVoiceCloneEngine(TtsEngineBase):
 
     def cleanup(self) -> None:
         pass  # No persistent model in adapter process
+
+    @staticmethod
+    def _split_reference_and_output_fx(
+        fx_settings: Optional[VoiceFXSettings],
+        *,
+        speed_override: Optional[float] = None,
+    ) -> tuple[Optional[VoiceFXSettings], Optional[VoiceFXSettings]]:
+        """Shape the clone prompt and enforce speed/tone on generated audio."""
+        if fx_settings is not None and not isinstance(fx_settings, VoiceFXSettings):
+            fx_settings = VoiceFXSettings.from_payload(fx_settings)
+
+        pitch = fx_settings.pitch_semitones if fx_settings else 0.0
+        prompt_speed = (
+            float(speed_override)
+            if speed_override not in (None, "")
+            else (fx_settings.speed if fx_settings else 1.0)
+        )
+        prompt_speed = max(0.5, min(prompt_speed, 2.0))
+        prompt_fx = VoiceFXSettings(
+            pitch_semitones=pitch,
+            speed=prompt_speed,
+            tone="neutral",
+        )
+        if prompt_fx.is_identity():
+            prompt_fx = None
+
+        tone = fx_settings.tone if fx_settings else "neutral"
+        output_fx = VoiceFXSettings(speed=prompt_speed, tone=tone)
+        if output_fx.is_identity():
+            output_fx = None
+        return prompt_fx, output_fx
+
+    @staticmethod
+    def _cleanup_temp_prompts(paths: List[Path]) -> None:
+        seen: set[str] = set()
+        for path in reversed(paths):
+            normalized = str(path)
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            Path(path).unlink(missing_ok=True)
 
     def _run_worker(
         self,

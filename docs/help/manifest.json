@@ -49,7 +49,8 @@
         "engine-dots-tts",
         "engine-azure-speech",
         "engine-edge-tts",
-        "engine-elevenlabs"
+        "engine-elevenlabs",
+        "engine-openai-tts"
       ]
     },
     {
@@ -370,6 +371,15 @@
       "keywords": ["ElevenLabs", "API key", "stability", "similarity", "style", "quota"],
       "related": ["online-services", "cloud-errors", "generation-times"],
       "engine_ids": ["elevenlabs"]
+    },
+    {
+      "id": "engine-openai-tts",
+      "file": "engines/openai-tts.md",
+      "title": "OpenAI-compatible TTS",
+      "summary": "Generate speech with OpenAI or a custom compatible endpoint, model, and voice ID.",
+      "keywords": ["OpenAI", "TTS", "speech", "custom endpoint", "voice ID", "API key"],
+      "related": ["online-services", "cloud-errors", "generation-times"],
+      "engine_ids": ["openai_tts"]
     },
 
     {

@@ -108,7 +108,8 @@ def convert_mp3_to_wav_if_needed(prompt_path: str) -> tuple[str, Optional[Path]]
             result = subprocess.run(
                 [str(ffmpeg_path), "-y", "-i", str(prompt_path), str(temp_mp3_conv)],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=120,
             )
             if result.returncode == 0:
                 logger.info("Converted MP3 voice prompt to WAV for better quality: %s", Path(prompt_path).name)
@@ -259,13 +260,24 @@ class AudioPostProcessor:
         output_path = Path(temp_name)
         prompt = Path(prompt_path)
         try:
+            logger.info(
+                "Preparing temporary reference audio %s (pitch=%+.2f, speed=%.2f)",
+                prompt.name,
+                fx.pitch_semitones,
+                fx.speed,
+            )
             if self._can_use_sox(fx):
                 command = [str(self.SOX_PATH), str(prompt), str(output_path)]
                 if abs(fx.pitch_semitones) > 1e-3:
                     command += ["pitch", f"{fx.pitch_semitones * 100:.2f}"]
                 if abs(fx.speed - 1.0) > 1e-3:
                     command += ["tempo", "-s", f"{fx.speed:.3f}"]
-                result = subprocess.run(command, capture_output=True, text=True)
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
                 if result.returncode != 0:
                     raise RuntimeError(result.stderr.strip() or "SoX failed")
             else:
