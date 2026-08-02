@@ -63,6 +63,37 @@ def test_pinokio_launcher_uses_verified_install_state_and_ai_bundle():
     assert reset["run"][0]["method"] == "fs.rm"
     assert reset["run"][0]["params"]["path"] == ".setup_complete"
     assert reset["run"][1]["params"]["path"] == ".setup_state.json"
+    assert reset["run"][2]["params"]["path"] == ".pinokio"
+
+
+def test_linux_pinokio_install_uses_managed_dependencies_without_sudo():
+    install = load_json("install.json")
+    update = load_json("update.json")
+    setup = read("setup.sh")
+
+    for launcher in (install, update):
+        linux_steps = [step for step in launcher["run"] if "platform === 'linux'" in step.get("when", "")]
+        managed_steps = [step for step in linux_steps if step.get("when") == "{{platform === 'linux'}}"]
+        assert len(linux_steps) == 3
+
+        dependency_params = managed_steps[0]["params"]
+        assert dependency_params["conda"] == {"path": ".pinokio", "python": "python=3.11"}
+        assert "conda install -y -c conda-forge" in dependency_params["message"]
+        for package in ("git", "ffmpeg", "sox"):
+            assert package in dependency_params["message"]
+
+        brew_steps = [step for step in linux_steps if "which('brew')" in step.get("when", "")]
+        assert len(brew_steps) == 1
+        assert brew_steps[0]["params"]["message"] == "brew install espeak-ng rubberband"
+
+        setup_params = managed_steps[1]["params"]
+        assert setup_params["conda"] == ".pinokio"
+        assert setup_params["env"]["TTS_STORY_PINOKIO"] == "1"
+        assert all("sudo" not in str(step) for step in linux_steps)
+
+    assert 'PINOKIO_MODE="${TTS_STORY_PINOKIO:-0}"' in setup
+    assert 'if [ "$PINOKIO_MODE" = "1" ]; then' in setup
+    assert "Pinokio managed-environment mode enabled (no sudo prompts)." in setup
 
 
 def test_pinokio_start_captures_the_actual_server_url():

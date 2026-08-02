@@ -10,6 +10,37 @@
       }
     },
     {
+      "when": "{{platform === 'linux'}}",
+      "method": "shell.run",
+      "params": {
+        "conda": {
+          "path": ".pinokio",
+          "python": "python=3.11"
+        },
+        "message": "conda install -y -c conda-forge git ffmpeg sox"
+      }
+    },
+    {
+      "when": "{{platform === 'linux' && which('brew')}}",
+      "method": "shell.run",
+      "params": {
+        "message": "brew install espeak-ng rubberband"
+      }
+    },
+    {
+      "when": "{{platform === 'linux'}}",
+      "method": "shell.run",
+      "params": {
+        "conda": ".pinokio",
+        "env": {
+          "TTS_STORY_PINOKIO": "1"
+        },
+        "message": "chmod +x setup.sh && ./setup.sh && exit",
+        "on": [{ "event": "/Setup Complete/", "done": true }]
+      }
+    },
+    {
+      "when": "{{platform !== 'linux'}}",
       "method": "shell.run",
       "params": {
         "message": "{{os.platform() === 'win32' ? 'call setup.bat && exit' : 'chmod +x setup.sh && ./setup.sh && exit'}}",

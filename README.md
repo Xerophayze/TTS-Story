@@ -10,11 +10,11 @@ Every contribution is appreciated. Thank you for helping make this work possible
 
 ---
 
-# Current Updates and Notes - updated 07-31-2026
+# Current Updates and Notes - updated 08-02-2026
 - **OpenAI-compatible TTS** - generate speech through OpenAI or a custom compatible endpoint with configurable models, instructions, concurrency, and per-speaker voices.
 - **Expanded OpenAI model and voice selection** - choose from the documented speech models and built-in voices, or add eligible OpenAI custom voice IDs and provider-specific model or voice IDs.
 - **More reliable voice pacing** - speaker speed now remains consistent between quick previews, completed OmniVoice generation, and Library regeneration.
-- **Improved cross-platform installation and updates** - faster dependency-aware updates, Apple Silicon PyTorch support, and more reliable Pinokio-managed environments.
+- **Improved cross-platform installation and updates** - faster dependency-aware updates, Apple Silicon PyTorch support, and Linux Pinokio installs that use managed dependencies without inaccessible sudo password prompts.
 - **Complete illustrated in-app user guide** - use the new searchable Help Center for screenshot-guided workflows, engine comparisons, setup instructions, troubleshooting, and contextual help from throughout the interface.
 
 ### Previous Updates

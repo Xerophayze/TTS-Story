@@ -15,6 +15,12 @@
     {
       "method": "fs.rm",
       "params": {
+        "path": ".pinokio"
+      }
+    },
+    {
+      "method": "fs.rm",
+      "params": {
         "path": "venv"
       }
     },

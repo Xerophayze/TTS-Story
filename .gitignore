@@ -6,6 +6,7 @@ __pycache__/
 .Python
 venv/
 venv.old/
+.pinokio/
 env/
 ENV/
 *.egg-info/

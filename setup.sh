@@ -19,6 +19,10 @@ echo "  - GPU users: update to the latest NVIDIA drivers"
 
 UPDATE_MODE=0
 REPAIR_MODE=0
+PINOKIO_MODE="${TTS_STORY_PINOKIO:-0}"
+if [ "$PINOKIO_MODE" = "1" ]; then
+    echo "Pinokio managed-environment mode enabled (no sudo prompts)."
+fi
 if [ "${1:-}" = "--update" ] || { [ -z "${1:-}" ] && [ -f ".setup_complete" ]; }; then
     UPDATE_MODE=1
     echo "Fast update mode enabled. Existing environments will be reused when valid."
@@ -66,19 +70,25 @@ fi
 echo
 echo "[1b/12] Checking Git installation..."
 if ! command -v git >/dev/null 2>&1; then
-    echo "Git not found. Installing Git..."
-    if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq git
-    elif command -v brew >/dev/null 2>&1; then
-        brew install git
-    elif command -v pacman >/dev/null 2>&1; then
-        sudo pacman -Sy --noconfirm git
-    elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y git
+    if [ "$PINOKIO_MODE" = "1" ]; then
+        echo "ERROR: Git is missing from the Pinokio managed environment."
+        echo "Run the Pinokio Install action again so its Conda prerequisites can be repaired."
+        exit 1
     else
-        echo "WARNING: Could not detect package manager to install git."
-        echo "Please install git manually and re-run setup.sh."
+        echo "Git not found. Installing Git..."
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq git
+        elif command -v brew >/dev/null 2>&1; then
+            brew install git
+        elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -Sy --noconfirm git
+        elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y git
+        else
+            echo "WARNING: Could not detect package manager to install git."
+            echo "Please install git manually and re-run setup.sh."
+        fi
     fi
 else
     echo "Git is installed: $(git --version)"
@@ -91,18 +101,24 @@ git config --global --add safe.directory "*" 2>/dev/null || true
 echo
 echo "[1c/12] Checking python3-venv installation..."
 if ! python3 -m venv --help >/dev/null 2>&1; then
-    echo "python3-venv not found. Installing..."
-    if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq python3-venv python3-pip
-    elif command -v brew >/dev/null 2>&1; then
-        brew install python@3.10
-    elif command -v pacman >/dev/null 2>&1; then
-        sudo pacman -Sy --noconfirm python-pythonz
-    elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y python3.10-venv
+    if [ "$PINOKIO_MODE" = "1" ]; then
+        echo "ERROR: Python venv support is missing from the Pinokio managed environment."
+        echo "Run the Pinokio Install action again so its Conda environment can be repaired."
+        exit 1
     else
-        echo "WARNING: Could not detect package manager to install python3-venv."
+        echo "python3-venv not found. Installing..."
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq python3-venv python3-pip
+        elif command -v brew >/dev/null 2>&1; then
+            brew install python@3.10
+        elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -Sy --noconfirm python-pythonz
+        elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y python3.10-venv
+        else
+            echo "WARNING: Could not detect package manager to install python3-venv."
+        fi
     fi
 fi
 echo "python3-venv is available."
@@ -714,7 +730,9 @@ install_dnf() {
     sudo dnf install -y espeak-ng sox ffmpeg rubberband || echo "WARNING: Some system packages failed to install"
 }
 
-if command -v apt-get >/dev/null 2>&1; then
+if [ "$PINOKIO_MODE" = "1" ]; then
+    echo "Using system tools from Pinokio's managed Conda environment."
+elif command -v apt-get >/dev/null 2>&1; then
     install_apt
 elif command -v brew >/dev/null 2>&1; then
     install_brew
