@@ -10,17 +10,15 @@ Every contribution is appreciated. Thank you for helping make this work possible
 
 ---
 
-# Current Updates and Notes - updated 08-02-2026
-- **OpenAI-compatible TTS** - generate speech through OpenAI or a custom compatible endpoint with configurable models, instructions, concurrency, and per-speaker voices.
-- **Expanded OpenAI model and voice selection** - choose from the documented speech models and built-in voices, or add eligible OpenAI custom voice IDs and provider-specific model or voice IDs.
-- **More reliable voice pacing** - speaker speed now remains consistent between quick previews, completed OmniVoice generation, and Library regeneration.
-- **Improved cross-platform installation and updates** - faster dependency-aware updates, Apple Silicon PyTorch support, and Linux Pinokio installs that use managed dependencies without inaccessible sudo password prompts.
-- **Complete illustrated in-app user guide** - use the new searchable Help Center for screenshot-guided workflows, engine comparisons, setup instructions, troubleshooting, and contextual help from throughout the interface.
+# Current Updates and Notes - updated 08-04-2026
+- **More reliable cloud generation** - cloud providers now support configurable parallel work, stronger Edge TTS timeout and retry handling, and safer processing of unusual text separators.
+- **Resumable long-running jobs** - pausing or recovering from an interruption now preserves completed audio and continues from the saved chunk instead of restarting the project.
+- **Improved progress and finalization** - generation, bulk speaker regeneration, and audio recompilation provide clearer progress while safer checkpoint handling prevents temporary Windows file errors from stopping a job.
 
 ### Previous Updates
-- Improved section handling, chapter organization, review, regeneration, and audiobook export.
-- Added M4B audiobook export with chapter markers and cover art.
-- Added Edge TTS, ElevenLabs, and Microsoft Azure Speech cloud engines.
+- Added OpenAI-compatible TTS with configurable models, voices, instructions, concurrency, and custom compatible endpoints.
+- Improved cross-platform installation and updates for Windows, Linux, macOS, Apple Silicon, and Pinokio.
+- Added Edge TTS, ElevenLabs, and Microsoft Azure Speech cloud engines, plus the illustrated in-app Help Center.
 
 # TTS-Story
 
