@@ -4,6 +4,31 @@ set -e
 REPO_URL="https://github.com/Xerophayze/TTS-Story.git"
 REPO_DIR="TTS-Story"
 
+pull_updates() {
+    local config_backup=""
+    if [ -f "config.json" ] && [ -n "$(git status --porcelain -- config.json 2>/dev/null)" ]; then
+        config_backup="$(mktemp "${TMPDIR:-/tmp}/tts-story-config.XXXXXX.json")"
+        cp config.json "$config_backup"
+        echo "Preserving local config.json settings during repository update..."
+        if ! git restore --source=HEAD --staged --worktree -- config.json; then
+            cp "$config_backup" config.json
+            rm -f "$config_backup"
+            echo "ERROR: Could not prepare tracked config.json for update."
+            return 1
+        fi
+    fi
+
+    local pull_result=0
+    git pull --ff-only || pull_result=$?
+
+    if [ -n "$config_backup" ]; then
+        cp "$config_backup" config.json
+        rm -f "$config_backup"
+        echo "Restored local config.json settings."
+    fi
+    return "$pull_result"
+}
+
 echo "========================================"
 echo "TTS-Story Linux/macOS Install/Update"
 echo "========================================"
@@ -16,7 +41,7 @@ git config --global --add safe.directory "*" 2>/dev/null || true
 if [ -d ".git" ] && [ -f "setup.sh" ]; then
     echo "Running from within TTS-Story repository."
     echo "Updating in-place..."
-    git pull
+    pull_updates
     echo
     
     # Fix incomplete venv if exists
@@ -96,7 +121,7 @@ if [ -d "$REPO_DIR" ]; then
             sudo chown -R $(whoami):$(whoami) "$REPO_DIR" 2>/dev/null || true
         fi
         cd "$REPO_DIR"
-        git pull
+        pull_updates
         cd ..
     else
         echo "ERROR: $REPO_DIR exists but is not a Git repository."

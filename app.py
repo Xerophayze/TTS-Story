@@ -59,6 +59,7 @@ from src.library_metadata import (
 )
 from src.library_cleanup import remove_directory_with_retries
 from src.json_storage import write_json_atomic
+from src.pause_markers import pause_seconds_for_text, write_silence_wav
 from src.atlas_cloud_processor import (
     AtlasCloudProcessor,
     AtlasCloudProcessorError,
@@ -1059,6 +1060,32 @@ def _normalize_custom_headings(value: Optional[Any]) -> List[str]:
     return normalized
 
 
+def _book_heading_enabled(section_headings: Optional[Any]) -> bool:
+    """Book mode is available by default, but obeys an explicit UI selection."""
+    if section_headings is None:
+        return True
+    return "book" in {
+        heading.lower() for heading in _normalize_custom_headings(section_headings)
+    }
+
+
+def _without_book_heading(section_headings: Optional[Any]) -> Optional[List[str]]:
+    """Return headings handled by the regular, non-book section detector."""
+    if section_headings is None:
+        return None
+    return [
+        heading
+        for heading in _normalize_custom_headings(section_headings)
+        if heading.lower() != "book"
+    ]
+
+
+def _find_book_heading_matches(text: str, section_headings: Optional[Any]) -> List[re.Match]:
+    if not _book_heading_enabled(section_headings):
+        return []
+    return list(BOOK_HEADING_PATTERN.finditer(text or ""))
+
+
 def _keyword_to_regex(keyword: str) -> str:
     normalized = keyword.strip()
     escaped = re.escape(normalized)
@@ -1099,7 +1126,9 @@ def _build_section_heading_pattern(section_headings: Optional[Any] = None) -> re
         keywords = list(SECTION_HEADING_KEYWORDS)
     keyword_regex = "|".join(filter(None, (_keyword_to_regex(word) for word in keywords)))
     if not keyword_regex:
-        keyword_regex = "chapter"
+        # An explicit empty selection means detection is disabled.  Use an
+        # impossible expression instead of silently restoring "chapter".
+        keyword_regex = r"(?!)"
     return re.compile(
         rf'^\s*(?:\[[^\]]+\]\s*)*(({keyword_regex})[^\n\r]*)$',
         re.IGNORECASE | re.MULTILINE
@@ -1816,7 +1845,7 @@ def _serialize_job_entry(job_id: str, job_entry: Dict[str, Any]) -> Dict[str, An
         "split_by_chapter": int(bool(job_entry.get("chapter_mode"))),
         "generate_full_story": int(bool(job_entry.get("full_story_requested"))),
         "review_mode": int(bool(job_entry.get("review_mode"))),
-        "custom_heading": json.dumps({"enabled_headings": job_entry.get("section_headings")}) if job_entry.get("section_headings") else None,
+        "custom_heading": json.dumps({"enabled_headings": job_entry.get("section_headings")}) if job_entry.get("section_headings") is not None else None,
         "merge_options": json.dumps(job_entry.get("merge_options") or {}),
         "voice_assignments": json.dumps(job_entry.get("voice_assignments") or {}),
         "config_snapshot": json.dumps(_redact_config_secrets(job_entry.get("config_snapshot") or {})),
@@ -2034,7 +2063,7 @@ def _build_job_payload(job_id: str, text: str, job_entry: Dict[str, Any]) -> Dic
         "review_mode": bool(job_entry.get("review_mode")),
         "merge_options": job_entry.get("merge_options") or {},
         "job_dir": job_entry.get("job_dir"),
-        "custom_heading": json.dumps({"enabled_headings": job_entry.get("section_headings")}) if job_entry.get("section_headings") else None,
+        "custom_heading": json.dumps({"enabled_headings": job_entry.get("section_headings")}) if job_entry.get("section_headings") is not None else None,
         "section_headings": job_entry.get("section_headings"),
         "total_chunks": job_entry.get("total_chunks"),
         "engine": job_entry.get("engine"),
@@ -2978,11 +3007,11 @@ def split_text_into_sections(text: str, section_headings: Optional[Any] = None) 
     If book headings exist, split by book and include all chapters beneath each book.
     Otherwise, split by chapter/section/letter/part headings.
     """
-    book_matches = list(BOOK_HEADING_PATTERN.finditer(text))
+    book_matches = _find_book_heading_matches(text, section_headings)
     if book_matches:
         return _build_sections_from_matches(text, book_matches, "Book")
 
-    section_pattern = _build_section_heading_pattern(section_headings)
+    section_pattern = _build_section_heading_pattern(_without_book_heading(section_headings))
     section_matches = list(section_pattern.finditer(text))
     if section_matches:
         return _build_sections_from_matches(text, section_matches, "Section")
@@ -2993,8 +3022,8 @@ def split_text_into_sections(text: str, section_headings: Optional[Any] = None) 
 
 def split_text_into_book_sections(text: str, section_headings: Optional[Any] = None) -> Dict[str, Any]:
     """Return structured book->chapter hierarchy with fallbacks."""
-    book_matches = list(BOOK_HEADING_PATTERN.finditer(text))
-    section_pattern = _build_section_heading_pattern(section_headings)
+    book_matches = _find_book_heading_matches(text, section_headings)
+    section_pattern = _build_section_heading_pattern(_without_book_heading(section_headings))
 
     if book_matches:
         books = _build_sections_from_matches(text, book_matches, "Book")
@@ -3126,12 +3155,11 @@ def build_gemini_sections(text: str, prefer_chapters: bool, config: dict, sectio
     llm_chunk_size = _resolve_llm_chunk_size(config)
     llm_chunk_chapters = _resolve_llm_chunk_chapters(config)
 
-    book_matches = list(BOOK_HEADING_PATTERN.finditer(text))
-    section_pattern = _build_section_heading_pattern(section_headings)
-    section_matches = list(section_pattern.finditer(text)) if not book_matches else []
+    hierarchy = split_text_into_book_sections(text, section_headings) if prefer_chapters else None
+    book_matches = (hierarchy or {}).get("books") or []
+    section_matches = (hierarchy or {}).get("sections") or []
 
     if prefer_chapters and book_matches:
-        hierarchy = split_text_into_book_sections(text, section_headings)
         for book_idx, book in enumerate(hierarchy.get("books") or [], start=1):
             book_title = (book.get("title") or f"Book {book_idx}").strip()
             for chapter in book.get("chapters") or []:
@@ -3152,7 +3180,7 @@ def build_gemini_sections(text: str, prefer_chapters: bool, config: dict, sectio
                         "source": "section",
                     })
     elif prefer_chapters and section_matches:
-        for chapter in split_text_into_sections(text, section_headings):
+        for chapter in hierarchy.get("sections") or []:
             if llm_chunk_chapters:
                 _append_llm_chunks(
                     sections,
@@ -3310,54 +3338,142 @@ def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
 
 
 def compose_gemini_speaker_profile_prompt(prompt_prefix: str, speakers: List[str], context: str = "", processed_text: str = "") -> str:
-    """Build prompt for Gemini speaker profile table generation."""
+    """Build a bounded, schema-enforced speaker-profile request."""
     parts = []
     if prompt_prefix:
         parts.append(prompt_prefix.strip())
     if context:
         parts.append(context.strip())
     if processed_text:
-        parts.append("The following is the processed story text with speaker tags already applied. Use it to understand each character's personality, role, and speaking style when building their profile:\n\n" + processed_text.strip())
+        parts.append(
+            "The following are bounded excerpts from the processed story. Use them "
+            "to understand each speaker's personality, role, and speaking style:\n\n"
+            + processed_text.strip()
+        )
     speaker_line = ", ".join([s for s in speakers if s])
     if speaker_line:
-        parts.append(speaker_line)
+        parts.append("Create one row for every exact speaker ID in this list:\n" + speaker_line)
+    parts.append(
+        "REQUIRED OUTPUT FORMAT: Return only a Markdown table with exactly these "
+        "columns: Character Name | Full Description | Voice Profile. Preserve each "
+        "speaker ID exactly as supplied. Full Description must be a useful casting "
+        "profile, and Voice Profile must state a concrete voice type, tone, or vocal "
+        "range. Do not omit narrator and do not return blank cells."
+    )
     return "\n\n".join(parts).strip()
 
 
+def build_speaker_profile_excerpts(
+    processed_text: str,
+    speakers: List[str],
+    *,
+    max_chars_per_speaker: int = 1600,
+    max_total_chars: int = 12000,
+) -> str:
+    """Collect representative tagged passages without resending an entire book."""
+    if not processed_text or not speakers:
+        return ""
+    wanted = {str(speaker).strip().lower(): str(speaker).strip() for speaker in speakers if str(speaker).strip()}
+    excerpts: Dict[str, List[str]] = {key: [] for key in wanted}
+    lengths = {key: 0 for key in wanted}
+    pattern = re.compile(r"\[([a-zA-Z0-9_-]+)\](.*?)\[/\1\]", re.DOTALL)
+    for match in pattern.finditer(processed_text):
+        key = match.group(1).strip().lower()
+        if key not in wanted or lengths[key] >= max_chars_per_speaker:
+            continue
+        passage = re.sub(r"\s+", " ", match.group(2)).strip()
+        if not passage:
+            continue
+        remaining = max_chars_per_speaker - lengths[key]
+        passage = passage[:remaining].rstrip()
+        if passage:
+            excerpts[key].append(passage)
+            lengths[key] += len(passage)
+
+    blocks = []
+    total = 0
+    for key, display_name in wanted.items():
+        sample = " … ".join(excerpts[key]).strip()
+        if not sample:
+            sample = "No tagged excerpt was available; infer cautiously from the speaker ID."
+        block = f"Speaker: {display_name}\nExcerpts: {sample}"
+        if blocks and total + len(block) > max_total_chars:
+            block = f"Speaker: {display_name}\nExcerpts: Additional excerpt omitted for context size; infer cautiously from the speaker ID."
+        blocks.append(block)
+        total += len(block)
+    return "\n\n".join(blocks)
+
+
 def parse_gemini_speaker_table(text: str) -> Dict[str, Dict[str, str]]:
-    """Parse a 3-column table response into a map keyed by normalized speaker name."""
+    """Parse common JSON or 3-column table responses into speaker profiles."""
     if not text:
         return {}
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```(?:json|markdown|md)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    def add_profile(profiles, name, description, voice):
+        name = str(name or "").strip()
+        description = str(description or "").strip()
+        voice = str(voice or "").strip()
+        if not name or not description or not voice:
+            return
+        profiles[name.lower()] = {
+            "name": name,
+            "description": description,
+            "voice": voice,
+        }
+
+    try:
+        decoded = json.loads(cleaned)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        decoded = None
+    if decoded is not None:
+        profiles = {}
+        if isinstance(decoded, dict) and isinstance(decoded.get("profiles"), (list, dict)):
+            decoded = decoded["profiles"]
+        if isinstance(decoded, dict):
+            for name, entry in decoded.items():
+                if not isinstance(entry, dict):
+                    continue
+                add_profile(
+                    profiles,
+                    entry.get("name") or entry.get("character") or entry.get("speaker") or name,
+                    entry.get("description") or entry.get("full_description") or entry.get("profile"),
+                    entry.get("voice") or entry.get("voice_profile") or entry.get("voice_type"),
+                )
+        elif isinstance(decoded, list):
+            for entry in decoded:
+                if not isinstance(entry, dict):
+                    continue
+                add_profile(
+                    profiles,
+                    entry.get("name") or entry.get("character") or entry.get("speaker"),
+                    entry.get("description") or entry.get("full_description") or entry.get("profile"),
+                    entry.get("voice") or entry.get("voice_profile") or entry.get("voice_type"),
+                )
+        if profiles:
+            return profiles
+
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
     if not lines:
         return {}
     rows = []
     for line in lines:
-        if line.startswith('|') and line.endswith('|'):
-            parts = [part.strip() for part in line.strip('|').split('|')]
-            if len(parts) >= 3:
-                rows.append(parts[:3])
-            continue
         if '|' in line:
-            parts = [part.strip() for part in line.split('|') if part.strip()]
+            parts = [part.strip() for part in line.strip('|').split('|')]
             if len(parts) >= 3:
                 rows.append(parts[:3])
     if not rows:
         return {}
-    if rows and all('---' in col for col in rows[0]):
-        rows = rows[1:]
-    if rows and rows[0][0].lower().startswith('character'):
-        rows = rows[1:]
     profiles = {}
     for name, description, voice in rows:
-        key = (name or '').strip().lower()
-        if not key:
+        normalized_columns = [column.strip().lower().replace(" ", "_") for column in (name, description, voice)]
+        if all(re.fullmatch(r":?-{3,}:?", column.replace(" ", "")) for column in (name, description, voice)):
             continue
-        profiles[key] = {
-            "name": name.strip(),
-            "description": description.strip(),
-            "voice": voice.strip(),
-        }
+        if normalized_columns[0] in {"character", "character_name", "speaker", "speaker_name", "name"}:
+            continue
+        add_profile(profiles, name, description, voice)
     return profiles
 
 
@@ -4156,12 +4272,21 @@ def process_audio_job(job_data):
                     # Entire chapter was skipped — return existing chunk files from disk
                     # so the caller can still build the review_manifest entry for this chapter.
                     if output_dir.exists():
+                        def existing_chunk_order(path: Path) -> tuple[int, str]:
+                            match = re.search(r"(\d+)$", path.stem)
+                            return (
+                                int(match.group(1)) if match else 10**12,
+                                path.name.lower(),
+                            )
                         existing = sorted(
-                            str(p) for p in output_dir.iterdir()
-                            if p.is_file() and p.suffix.lower() in {".wav", ".mp3", ".ogg", ".flac"}
+                            (
+                                p for p in output_dir.iterdir()
+                                if p.is_file() and p.suffix.lower() in {".wav", ".mp3", ".ogg", ".flac"}
+                            ),
+                            key=existing_chunk_order,
                         )
                         if existing:
-                            return existing
+                            return [str(path) for path in existing]
                     return []
                 section_skip = skipped
                 prefix_by_index: Dict[int, str] = {}
@@ -4231,55 +4356,199 @@ def process_audio_job(job_data):
             chunk_cb = make_chunk_callback(chapter_idx, generated_files, section_skip)
             supports_chunk_cb = False
             flat_segments: List[Dict[str, Any]] = []
+            render_segments: List[Dict[str, Any]] = []
+            normal_descriptors: List[Dict[str, Any]] = []
+            pause_descriptors: List[Dict[str, Any]] = []
+            render_descriptor_lookup: Dict[tuple[int, int], Dict[str, Any]] = {}
             order_index = 0
             for seg_idx, segment in enumerate(segments):
                 speaker = segment.get("speaker")
                 chunks = segment.get("chunks") or []
+                render_chunks: List[str] = []
                 for chunk_idx, chunk_text in enumerate(chunks):
-                    flat_segments.append({
+                    descriptor = {
                         "segment_index": seg_idx,
                         "chunk_index": chunk_idx,
                         "order_index": order_index,
                         "speaker": speaker,
                         "text": chunk_text,
                         "emotion": segment.get("emotion"),
-                    })
+                    }
+                    flat_segments.append(descriptor)
+                    pause_seconds = pause_seconds_for_text(chunk_text)
+                    if pause_seconds is not None:
+                        descriptor["pause_seconds"] = pause_seconds
+                        pause_descriptors.append(descriptor)
+                    else:
+                        render_chunks.append(chunk_text)
+                        normal_descriptors.append(descriptor)
                     order_index += 1
+                if render_chunks:
+                    render_segment = dict(segment)
+                    render_segment["chunks"] = render_chunks
+                    render_segment_index = len(render_segments)
+                    segment_descriptors = [
+                        descriptor
+                        for descriptor in normal_descriptors
+                        if descriptor["segment_index"] == seg_idx
+                    ]
+                    for render_chunk_index, descriptor in enumerate(segment_descriptors):
+                        descriptor["render_segment_index"] = render_segment_index
+                        descriptor["render_chunk_index"] = render_chunk_index
+                        descriptor["render_order_index"] = sum(
+                            len(item.get("chunks") or []) for item in render_segments
+                        ) + render_chunk_index
+                        render_descriptor_lookup[(render_segment_index, render_chunk_index)] = descriptor
+                    render_segments.append(render_segment)
+
+            has_pause_markers = bool(pause_descriptors)
+            render_dir = output_dir
+            if has_pause_markers:
+                render_dir = output_dir / f".tts-render-{uuid.uuid4().hex}"
+                render_dir.mkdir(parents=True, exist_ok=True)
+
+            final_files_by_order: Dict[int, str] = {}
+            next_normal_callback = 0
+            pending_rendered_chunks: Dict[int, tuple[Dict[str, Any], str]] = {}
+            rendered_callback_lock = threading.Lock()
+
+            def commit_rendered_chunk(descriptor: Dict[str, Any], source_path: str) -> str:
+                source = Path(source_path)
+                suffix = source.suffix.lower() or ".wav"
+                final_path = output_dir / (
+                    f"tts_chunk_{section_skip + int(descriptor['order_index']):06d}{suffix}"
+                )
+                final_path.parent.mkdir(parents=True, exist_ok=True)
+                if source.resolve() != final_path.resolve():
+                    os.replace(source, final_path)
+                final_files_by_order[int(descriptor["order_index"])] = str(final_path)
+                update_progress(1)
+                chunk_cb(int(descriptor["order_index"]), descriptor, str(final_path))
+                return str(final_path)
+
+            def commit_pause_chunk(descriptor: Dict[str, Any]) -> str:
+                final_path = output_dir / (
+                    f"pause_chunk_{section_skip + int(descriptor['order_index']):06d}.wav"
+                )
+                try:
+                    silence_rate = int(config.get("sample_rate") or engine.sample_rate or 24000)
+                except (TypeError, ValueError, AttributeError):
+                    silence_rate = 24000
+                write_silence_wav(
+                    final_path,
+                    float(descriptor.get("pause_seconds") or 0.5),
+                    sample_rate=silence_rate,
+                )
+                final_files_by_order[int(descriptor["order_index"])] = str(final_path)
+                update_progress(1)
+                chunk_cb(int(descriptor["order_index"]), descriptor, str(final_path))
+                return str(final_path)
+
+            def commit_pauses_before(order_limit: int) -> None:
+                for descriptor in pause_descriptors:
+                    descriptor_order = int(descriptor["order_index"])
+                    if descriptor_order >= order_limit:
+                        break
+                    if descriptor_order not in final_files_by_order:
+                        commit_pause_chunk(descriptor)
+
+            def pause_aware_chunk_cb(_chunk_idx: int, _segment: Dict[str, Any], file_path: str):
+                nonlocal next_normal_callback
+                descriptor = render_descriptor_lookup.get((
+                    int(_segment.get("segment_index", -1)),
+                    int(_segment.get("chunk_index", -1)),
+                ))
+                if descriptor is None and _segment.get("order_index") is not None:
+                    try:
+                        descriptor = normal_descriptors[int(_segment["order_index"])]
+                    except (IndexError, TypeError, ValueError):
+                        descriptor = None
+                if descriptor is None:
+                    match = re.search(r"(\d+)$", Path(file_path).stem)
+                    if match:
+                        try:
+                            descriptor = normal_descriptors[int(match.group(1))]
+                        except (IndexError, ValueError):
+                            descriptor = None
+                if descriptor is None:
+                    raise RuntimeError("Could not map a rendered TTS chunk to its source text")
+
+                render_order = int(descriptor["render_order_index"])
+                with rendered_callback_lock:
+                    pending_rendered_chunks[render_order] = (descriptor, file_path)
+                    while next_normal_callback in pending_rendered_chunks:
+                        next_descriptor, next_path = pending_rendered_chunks.pop(next_normal_callback)
+                        commit_pauses_before(int(next_descriptor["order_index"]))
+                        commit_rendered_chunk(next_descriptor, next_path)
+                        next_normal_callback += 1
+
+            def pause_aware_progress_cb(*_args, **_kwargs):
+                # Progress is committed with each moved output so pause markers
+                # and spoken chunks advance the same saved checkpoint in order.
+                if cancel_flags.get(job_id, False):
+                    raise JobCancelled()
+
             engine_kwargs = {
-                "segments": segments,
+                "segments": render_segments if has_pause_markers else segments,
                 "voice_config": voice_assignments,
-                "output_dir": str(output_dir),
+                "output_dir": str(render_dir),
                 "speed": config['speed'],
-                "progress_cb": update_progress,
+                "progress_cb": pause_aware_progress_cb if has_pause_markers else update_progress,
             }
             sig_params = inspect.signature(engine.generate_batch).parameters
             if "sample_rate" in sig_params:
                 engine_kwargs["sample_rate"] = config.get("sample_rate")
             if "chunk_cb" in sig_params:
-                engine_kwargs["chunk_cb"] = chunk_cb
+                engine_kwargs["chunk_cb"] = pause_aware_chunk_cb if has_pause_markers else chunk_cb
                 supports_chunk_cb = True
             if "parallel_workers" in sig_params:
                 engine_kwargs["parallel_workers"] = max(1, min(8, int(config.get("parallel_chunks", 1) or 1)))
             if "start_index" in sig_params:
-                engine_kwargs["start_index"] = section_skip
+                engine_kwargs["start_index"] = 0 if has_pause_markers else section_skip
             if "pause_cb" in sig_params:
                 engine_kwargs["pause_cb"] = pause_cb
             if "cancel_cb" in sig_params:
                 engine_kwargs["cancel_cb"] = lambda: bool(cancel_flags.get(job_id, False))
             if "group_by_speaker" in sig_params:
-                engine_kwargs["group_by_speaker"] = bool(config.get("group_chunks_by_speaker", False))
+                engine_kwargs["group_by_speaker"] = (
+                    bool(config.get("group_chunks_by_speaker", False))
+                    and not has_pause_markers
+                )
             _total_text_chunks = sum(len(seg.get("chunks") or []) for seg in segments)
             if job_log:
                 job_log.info("  chapter_idx=%d  segments=%d  text_chunks=%d  output_dir=%s",
                              chapter_idx, len(segments), _total_text_chunks, output_dir)
-            audio_files = run_with_cancel(lambda: engine.generate_batch(**engine_kwargs))
-            if not audio_files and generated_files:
-                audio_files = list(generated_files)
+            try:
+                audio_files = (
+                    run_with_cancel(lambda: engine.generate_batch(**engine_kwargs))
+                    if normal_descriptors or not has_pause_markers
+                    else []
+                )
+                if has_pause_markers and not supports_chunk_cb:
+                    for descriptor, file_path in zip(normal_descriptors, audio_files or []):
+                        commit_pauses_before(int(descriptor["order_index"]))
+                        commit_rendered_chunk(descriptor, file_path)
+                if has_pause_markers:
+                    commit_pauses_before(len(flat_segments) + 1)
+                    audio_files = [
+                        final_files_by_order[index]
+                        for index in range(len(flat_segments))
+                        if index in final_files_by_order
+                    ]
+                    if len(audio_files) != len(flat_segments):
+                        raise RuntimeError(
+                            "TTS engine did not return all spoken chunks surrounding pause markers"
+                        )
+                elif not audio_files and generated_files:
+                    audio_files = list(generated_files)
+            finally:
+                if has_pause_markers:
+                    shutil.rmtree(render_dir, ignore_errors=True)
             if job_log:
                 job_log.info("  engine returned %d audio file(s) for chapter_idx=%d",
                              len(audio_files) if audio_files else 0, chapter_idx)
 
-            if not supports_chunk_cb and audio_files:
+            if not supports_chunk_cb and audio_files and not has_pause_markers:
                 for order_idx, file_path in enumerate(audio_files):
                     if order_idx >= len(flat_segments):
                         break
@@ -4307,6 +4576,13 @@ def process_audio_job(job_data):
                 return
             from src.engines.index_tts_engine import IndexTTSEngine  # noqa: F401
             if not isinstance(engine, (IndexTTSEngine, DotsTTSEngine)):
+                return
+            if any(pause_seconds_for_text(line) is not None for line in (text or "").splitlines()):
+                logger.info(
+                    "Job %s: using per-section rendering so universal pause markers "
+                    "can be inserted before audio merge",
+                    job_id,
+                )
                 return
 
             engine_label = getattr(engine, "name", engine.__class__.__name__)
@@ -7605,12 +7881,11 @@ def analyze_text():
             processor = _create_text_processor_for_engine(selected_engine, config["chunk_size"], config)
             stats = processor.get_statistics(text)
             section_headings = data.get("section_headings")
-            book_matches = list(BOOK_HEADING_PATTERN.finditer(text))
-            section_pattern = _build_section_heading_pattern(section_headings)
-            section_matches = list(section_pattern.finditer(text))
+            hierarchy = split_text_into_book_sections(text, section_headings)
+            book_matches = hierarchy.get("books") or []
+            section_matches = hierarchy.get("sections") or []
 
             if book_matches:
-                hierarchy = split_text_into_book_sections(text, section_headings)
                 books = hierarchy.get("books") or []
                 chapters: List[Dict[str, Any]] = []
                 for book in books:
@@ -7624,7 +7899,7 @@ def analyze_text():
                     "section_count": len(chapters),
                 }
             elif section_matches:
-                sections = split_text_into_sections(text, section_headings)
+                sections = hierarchy.get("sections") or []
                 stats['section_detection'] = {
                     "detected": True,
                     "count": len(sections),
@@ -8201,13 +8476,36 @@ def process_gemini_speaker_profiles():
             }), 400
 
         processed_text = (data.get('processed_text') or '').strip()
-        prompt = compose_gemini_speaker_profile_prompt(prompt_prefix, speakers, context, processed_text)
+        profile_excerpts = build_speaker_profile_excerpts(processed_text, speakers)
+        prompt = compose_gemini_speaker_profile_prompt(prompt_prefix, speakers, context, profile_excerpts)
         response_text = _run_llm_prompt(prompt, config)
         profiles = parse_gemini_speaker_table(response_text)
+
+        if not profiles:
+            return jsonify({
+                "success": False,
+                "error": "The LLM returned no usable speaker profiles. Try the request again or review the Speaker Profile Prompt."
+            }), 422
+
+        normalized_profile_names = {
+            re.sub(r'[^a-z0-9]', '', str(profile.get("name") or key).lower())
+            for key, profile in profiles.items()
+        }
+        missing_speakers = []
+        for speaker in speakers:
+            normalized = re.sub(r'[^a-z0-9]', '', speaker.lower())
+            without_gender = re.sub(r'(male|female|neutral)$', '', normalized)
+            if not any(
+                candidate == normalized
+                or (without_gender and re.sub(r'(male|female|neutral)$', '', candidate) == without_gender)
+                for candidate in normalized_profile_names
+            ):
+                missing_speakers.append(speaker)
 
         return jsonify({
             "success": True,
             "profiles": profiles,
+            "missing_speakers": missing_speakers,
             "raw": response_text.strip()
         })
     except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
@@ -8520,7 +8818,8 @@ def generate_audio():
                 "chunks": [],
                 "voice_assignments": voice_assignments,
                 "config_snapshot": _redact_config_secrets(config),
-                "custom_heading": json.dumps({"enabled_headings": section_headings}) if section_headings else None,
+                "custom_heading": json.dumps({"enabled_headings": section_headings}) if section_headings is not None else None,
+                "section_headings": section_headings,
                 "speakers": speakers,
                 "regen_tasks": {},
                 "engine": config.get("tts_engine"),

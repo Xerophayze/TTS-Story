@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
 from ..audio_effects import VoiceFXSettings
+from ..pause_markers import pause_seconds_for_text
 from .base import EngineCapabilities, TtsEngineBase, VoiceAssignment
 from .cloud_audio import CloudAudioError, apply_wav_effects, audio_bytes_to_wav
 
@@ -218,11 +219,14 @@ class EdgeTTSEngine(TtsEngineBase):
         if not clean_text:
             raise EdgeTTSError("Edge TTS cannot synthesize empty text.")
         if not any(character.isalnum() for character in clean_text):
+            pause_seconds = pause_seconds_for_text(clean_text)
             logger.info(
                 "Edge TTS converted a symbol-only separator (%d chars) to silence.",
                 len(clean_text),
             )
-            return self._silence_wav()
+            return self._silence_wav(
+                duration_ms=int(round(pause_seconds * 1000)) if pause_seconds is not None else 250
+            )
         voice = str(assignment.voice or self.default_voice).strip()
         if not voice:
             raise EdgeTTSError("An Edge TTS voice is required.")

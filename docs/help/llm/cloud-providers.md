@@ -60,7 +60,7 @@ See [Prompt Presets, Chunking, and Review](help:llm-prompts) before changing sev
 
 API-key fields are obscured in the browser, but saved keys are stored as plain text in the local `config.json`. Do not share that file, attach it to an issue, or commit a populated copy. Use a restricted key where the provider offers restrictions, monitor account usage, and revoke a key immediately if it is exposed.
 
-The repository sync tooling scrubs known secret fields before staging `config.json`, but that safeguard does not make the file safe to distribute manually. See [Local Data, API Keys, and Backups](help:data-storage).
+The repository ignores `config.json` so saved settings and API keys remain local and do not interfere with updates. This safeguard does not make the file safe to distribute manually. See [Local Data, API Keys, and Backups](help:data-storage).
 
 ## If model discovery fails
 

@@ -506,6 +506,7 @@ function renderChapterControls(item) {
                 type="button"
                 data-review-all="true"
                 data-job-id="${item.job_id}"
+                data-full-story-src="${item.full_story?.output_file || ''}"
                 data-full-story-path="${item.full_story?.relative_path || ''}"
             >
                 Review Chunks
@@ -530,6 +531,7 @@ function renderChapterControls(item) {
                 type="button"
                 data-review-all="true"
                 data-job-id="${item.job_id}"
+                data-full-story-src="${item.full_story?.output_file || ''}"
                 data-full-story-path="${item.full_story?.relative_path || ''}"
             >
                 Full Story
@@ -747,7 +749,8 @@ function displayLibraryItems(items) {
                     // Start playing
                     const { fullStorySrc, fullStoryPath } = getFullStoryInfo();
                     if (fullStorySrc) {
-                        player.src = fullStorySrc;
+                        const separator = fullStorySrc.includes('?') ? '&' : '?';
+                        player.src = `${fullStorySrc}${separator}v=${Date.now()}`;
                         player.load();
                         currentChapterSelection[item.job_id] = {
                             output_file: fullStorySrc,
@@ -857,7 +860,21 @@ function displayLibraryItems(items) {
             reviewAllButton.addEventListener('click', (event) => {
                 event.stopPropagation();
                 const jobId = reviewAllButton.getAttribute('data-job-id');
+                const fullStorySrc = reviewAllButton.getAttribute('data-full-story-src');
                 const fullStoryPath = reviewAllButton.getAttribute('data-full-story-path');
+                const playerEl = document.getElementById(`player-${jobId}`);
+                if (playerEl && fullStorySrc) {
+                    chapterButtons.forEach(btn => btn.classList.remove('active'));
+                    reviewAllButton.classList.add('active');
+                    const separator = fullStorySrc.includes('?') ? '&' : '?';
+                    playerEl.src = `${fullStorySrc}${separator}v=${Date.now()}`;
+                    playerEl.load();
+                    currentChapterSelection[jobId] = {
+                        output_file: fullStorySrc,
+                        relative_path: fullStoryPath,
+                        title: 'Full Story'
+                    };
+                }
                 const anchorId = 'review-all';
                 if (menu && !menu.classList.contains('hidden') && menu.dataset.anchorId === anchorId) {
                     closeChapterActionMenus(chapterControls);

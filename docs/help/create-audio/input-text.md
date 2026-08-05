@@ -21,6 +21,17 @@ After an edit, TTS-Story waits briefly and analyzes the field automatically. **T
 
 Read [Speaker and Expression Tags](help:speaker-tags) before tagging a long multi-character work.
 
+## Add deliberate pauses
+
+TTS-Story recognizes pause controls with every TTS engine. Use `***` for 0.25 seconds of silence or `******` for 0.5 seconds. A marker can occupy its own line or follow punctuation directly:
+
+```text
+[narrator]Chapter 4.******[/narrator]
+[narrator]The corridor was empty, and the man could not see.*** Something moved behind him.[/narrator]
+```
+
+Pause controls inside speaker tags retain the surrounding speaker assignment and are removed before text is sent to the TTS provider. Use them selectively where the narration needs more space than the engine provides naturally.
+
 ## Load documents
 
 Select **Load Document**, choose one or more files, and wait for the extraction status. You can also drag files onto the Input Text area.

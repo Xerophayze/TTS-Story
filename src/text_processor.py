@@ -4,6 +4,8 @@ Text Processor - Handles text parsing, chunking, and speaker tag extraction
 import re
 from typing import List, Dict, Tuple
 
+from src.pause_markers import pause_seconds_for_text, split_text_and_pause_markers
+
 
 class TextProcessor:
     """Processes text for TTS generation"""
@@ -106,9 +108,17 @@ class TextProcessor:
             r'\[/\2\]'                                 # Speaker closing tag (backreference)
         )
         
-        matches = re.finditer(combined_pattern, text, re.DOTALL)
-        
+        matches = list(re.finditer(combined_pattern, text, re.DOTALL))
+        cursor = 0
+        last_speaker = "default"
+
+        def append_outside_pause_markers(value: str) -> None:
+            for kind, marker in split_text_and_pause_markers(value):
+                if kind == "pause" and pause_seconds_for_text(marker) is not None:
+                    segments.append({"speaker": last_speaker, "text": marker})
+
         for match in matches:
+            append_outside_pause_markers(text[cursor:match.start()])
             emotion = match.group(1)
             speaker_name = self._normalize_speaker_name(match.group(2))
             speaker_text = match.group(3).strip()
@@ -122,6 +132,10 @@ class TextProcessor:
                 if emotion:
                     segment["emotion"] = emotion.strip()
                 segments.append(segment)
+                last_speaker = speaker_name
+            cursor = match.end()
+
+        append_outside_pause_markers(text[cursor:])
                 
         return segments
         
@@ -129,10 +143,18 @@ class TextProcessor:
         """
         Split text into chunks at sentence boundaries
         """
-        strategy = self.chunk_strategy
-        if strategy == "characters":
-            return self._chunk_text_by_characters(text)
-        return self._chunk_text_by_words(text, max_words=max_words)
+        chunks: List[str] = []
+        parts = split_text_and_pause_markers(text)
+        if not parts:
+            return []
+        for kind, value in parts:
+            if kind == "pause":
+                chunks.append(value)
+            elif self.chunk_strategy == "characters":
+                chunks.extend(self._chunk_text_by_characters(value))
+            else:
+                chunks.extend(self._chunk_text_by_words(value, max_words=max_words))
+        return chunks
     
     def _chunk_text_by_words(self, text: str, max_words: int = None) -> List[str]:
         if max_words is None:

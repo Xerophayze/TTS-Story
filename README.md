@@ -662,7 +662,7 @@ If no speaker tags are found, the entire text will be processed with a single vo
 
 ## Configuration
 
-Settings are stored in `config.json`:
+Settings are stored locally in `config.json`. The file is created or updated when settings are saved and is intentionally excluded from Git so personal defaults and API keys cannot block application updates:
 
 ```json
 {
@@ -709,7 +709,7 @@ Settings are stored in `config.json`:
 }
 ```
 
-Cloud API keys are stored locally in `config.json`. The repository sync script scrubs these fields before staging or committing that file.
+Cloud API keys are stored locally in `config.json`. This file is ignored by Git and must never be committed or shared.
 
 ### TTS Engine Options
 

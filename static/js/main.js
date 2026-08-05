@@ -847,7 +847,15 @@ async function fetchSpeakerProfiles() {
         if (activeSpeakerModal) {
             renderSpeakerProfileSummary(activeSpeakerModal);
         }
-        showNotification('Speaker profiles generated.', 'success');
+        const missingSpeakers = Array.isArray(data.missing_speakers) ? data.missing_speakers : [];
+        if (missingSpeakers.length) {
+            showNotification(
+                `Speaker profiles generated, but ${missingSpeakers.length} speaker${missingSpeakers.length === 1 ? '' : 's'} still need a profile: ${missingSpeakers.join(', ')}`,
+                'warning'
+            );
+        } else {
+            showNotification('Speaker profiles and voice types generated.', 'success');
+        }
     } catch (error) {
         console.error('Speaker profile generation failed:', error);
         showNotification(error.message || 'Failed to generate speaker profiles.', 'warning');
@@ -1882,6 +1890,7 @@ let analyzeRerunRequested = false;
 let sectionReviewInFlight = false;
 let sectionReviewData = null;
 let sectionReviewLastFetchedText = null;
+let sectionReviewLastFetchedHeadingKey = null;
 let sectionEditTarget = null;
 let inlineSampleHandlersReady = false;
 const turboSelectionState = {};
@@ -2500,8 +2509,7 @@ function applySectionHeadingEdit(newHeading) {
 
     // Invalidate both caches so the next modal open re-fetches fresh data
     // with correct offsets, and analysis reflects the updated text.
-    sectionReviewData = null;
-    sectionReviewLastFetchedText = null;
+    invalidateSectionReviewCache();
     lastAnalyzedText = '';
 
     closeSectionEditModal();
@@ -2521,6 +2529,7 @@ function applySectionHeadingEdit(newHeading) {
             const data = await response.json();
             if (data && data.success) {
                 sectionReviewLastFetchedText = updated;
+                sectionReviewLastFetchedHeadingKey = getSectionHeadingCacheKey(enabledHeadings);
             }
             renderSectionReview(data);
         } catch (_) {
@@ -3070,6 +3079,8 @@ function toggleDefaultHeading(heading) {
     } else {
         enabledSectionHeadings.push(heading);
     }
+    invalidateSectionReviewCache();
+    lastAnalyzedText = '';
     renderDefaultHeadingChips();
     // Trigger re-analysis to update section detection
     const input = document.getElementById('input-text');
@@ -3090,6 +3101,8 @@ function addCustomHeading(heading) {
         return;
     }
     customSectionHeadings.push(normalized);
+    invalidateSectionReviewCache();
+    lastAnalyzedText = '';
     renderCustomHeadingChips();
     // Trigger re-analysis to update section detection
     const input = document.getElementById('input-text');
@@ -3102,6 +3115,8 @@ function removeCustomHeading(heading) {
     const index = customSectionHeadings.indexOf(heading);
     if (index > -1) {
         customSectionHeadings.splice(index, 1);
+        invalidateSectionReviewCache();
+        lastAnalyzedText = '';
         renderCustomHeadingChips();
         // Trigger re-analysis to update section detection
         const input = document.getElementById('input-text');
@@ -3132,6 +3147,21 @@ function setupHeadingChipEventListeners() {
 
 function getEnabledSectionHeadings() {
     return [...enabledSectionHeadings, ...customSectionHeadings];
+}
+
+function getSectionHeadingCacheKey(headings = getEnabledSectionHeadings()) {
+    return JSON.stringify(
+        headings
+            .map(heading => String(heading || '').trim().toLowerCase())
+            .filter(Boolean)
+            .sort()
+    );
+}
+
+function invalidateSectionReviewCache() {
+    sectionReviewData = null;
+    sectionReviewLastFetchedText = null;
+    sectionReviewLastFetchedHeadingKey = null;
 }
 
 // Initialize app
@@ -3320,6 +3350,7 @@ function setupEventListeners() {
     const speakerModalClose = document.getElementById('speaker-edit-modal-close');
     const speakerModalFooterClose = document.getElementById('speaker-edit-modal-close-btn');
     const speakerReadyCheckbox = document.getElementById('speaker-ready-checkbox');
+    const buildSpeakerProfilesBtn = document.getElementById('build-speaker-profiles-btn');
     const batchGenerateBtn = document.getElementById('generate-voices-btn');
     const batchModalOverlay = document.getElementById('speaker-batch-modal-overlay');
     const batchModalClose = document.getElementById('speaker-batch-modal-close');
@@ -3372,6 +3403,19 @@ function setupEventListeners() {
     if (resetAssignmentsBtn) {
         resetAssignmentsBtn.addEventListener('click', resetVoiceAssignments);
     }
+    if (buildSpeakerProfilesBtn) {
+        buildSpeakerProfilesBtn.addEventListener('click', async () => {
+            const idleLabel = buildSpeakerProfilesBtn.textContent || 'Build Profiles';
+            buildSpeakerProfilesBtn.disabled = true;
+            buildSpeakerProfilesBtn.textContent = 'Building…';
+            try {
+                await fetchSpeakerProfiles();
+            } finally {
+                buildSpeakerProfilesBtn.textContent = idleLabel;
+                buildSpeakerProfilesBtn.disabled = !currentStats?.speakers?.length;
+            }
+        });
+    }
     if (cancelBtn) {
         cancelBtn.addEventListener('click', cancelGeneration);
     }
@@ -3384,17 +3428,22 @@ function setupEventListeners() {
                 return;
             }
             openSectionReviewModal();
+            const enabledHeadings = getEnabledSectionHeadings();
+            const headingCacheKey = getSectionHeadingCacheKey(enabledHeadings);
 
-            // If the text hasn't changed since the last fetch, re-render from cache
-            // so that any heading edits made during this session are preserved.
-            if (sectionReviewData && sectionReviewLastFetchedText === text) {
+            // Reuse edited preview data only when both the story and active
+            // detector selection are unchanged.
+            if (
+                sectionReviewData
+                && sectionReviewLastFetchedText === text
+                && sectionReviewLastFetchedHeadingKey === headingCacheKey
+            ) {
                 renderSectionReview(sectionReviewData);
                 return;
             }
 
             sectionReviewInFlight = true;
             try {
-                const enabledHeadings = getEnabledSectionHeadings();
                 const payload = { text, section_headings: enabledHeadings };
                 const response = await fetch('/api/sections/preview', {
                     method: 'POST',
@@ -3404,6 +3453,7 @@ function setupEventListeners() {
                 const data = await response.json();
                 if (data && data.success) {
                     sectionReviewLastFetchedText = text;
+                    sectionReviewLastFetchedHeadingKey = headingCacheKey;
                     sectionReviewData = data;
                 }
                 renderSectionReview(data);
@@ -4850,6 +4900,10 @@ function displayStatistics(stats) {
     const batchBtn = document.getElementById('generate-voices-btn');
     if (batchBtn) {
         batchBtn.disabled = !hasDetectedSpeakers;
+    }
+    const buildProfilesBtn = document.getElementById('build-speaker-profiles-btn');
+    if (buildProfilesBtn) {
+        buildProfilesBtn.disabled = !hasDetectedSpeakers;
     }
     const autoAssignVoicesBtn = document.getElementById('auto-assign-voices-btn');
     if (autoAssignVoicesBtn) {

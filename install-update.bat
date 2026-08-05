@@ -15,7 +15,7 @@ if exist ".git" (
     if exist "setup.bat" (
         echo Running from within TTS-Story repository.
         echo Updating in-place...
-        git pull
+        call :pull_updates
         if errorlevel 1 (
             echo ERROR: Git pull failed.
             pause
@@ -74,7 +74,7 @@ if exist "%REPO_DIR%" (
         set "EXISTING_INSTALL=1"
         echo Repository found. Pulling latest updates...
         pushd "%REPO_DIR%"
-        git pull
+        call :pull_updates
         if errorlevel 1 (
             echo ERROR: Git pull failed.
             popd
@@ -122,3 +122,36 @@ if exist "%REPO_DIR%\setup.bat" (
 echo.
 echo ✅ Install/update complete.
 pause
+exit /b 0
+
+:pull_updates
+REM Preserve settings from older installations where config.json was tracked.
+REM After the migration is pulled, the restored local file is ignored by Git.
+set "CONFIG_UPDATE_BACKUP="
+set "CONFIG_UPDATE_STATUS="
+for /f "delims=" %%I in ('git status --porcelain -- config.json 2^>nul') do set "CONFIG_UPDATE_STATUS=%%I"
+if defined CONFIG_UPDATE_STATUS if exist "config.json" (
+    set "CONFIG_UPDATE_BACKUP=%TEMP%\tts-story-config-!RANDOM!-!RANDOM!.json"
+    copy /Y "config.json" "!CONFIG_UPDATE_BACKUP!" >nul
+    if errorlevel 1 (
+        echo ERROR: Could not preserve local config.json before updating.
+        exit /b 1
+    )
+    echo Preserving local config.json settings during repository update...
+    git restore --source=HEAD --staged --worktree -- config.json >nul 2>&1
+    if errorlevel 1 (
+        copy /Y "!CONFIG_UPDATE_BACKUP!" "config.json" >nul
+        del /Q "!CONFIG_UPDATE_BACKUP!" >nul 2>&1
+        echo ERROR: Could not prepare tracked config.json for update.
+        exit /b 1
+    )
+)
+
+git pull --ff-only
+set "PULL_RESULT=!ERRORLEVEL!"
+if defined CONFIG_UPDATE_BACKUP (
+    copy /Y "!CONFIG_UPDATE_BACKUP!" "config.json" >nul
+    del /Q "!CONFIG_UPDATE_BACKUP!" >nul 2>&1
+    echo Restored local config.json settings.
+)
+exit /b !PULL_RESULT!

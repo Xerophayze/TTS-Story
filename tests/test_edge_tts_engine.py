@@ -148,6 +148,26 @@ def test_symbol_only_scene_break_becomes_local_silence_without_provider_call():
     assert calls == []
 
 
+def test_six_star_marker_becomes_half_second_of_local_silence():
+    calls = []
+
+    class RecordingCommunicate:
+        def __init__(self, text, **kwargs):
+            calls.append(text)
+
+    engine = EdgeTTSEngine(
+        communicate_factory=RecordingCommunicate,
+        list_voices_func=lambda: [],
+        audio_converter=_converter,
+    )
+
+    audio = engine.generate_audio("******")
+
+    with wave.open(io.BytesIO(audio), "rb") as wav_file:
+        assert wav_file.getnframes() / wav_file.getframerate() == pytest.approx(0.5)
+    assert calls == []
+
+
 def test_hung_async_stream_hits_hard_timeout_and_retries():
     calls = []
     delays = []

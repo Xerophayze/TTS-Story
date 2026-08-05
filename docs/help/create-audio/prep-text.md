@@ -51,6 +51,8 @@ Read [Prompt Presets, Chunking, and Review](help:llm-prompts) before processing 
 7. After every section succeeds, the outputs are combined and replace **Input Text**.
 8. TTS-Story automatically analyzes the new text and can request speaker profiles.
 
+If profile generation fails or a provider omits one or more speakers, use **Build Profiles** beside the detected-speaker list. This retries only the profile and voice-type analysis using the text already in the editor; it does not rerun Prep Text or rewrite the manuscript.
+
 ![Paused Prep Text operation with Resume, Restart, and Abort controls](../../../static/help/screenshots/prep-text-resume.png)
 
 *A paused or interrupted preparation preserves completed sections and offers distinct Resume, Restart, and Abort actions.*

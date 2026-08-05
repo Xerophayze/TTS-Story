@@ -8,6 +8,7 @@ from typing import Any, List, Optional
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+MAIN_SCRIPT = PROJECT_ROOT / "static" / "js" / "main.js"
 
 
 def _load_heading_helpers():
@@ -15,10 +16,18 @@ def _load_heading_helpers():
     source_path = PROJECT_ROOT / "app.py"
     tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
     required_names = {
+        "BOOK_HEADING_PATTERN",
         "SECTION_HEADING_KEYWORDS",
         "_normalize_custom_headings",
+        "_book_heading_enabled",
+        "_without_book_heading",
+        "_find_book_heading_matches",
         "_keyword_to_regex",
+        "_clean_heading_text",
         "_build_section_heading_pattern",
+        "_build_sections_from_matches",
+        "split_text_into_sections",
+        "split_text_into_book_sections",
     }
     selected = []
     for node in tree.body:
@@ -36,10 +45,12 @@ def _load_heading_helpers():
         "Optional": Optional,
     }
     exec(compile(ast.Module(body=selected, type_ignores=[]), str(source_path), "exec"), namespace)
-    return namespace["_build_section_heading_pattern"]
+    return namespace
 
 
-build_pattern = _load_heading_helpers()
+heading_helpers = _load_heading_helpers()
+build_pattern = heading_helpers["_build_section_heading_pattern"]
+split_book_sections = heading_helpers["split_text_into_book_sections"]
 
 
 def _matched_lines(text: str, headings: List[str]) -> List[str]:
@@ -72,6 +83,57 @@ class SectionHeadingPatternTests(unittest.TestCase):
         text = "Episode1\nOpening text.\n\nEpisodeTwo is prose, not a heading."
 
         self.assertEqual(["Episode1"], _matched_lines(text, ["episode"]))
+
+    def test_disabling_book_prevents_the_separate_book_detector_from_running(self) -> None:
+        text = (
+            "Chapter 1\nOpening text.\n\n"
+            "Book the passage for tomorrow.\nMore prose.\n\n"
+            "Chapter 2\nClosing text."
+        )
+
+        hierarchy = split_book_sections(text, ["chapter"])
+
+        self.assertEqual("section", hierarchy["kind"])
+        self.assertEqual(["Chapter 1", "Chapter 2"], [
+            section["title"] for section in hierarchy["sections"]
+        ])
+
+    def test_enabling_book_still_allows_intentional_multi_book_input(self) -> None:
+        text = "Book One\nFirst story.\n\nBook Two\nSecond story."
+
+        hierarchy = split_book_sections(text, ["book"])
+
+        self.assertEqual("book", hierarchy["kind"])
+        self.assertEqual(2, len(hierarchy["books"]))
+
+    def test_explicit_empty_heading_selection_detects_nothing(self) -> None:
+        text = "Book One\nFirst story.\n\nChapter 2\nSecond story."
+
+        hierarchy = split_book_sections(text, [])
+
+        self.assertEqual("none", hierarchy["kind"])
+        self.assertEqual([], _matched_lines(text, []))
+
+    def test_disabled_part_does_not_split_prose_beginning_with_part(self) -> None:
+        text = (
+            "CHAPTER XIV.\nOpening text.\n\n"
+            "part of the pity for me that I have for you.\nMore prose.\n\n"
+            "CHAPTER XV.\nClosing text."
+        )
+
+        hierarchy = split_book_sections(text, ["chapter"])
+
+        self.assertEqual(["CHAPTER XIV.", "CHAPTER XV."], [
+            section["title"] for section in hierarchy["sections"]
+        ])
+
+    def test_section_review_cache_includes_active_heading_selection(self) -> None:
+        source = MAIN_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("sectionReviewLastFetchedHeadingKey", source)
+        self.assertIn("getSectionHeadingCacheKey(enabledHeadings)", source)
+        self.assertIn("sectionReviewLastFetchedHeadingKey === headingCacheKey", source)
+        self.assertIn("invalidateSectionReviewCache();", source)
 
 
 if __name__ == "__main__":

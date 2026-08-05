@@ -183,6 +183,7 @@
                     <div class="speakers-header-row">
                         <div id="speakers-list"></div>
                         <div class="speakers-actions">
+                            <button type="button" id="build-speaker-profiles-btn" class="btn btn-secondary btn-sm" disabled>Build Profiles</button>
                             <button type="button" id="generate-voices-btn" class="btn btn-secondary btn-sm">Generate Voices</button>
                             <button type="button" id="auto-assign-voices-btn" class="btn btn-secondary btn-sm">Auto Assign</button>
                         </div>
@@ -303,6 +304,9 @@
                                             </div>
                                             <p class="help-text" style="margin-top: 6px;">
                                                 Toggle default headings on/off. Add custom headings to detect additional section markers.
+                                            </p>
+                                            <p class="help-text" style="margin-top: 6px;">
+                                                Need a deliberate pause? Use <code>***</code> for 0.25 seconds of silence or <code>******</code> for 0.5 seconds. Put the marker on its own line or directly after punctuation, such as <code>The room fell silent.***</code>
                                             </p>
                                         </div>
                                         <div id="full-story-option" class="chapter-sub-option" style="display: none;">
@@ -2491,9 +2495,9 @@
     </div>
 
     <script src="/static/js/help.js?v=3"></script>
-    <script src="/static/js/main.js?v=39"></script>
+<script src="/static/js/main.js?v=42"></script>
     <script src="/static/js/queue.js?v=4"></script>
-    <script src="/static/js/library.js?v=42"></script>
+<script src="/static/js/library.js?v=43"></script>
     <script src="/static/js/voice-manager.js?v=14"></script>
     <script src="/static/js/settings.js?v=10"></script>
 </body>

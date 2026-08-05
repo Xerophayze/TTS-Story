@@ -136,7 +136,16 @@ def test_library_progress_assets_have_fresh_cache_versions():
     template = INDEX_TEMPLATE.read_text(encoding="utf-8")
 
     assert "/static/css/style.css?v=34" in template
-    assert "/static/js/library.js?v=42" in template
+    assert "/static/js/library.js?v=43" in template
+
+
+def test_full_story_pill_loads_combined_audio_and_busts_rebuild_cache():
+    source = LIBRARY_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'data-full-story-src="${item.full_story?.output_file || \'\'}"' in source
+    assert "reviewAllButton.getAttribute('data-full-story-src')" in source
+    assert source.count("`${fullStorySrc}${separator}v=${Date.now()}`") == 2
+    assert "title: 'Full Story'" in source
 
 
 def test_recompile_exposes_and_renders_live_post_process_progress():

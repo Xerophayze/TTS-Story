@@ -22,6 +22,10 @@ def test_allows_placeholders_and_tracked_engine_worker():
     assert SAFETY.path_problem(".env.example") is None
 
 
+def test_local_config_is_always_rejected_from_repository_content():
+    assert SAFETY.path_problem("config.json") == "runtime or backup file"
+
+
 def test_detects_populated_config_secrets():
     content = b'{"atlas_cloud_api_key": "atlas-value", "openrouter_api_key": "router-value", "azure_speech_key": "azure-value", "elevenlabs_api_key": "eleven-value", "openai_tts_api_key": "openai-value", "gemini_api_key": "real-value", "replicate_api_key": ""}'
     problems = SAFETY.content_problems("config.json", content)

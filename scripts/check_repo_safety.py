@@ -28,6 +28,7 @@ SECRET_CONFIG_KEYS = {
 
 FORBIDDEN_EXACT_PATHS = {
     ".sync_state.json",
+    "config.json",
     "config.json.syncbak",
     "data/chatterbox_voices.json",
     "data/custom_voices.json",
