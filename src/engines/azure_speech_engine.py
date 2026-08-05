@@ -12,7 +12,7 @@ import re
 import threading
 import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from xml.sax.saxutils import escape, quoteattr
@@ -59,6 +59,7 @@ class AzureSpeechEngine(TtsEngineBase):
         *,
         output_format: str = DEFAULT_AZURE_SPEECH_OUTPUT_FORMAT,
         timeout: int = 60,
+        max_parallel: int = 2,
         requests_per_minute: int = DEFAULT_AZURE_SPEECH_REQUESTS_PER_MINUTE,
         default_voice: str = DEFAULT_AZURE_SPEECH_VOICE,
         default_style: str = "",
@@ -83,6 +84,7 @@ class AzureSpeechEngine(TtsEngineBase):
 
         self.output_format = output_format
         self.timeout = max(10, min(int(timeout or 60), 600))
+        self.max_parallel = max(1, min(int(max_parallel or 1), 8))
         self.requests_per_minute = max(0, min(int(requests_per_minute or 0), 60000))
         self.default_voice = (default_voice or DEFAULT_AZURE_SPEECH_VOICE).strip()
         self.default_style = self._safe_ssml_token(default_style)
@@ -186,6 +188,7 @@ class AzureSpeechEngine(TtsEngineBase):
         progress_cb=None,
         chunk_cb=None,
         parallel_workers: int = 1,
+        start_index: int = 0,
     ) -> List[str]:
         """Render all chunks and return their WAV paths in chronological order."""
         destination = Path(output_dir)
@@ -212,12 +215,12 @@ class AzureSpeechEngine(TtsEngineBase):
 
         def render(item: Dict[str, Any]) -> tuple[int, str]:
             audio_bytes = self._synthesize(item["text"], item["assignment"], fallback_speed=speed)
-            output_path = destination / f"azure_chunk_{item['order_index']:06d}.wav"
+            output_path = destination / f"azure_chunk_{start_index + item['order_index']:06d}.wav"
             output_path.write_bytes(audio_bytes)
             return item["order_index"], str(output_path)
 
         results: Dict[int, str] = {}
-        workers = max(1, min(int(parallel_workers or 1), 8, len(work_items)))
+        workers = max(1, min(int(parallel_workers or 1), self.max_parallel, len(work_items)))
         if workers == 1:
             completed = ((item, render(item)) for item in work_items)
             for item, (order_index, file_path) in completed:
@@ -225,15 +228,33 @@ class AzureSpeechEngine(TtsEngineBase):
                 self._notify_callbacks(item, file_path, progress_cb, chunk_cb)
         else:
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="azure-tts") as executor:
-                futures = {executor.submit(render, item): item for item in work_items}
+                pending = {}
+                next_submit = 0
+                next_callback = 0
+
+                def fill_workers() -> None:
+                    nonlocal next_submit
+                    while next_submit < len(work_items) and len(pending) < workers:
+                        item = work_items[next_submit]
+                        pending[executor.submit(render, item)] = item
+                        next_submit += 1
+
+                fill_workers()
                 try:
-                    for future in as_completed(futures):
-                        item = futures[future]
-                        order_index, file_path = future.result()
-                        results[order_index] = file_path
-                        self._notify_callbacks(item, file_path, progress_cb, chunk_cb)
+                    while pending:
+                        completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                        for future in completed:
+                            pending.pop(future)
+                            order_index, file_path = future.result()
+                            results[order_index] = file_path
+                        while next_callback in results:
+                            self._notify_callbacks(
+                                work_items[next_callback], results[next_callback], progress_cb, chunk_cb
+                            )
+                            next_callback += 1
+                        fill_workers()
                 except Exception:
-                    for future in futures:
+                    for future in pending:
                         future.cancel()
                     raise
 

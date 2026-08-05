@@ -1208,6 +1208,7 @@ function applySettings(settings) {
     setElementValue('azure-speech-region', settings.azure_speech_region || '');
     setElementValue('azure-speech-output-format', settings.azure_speech_output_format || 'riff-24khz-16bit-mono-pcm');
     setElementValue('azure-speech-timeout', settings.azure_speech_timeout ?? 60, 60);
+    setElementValue('azure-speech-max-parallel', settings.azure_speech_max_parallel ?? 2, 2);
     setElementValue('azure-speech-requests-per-minute', settings.azure_speech_requests_per_minute ?? 20, 20);
     setElementValue('azure-speech-chunk-size', settings.azure_speech_chunk_size ?? 1000, 1000);
     setElementValue('azure-speech-default-style-degree', settings.azure_speech_default_style_degree ?? 1, 1);
@@ -1221,6 +1222,7 @@ function applySettings(settings) {
     );
     setElementValue('edge-tts-timeout', settings.edge_tts_timeout ?? 60, 60);
     setElementValue('edge-tts-max-parallel', settings.edge_tts_max_parallel ?? 2, 2);
+    setElementValue('edge-tts-max-retries', settings.edge_tts_max_retries ?? 4, 4);
     setElementValue('edge-tts-chunk-size', settings.edge_tts_chunk_size ?? 1000, 1000);
     setElementValue('edge-tts-default-volume', settings.edge_tts_default_volume ?? 0, 0);
     populateProviderVoiceSelect(
@@ -1259,6 +1261,7 @@ function applySettings(settings) {
     setElementValue('openai-tts-timeout', settings.openai_tts_timeout ?? 120, 120);
     setElementValue('openai-tts-max-parallel', settings.openai_tts_max_parallel ?? 2, 2);
     setElementValue('openai-tts-chunk-size', settings.openai_tts_chunk_size ?? 4000, 4000);
+    setElementValue('cloud-tts-concurrent-jobs', settings.cloud_tts_concurrent_jobs ?? 2, 2);
     setElementValue('llm-local-provider', settings.llm_local_provider || 'lmstudio', 'lmstudio');
     setElementValue('llm-local-base-url', settings.llm_local_base_url || LOCAL_LLM_BASE_URLS.lmstudio, LOCAL_LLM_BASE_URLS.lmstudio);
     setElementValue('llm-local-model', settings.llm_local_model || '');
@@ -1737,6 +1740,7 @@ async function saveSettings() {
         azure_speech_default_voice: document.getElementById('azure-speech-default-voice')?.value || 'en-US-AvaMultilingualNeural',
         azure_speech_output_format: document.getElementById('azure-speech-output-format')?.value || 'riff-24khz-16bit-mono-pcm',
         azure_speech_timeout: Math.max(10, parseInt(document.getElementById('azure-speech-timeout')?.value, 10) || 60),
+        azure_speech_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('azure-speech-max-parallel')?.value, 10) || 2)),
         azure_speech_requests_per_minute: Math.max(0, parseInt(document.getElementById('azure-speech-requests-per-minute')?.value, 10) || 0),
         azure_speech_chunk_size: Math.max(100, parseInt(document.getElementById('azure-speech-chunk-size')?.value, 10) || 1000),
         azure_speech_default_style: document.getElementById('azure-speech-default-style')?.value || '',
@@ -1745,6 +1749,7 @@ async function saveSettings() {
         edge_tts_default_voice: document.getElementById('edge-tts-default-voice')?.value || 'en-US-AriaNeural',
         edge_tts_timeout: Math.max(10, Math.min(300, parseInt(document.getElementById('edge-tts-timeout')?.value, 10) || 60)),
         edge_tts_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('edge-tts-max-parallel')?.value, 10) || 2)),
+        edge_tts_max_retries: Math.max(0, Math.min(6, parseInt(document.getElementById('edge-tts-max-retries')?.value, 10) || 0)),
         edge_tts_chunk_size: Math.max(100, Math.min(5000, parseInt(document.getElementById('edge-tts-chunk-size')?.value, 10) || 1000)),
         edge_tts_default_volume: Math.max(-100, Math.min(100, parseInt(document.getElementById('edge-tts-default-volume')?.value, 10) || 0)),
         elevenlabs_api_key: document.getElementById('elevenlabs-api-key')?.value || '',
@@ -1770,6 +1775,7 @@ async function saveSettings() {
         openai_tts_timeout: Math.max(10, Math.min(600, parseInt(document.getElementById('openai-tts-timeout')?.value, 10) || 120)),
         openai_tts_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('openai-tts-max-parallel')?.value, 10) || 2)),
         openai_tts_chunk_size: Math.max(100, Math.min(4000, parseInt(document.getElementById('openai-tts-chunk-size')?.value, 10) || 4000)),
+        cloud_tts_concurrent_jobs: Math.max(1, Math.min(4, parseInt(document.getElementById('cloud-tts-concurrent-jobs')?.value, 10) || 2)),
         llm_local_provider: document.getElementById('llm-local-provider')?.value || 'lmstudio',
         llm_local_base_url: document.getElementById('llm-local-base-url')?.value || LOCAL_LLM_BASE_URLS.lmstudio,
         llm_local_model: document.getElementById('llm-local-model')?.value || '',
@@ -1984,6 +1990,7 @@ async function resetSettings() {
         azure_speech_default_voice: 'en-US-AvaMultilingualNeural',
         azure_speech_output_format: 'riff-24khz-16bit-mono-pcm',
         azure_speech_timeout: 60,
+        azure_speech_max_parallel: 2,
         azure_speech_requests_per_minute: 20,
         azure_speech_chunk_size: 1000,
         azure_speech_default_style: '',
@@ -1992,6 +1999,7 @@ async function resetSettings() {
         edge_tts_default_voice: 'en-US-AriaNeural',
         edge_tts_timeout: 60,
         edge_tts_max_parallel: 2,
+        edge_tts_max_retries: 4,
         edge_tts_chunk_size: 1000,
         edge_tts_default_volume: 0,
         elevenlabs_api_key: '',
@@ -2015,6 +2023,7 @@ async function resetSettings() {
         openai_tts_timeout: 120,
         openai_tts_max_parallel: 2,
         openai_tts_chunk_size: 4000,
+        cloud_tts_concurrent_jobs: 2,
         llm_local_provider: 'lmstudio',
         llm_local_base_url: LOCAL_LLM_BASE_URLS.lmstudio,
         llm_local_model: '',

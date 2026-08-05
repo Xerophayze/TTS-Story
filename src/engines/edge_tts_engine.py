@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import inspect
+import logging
+import queue
+import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import wave
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -25,6 +30,7 @@ except Exception as exc:  # pragma: no cover - depends on optional installation 
 
 DEFAULT_EDGE_TTS_VOICE = "en-US-AriaNeural"
 DEFAULT_EDGE_TTS_SAMPLE_RATE = 24000
+logger = logging.getLogger(__name__)
 
 
 class EdgeTTSError(RuntimeError):
@@ -147,6 +153,7 @@ class EdgeTTSEngine(TtsEngineBase):
         progress_cb=None,
         chunk_cb=None,
         parallel_workers: int = 1,
+        start_index: int = 0,
     ) -> List[str]:
         destination = Path(output_dir)
         destination.mkdir(parents=True, exist_ok=True)
@@ -156,7 +163,7 @@ class EdgeTTSEngine(TtsEngineBase):
 
         def render(item: Dict[str, Any]) -> tuple[int, str]:
             wav = self._synthesize(item["text"], item["assignment"], fallback_speed=speed)
-            path = destination / f"edge_chunk_{item['order_index']:06d}.wav"
+            path = destination / f"edge_chunk_{start_index + item['order_index']:06d}.wav"
             path.write_bytes(wav)
             return item["order_index"], str(path)
 
@@ -169,15 +176,36 @@ class EdgeTTSEngine(TtsEngineBase):
                 self._notify_callbacks(item, path, progress_cb, chunk_cb)
         else:
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="edge-tts") as executor:
-                futures = {executor.submit(render, item): item for item in work_items}
+                pending = {}
+                next_submit = 0
+                next_callback = 0
+
+                def fill_workers() -> None:
+                    nonlocal next_submit
+                    while next_submit < len(work_items) and len(pending) < workers:
+                        item = work_items[next_submit]
+                        pending[executor.submit(render, item)] = item
+                        next_submit += 1
+
+                fill_workers()
                 try:
-                    for future in as_completed(futures):
-                        item = futures[future]
-                        order, path = future.result()
-                        results[order] = path
-                        self._notify_callbacks(item, path, progress_cb, chunk_cb)
+                    while pending:
+                        completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                        for future in completed:
+                            item = pending.pop(future)
+                            order, path = future.result()
+                            results[order] = path
+                        while next_callback in results:
+                            self._notify_callbacks(
+                                work_items[next_callback],
+                                results[next_callback],
+                                progress_cb,
+                                chunk_cb,
+                            )
+                            next_callback += 1
+                        fill_workers()
                 except Exception:
-                    for future in futures:
+                    for future in pending:
                         future.cancel()
                     raise
         return [results[index] for index in range(len(work_items))]
@@ -189,6 +217,12 @@ class EdgeTTSEngine(TtsEngineBase):
         clean_text = str(text or "").strip()
         if not clean_text:
             raise EdgeTTSError("Edge TTS cannot synthesize empty text.")
+        if not any(character.isalnum() for character in clean_text):
+            logger.info(
+                "Edge TTS converted a symbol-only separator (%d chars) to silence.",
+                len(clean_text),
+            )
+            return self._silence_wav()
         voice = str(assignment.voice or self.default_voice).strip()
         if not voice:
             raise EdgeTTSError("An Edge TTS voice is required.")
@@ -229,18 +263,33 @@ class EdgeTTSEngine(TtsEngineBase):
                 last_error = exc
                 if attempt >= self.max_retries:
                     break
-                self._sleep(min(2**attempt, 10))
+                delay = min(2**attempt, 10)
+                logger.warning(
+                    "Edge TTS request failed for voice %s (%d chars), retrying in %ss "
+                    "(attempt %d/%d): %s",
+                    voice,
+                    len(clean_text),
+                    delay,
+                    attempt + 2,
+                    self.max_retries + 1,
+                    exc,
+                )
+                self._sleep(delay)
         raise EdgeTTSError(f"Edge TTS synthesis failed: {last_error}") from last_error
 
-    @staticmethod
-    def _audio_chunks(communicator: Any) -> Iterable[bytes]:
-        if hasattr(communicator, "stream_sync"):
-            messages = communicator.stream_sync()
-        elif hasattr(communicator, "stream"):
+    def _audio_chunks(self, communicator: Any) -> Iterable[bytes]:
+        if hasattr(communicator, "stream"):
             async def collect() -> List[Dict[str, Any]]:
                 return [message async for message in communicator.stream()]
 
-            messages = _run_awaitable(collect())
+            try:
+                messages = _run_awaitable(asyncio.wait_for(collect(), timeout=self.timeout))
+            except asyncio.TimeoutError as exc:
+                raise EdgeTTSError(
+                    f"Edge TTS streaming timed out after {self.timeout} seconds."
+                ) from exc
+        elif hasattr(communicator, "stream_sync"):
+            messages = self._collect_sync_with_timeout(communicator)
         else:
             raise EdgeTTSError("The installed edge-tts package does not provide a streaming API.")
         found = False
@@ -252,6 +301,40 @@ class EdgeTTSEngine(TtsEngineBase):
                     yield data
         if not found:
             raise EdgeTTSError("Edge TTS returned no audio data.")
+
+    def _collect_sync_with_timeout(self, communicator: Any) -> List[Dict[str, Any]]:
+        """Collect a legacy synchronous stream without allowing it to block the job forever."""
+        outcome: queue.Queue = queue.Queue(maxsize=1)
+
+        def collect() -> None:
+            try:
+                outcome.put((True, list(communicator.stream_sync())))
+            except BaseException as exc:  # delivered back to the caller thread
+                outcome.put((False, exc))
+
+        worker = threading.Thread(target=collect, name="edge-stream-timeout", daemon=True)
+        worker.start()
+        worker.join(self.timeout)
+        if worker.is_alive():
+            raise EdgeTTSError(f"Edge TTS streaming timed out after {self.timeout} seconds.")
+        try:
+            succeeded, value = outcome.get_nowait()
+        except queue.Empty as exc:
+            raise EdgeTTSError("Edge TTS streaming stopped without returning a result.") from exc
+        if not succeeded:
+            raise value
+        return value
+
+    def _silence_wav(self, duration_ms: int = 250) -> bytes:
+        """Return a short valid WAV for scene-break markers such as ``***``."""
+        frames = max(1, int(self.sample_rate * max(1, duration_ms) / 1000))
+        output = io.BytesIO()
+        with wave.open(output, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(self.sample_rate)
+            wav.writeframes(b"\x00\x00" * frames)
+        return output.getvalue()
 
     def _work_items(self, segments: List[Dict], voice_config: Dict[str, Dict]) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []

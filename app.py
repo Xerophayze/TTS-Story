@@ -58,6 +58,7 @@ from src.library_metadata import (
     merge_generated_library_metadata,
 )
 from src.library_cleanup import remove_directory_with_retries
+from src.json_storage import write_json_atomic
 from src.atlas_cloud_processor import (
     AtlasCloudProcessor,
     AtlasCloudProcessorError,
@@ -228,6 +229,7 @@ DEFAULT_CONFIG = {
     "azure_speech_default_voice": DEFAULT_AZURE_SPEECH_VOICE,
     "azure_speech_output_format": DEFAULT_AZURE_SPEECH_OUTPUT_FORMAT,
     "azure_speech_timeout": 60,
+    "azure_speech_max_parallel": 2,
     "azure_speech_requests_per_minute": DEFAULT_AZURE_SPEECH_REQUESTS_PER_MINUTE,
     "azure_speech_chunk_size": 1000,
     "azure_speech_default_style": "",
@@ -236,6 +238,7 @@ DEFAULT_CONFIG = {
     "edge_tts_default_voice": DEFAULT_EDGE_TTS_VOICE,
     "edge_tts_timeout": 60,
     "edge_tts_max_parallel": 2,
+    "edge_tts_max_retries": 4,
     "edge_tts_chunk_size": 1000,
     "edge_tts_default_volume": 0,
     "elevenlabs_api_key": "",
@@ -259,6 +262,7 @@ DEFAULT_CONFIG = {
     "openai_tts_timeout": 120,
     "openai_tts_max_parallel": 2,
     "openai_tts_chunk_size": 4000,
+    "cloud_tts_concurrent_jobs": 2,
     "llm_local_provider": LLM_PROVIDER_LMSTUDIO,
     "llm_local_base_url": DEFAULT_LOCAL_LLM_BASE_URLS[LLM_PROVIDER_LMSTUDIO],
     "llm_local_model": "",
@@ -1113,12 +1117,25 @@ class JobPaused(Exception):
 # Global state
 jobs = {}  # Track all jobs (queued, processing, completed)
 job_queue = queue.Queue()  # Thread-safe job queue
-current_job_id = None  # Currently processing job
+current_job_id = None  # Legacy single-job indicator for older clients
+current_job_ids = set()  # All jobs currently processing
 cancel_flags = {}  # Cancellation flags for jobs
 cancel_events = {}  # Cancellation events for immediate job aborts
 pause_flags = {}  # Pause flags for jobs
 queue_lock = threading.Lock()  # Lock for thread-safe operations
+_chunks_metadata_locks = defaultdict(threading.Lock)
 worker_thread = None  # Background worker thread
+cloud_job_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="cloud-job")
+cloud_job_condition = threading.Condition()
+active_cloud_jobs = 0
+CLOUD_TTS_ENGINES = {
+    "kokoro_replicate",
+    "chatterbox_turbo_replicate",
+    "azure_speech",
+    "edge_tts",
+    "elevenlabs",
+    "openai_tts",
+}
 tts_engine_instances: Dict[str, TtsEngineBase] = {}
 engine_config_signatures: Dict[str, str] = {}
 tts_engine_lock = threading.Lock()
@@ -1580,32 +1597,47 @@ def _perform_chunk_regeneration(
 
 
 def _persist_chunks_metadata(job_id: str, job_dir: Path):
-    """Update the chunks_metadata.json file with current chunk state."""
-    with queue_lock:
-        job_entry = jobs.get(job_id)
-        if not job_entry:
-            return
-        job_chunks = job_entry.get("chunks") or []
-        config_snapshot = job_entry.get("config_snapshot") or {}
-        engine_name = _normalize_engine_name(config_snapshot.get("tts_engine"))
+    """Update chunks_metadata.json without letting bookkeeping stop synthesis."""
+    metadata_lock = _chunks_metadata_locks[job_id]
+    with metadata_lock:
+        with queue_lock:
+            job_entry = jobs.get(job_id)
+            if not job_entry:
+                return False
+            # The writer runs outside queue_lock; isolate it from later chunk
+            # callbacks while JSON serialization is in progress.
+            job_chunks = copy.deepcopy(job_entry.get("chunks") or [])
+            config_snapshot = job_entry.get("config_snapshot") or {}
+            engine_name = _normalize_engine_name(config_snapshot.get("tts_engine"))
 
-    chunks_meta_path = job_dir / "chunks_metadata.json"
-    existing_meta = {}
-    if chunks_meta_path.exists():
+        chunks_meta_path = job_dir / "chunks_metadata.json"
+        existing_meta = {}
+        if chunks_meta_path.exists():
+            try:
+                with chunks_meta_path.open("r", encoding="utf-8") as handle:
+                    existing_meta = json.load(handle)
+            except (OSError, json.JSONDecodeError):
+                pass
+
+        chunks_meta = {
+            "engine": engine_name,
+            "created_at": existing_meta.get("created_at", datetime.now().isoformat()),
+            "updated_at": datetime.now().isoformat(),
+            "chunks": job_chunks,
+        }
+        if existing_meta.get("timing_metrics"):
+            chunks_meta["timing_metrics"] = existing_meta["timing_metrics"]
         try:
-            with chunks_meta_path.open("r", encoding="utf-8") as handle:
-                existing_meta = json.load(handle)
-        except Exception:
-            pass
-
-    chunks_meta = {
-        "engine": engine_name,
-        "created_at": existing_meta.get("created_at", datetime.now().isoformat()),
-        "updated_at": datetime.now().isoformat(),
-        "chunks": job_chunks,
-    }
-    with chunks_meta_path.open("w", encoding="utf-8") as handle:
-        json.dump(chunks_meta, handle, indent=2)
+            write_json_atomic(chunks_meta_path, chunks_meta)
+            return True
+        except OSError as exc:
+            logger.warning(
+                "Job %s: Could not save chunks_metadata.json after retries; "
+                "generation will continue and the checkpoint will be retried: %s",
+                job_id,
+                exc,
+            )
+            return False
 
 
 def _load_chunks_metadata(job_dir: Path) -> List[Dict[str, Any]]:
@@ -2296,6 +2328,7 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             (config.get("azure_speech_region") or "").strip().lower(),
             (config.get("azure_speech_output_format") or DEFAULT_AZURE_SPEECH_OUTPUT_FORMAT).strip(),
             str(config.get("azure_speech_timeout") or 60),
+            str(config.get("azure_speech_max_parallel") or 2),
             str(config.get("azure_speech_requests_per_minute") or 0),
             (config.get("azure_speech_default_voice") or DEFAULT_AZURE_SPEECH_VOICE).strip(),
             (config.get("azure_speech_default_style") or "").strip(),
@@ -2308,6 +2341,7 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             (config.get("edge_tts_default_voice") or DEFAULT_EDGE_TTS_VOICE).strip(),
             str(config.get("edge_tts_timeout") or 60),
             str(config.get("edge_tts_max_parallel") or 2),
+            str(config.get("edge_tts_max_retries") if config.get("edge_tts_max_retries") is not None else 4),
             str(config.get("edge_tts_default_volume") or 0),
         )
         return f"{engine_name}::{'|'.join(parts)}"
@@ -2563,6 +2597,7 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
                 config.get("azure_speech_output_format") or DEFAULT_AZURE_SPEECH_OUTPUT_FORMAT
             ).strip(),
             timeout=int(config.get("azure_speech_timeout") or 60),
+            max_parallel=int(config.get("azure_speech_max_parallel") or 2),
             requests_per_minute=int(
                 config.get("azure_speech_requests_per_minute")
                 if config.get("azure_speech_requests_per_minute") is not None
@@ -2588,6 +2623,11 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             default_voice=(config.get("edge_tts_default_voice") or DEFAULT_EDGE_TTS_VOICE).strip(),
             timeout=int(config.get("edge_tts_timeout") or 60),
             max_parallel=int(config.get("edge_tts_max_parallel") or 2),
+            max_retries=int(
+                config.get("edge_tts_max_retries")
+                if config.get("edge_tts_max_retries") is not None
+                else 4
+            ),
             default_volume=int(config.get("edge_tts_default_volume") or 0),
         )
 
@@ -3509,81 +3549,134 @@ def handle_remove_readonly(func, path, exc_info):
         logger.error(f"Failed to remove read-only attribute for {path}: {err}")
         raise
 
+def _is_concurrent_cloud_job(job_data: Dict[str, Any]) -> bool:
+    if (job_data.get("job_type") or "audio") != "audio":
+        return False
+    engine_name = _normalize_engine_name((job_data.get("config") or {}).get("tts_engine"))
+    return engine_name in CLOUD_TTS_ENGINES
+
+
+def _cloud_job_limit(job_data: Dict[str, Any]) -> int:
+    value = (job_data.get("config") or {}).get("cloud_tts_concurrent_jobs", 2)
+    try:
+        return max(1, min(4, int(value or 1)))
+    except (TypeError, ValueError):
+        return 2
+
+
+def _run_queued_job(job_data: Dict[str, Any], *, cloud_slot: bool = False) -> None:
+    """Process one queue entry and release any cloud-concurrency slot afterward."""
+    global active_cloud_jobs, current_job_id
+    job_id = job_data["job_id"]
+    try:
+        with queue_lock:
+            job_entry = jobs.get(job_id)
+            if not job_entry or job_entry.get("status") in {
+                "paused", "archived", "deleted", "cancelled"
+            }:
+                return
+            current_job_ids.add(job_id)
+            current_job_id = job_id
+            job_entry["status"] = "processing"
+            job_entry["started_at"] = datetime.now().isoformat()
+        _persist_job_state(job_id)
+        logger.info("Processing job %s%s", job_id, " in a cloud slot" if cloud_slot else "")
+
+        try:
+            job_type = job_data.get("job_type") or "audio"
+            if job_type == "audio":
+                process_audio_job(job_data)
+            elif job_type == "qwen3_voice_design_preview":
+                process_qwen3_voice_design_preview_task(job_data)
+            elif job_type == "qwen3_voice_design_save":
+                process_qwen3_voice_design_save_task(job_data)
+            elif job_type == "omnivoice_design_preview":
+                process_omnivoice_design_preview_task(job_data)
+            elif job_type == "omnivoice_design_save":
+                process_omnivoice_design_save_task(job_data)
+            else:
+                raise ValueError(f"Unsupported job type: {job_type}")
+        except Exception as exc:
+            logger.error("Error processing job %s: %s", job_id, exc, exc_info=True)
+            with queue_lock:
+                job_entry = jobs.get(job_id)
+                if job_entry and job_entry.get("status") not in {
+                    "paused", "interrupted", "cancelled"
+                }:
+                    job_entry["status"] = "failed"
+                    job_entry["error"] = str(exc)
+            _persist_job_state(job_id)
+    finally:
+        with queue_lock:
+            current_job_ids.discard(job_id)
+            current_job_id = next(iter(current_job_ids), None)
+        if cloud_slot:
+            with cloud_job_condition:
+                active_cloud_jobs = max(0, active_cloud_jobs - 1)
+                cloud_job_condition.notify_all()
+        job_queue.task_done()
+
+
 def process_job_worker():
-    """Background worker that processes jobs from the queue"""
-    global current_job_id
-    
-    logger.info("Job worker thread started")
-    
+    """Dispatch queued jobs, allowing a configurable number of cloud jobs concurrently."""
+    global active_cloud_jobs
+    logger.info("Job dispatcher thread started")
+
     while True:
         try:
-            # Get next job from queue (blocking)
             job_data = job_queue.get(timeout=1)
-            
-            if job_data is None:  # Poison pill to stop thread
-                logger.info("Job worker thread stopping")
+            if job_data is None:
+                job_queue.task_done()
+                logger.info("Job dispatcher thread stopping")
                 break
-            
-            job_id = job_data['job_id']
-            
-            # Check if job was cancelled while in queue
+
+            job_id = job_data["job_id"]
             if cancel_flags.get(job_id, False):
-                logger.info(f"Job {job_id} was cancelled before processing")
+                logger.info("Job %s was cancelled before processing", job_id)
                 with queue_lock:
-                    jobs[job_id]['status'] = 'cancelled'
+                    if job_id in jobs:
+                        jobs[job_id]["status"] = "cancelled"
                 _persist_job_state(job_id)
                 job_queue.task_done()
                 continue
 
             with queue_lock:
                 job_entry = jobs.get(job_id)
-                if not job_entry:
+                inactive = not job_entry or job_entry.get("status") in {
+                    "paused", "archived", "deleted", "cancelled"
+                }
+            if inactive:
+                job_queue.task_done()
+                continue
+
+            if _is_concurrent_cloud_job(job_data):
+                limit = _cloud_job_limit(job_data)
+                with cloud_job_condition:
+                    while active_cloud_jobs >= limit and not cancel_flags.get(job_id, False):
+                        cloud_job_condition.wait(timeout=0.5)
+                    if cancel_flags.get(job_id, False):
+                        with queue_lock:
+                            if job_id in jobs:
+                                jobs[job_id]["status"] = "cancelled"
+                        _persist_job_state(job_id)
+                        job_queue.task_done()
+                        continue
+                    active_cloud_jobs += 1
+                try:
+                    cloud_job_executor.submit(_run_queued_job, job_data, cloud_slot=True)
+                except Exception:
+                    with cloud_job_condition:
+                        active_cloud_jobs = max(0, active_cloud_jobs - 1)
+                        cloud_job_condition.notify_all()
                     job_queue.task_done()
-                    continue
-                if job_entry.get("status") in {"paused", "archived", "deleted", "cancelled"}:
-                    job_queue.task_done()
-                    continue
-            
-            # Set as current job
-            with queue_lock:
-                current_job_id = job_id
-                jobs[job_id]['status'] = 'processing'
-                jobs[job_id]['started_at'] = datetime.now().isoformat()
-            _persist_job_state(job_id)
-            
-            logger.info(f"Processing job {job_id}")
-            
-            # Process the job
-            try:
-                job_type = job_data.get('job_type') or 'audio'
-                if job_type == 'audio':
-                    process_audio_job(job_data)
-                elif job_type == 'qwen3_voice_design_preview':
-                    process_qwen3_voice_design_preview_task(job_data)
-                elif job_type == 'qwen3_voice_design_save':
-                    process_qwen3_voice_design_save_task(job_data)
-                elif job_type == 'omnivoice_design_preview':
-                    process_omnivoice_design_preview_task(job_data)
-                elif job_type == 'omnivoice_design_save':
-                    process_omnivoice_design_save_task(job_data)
-                else:
-                    raise ValueError(f"Unsupported job type: {job_type}")
-            except Exception as e:
-                logger.error(f"Error processing job {job_id}: {e}", exc_info=True)
-                with queue_lock:
-                    jobs[job_id]['status'] = 'failed'
-                    jobs[job_id]['error'] = str(e)
-            
-            # Clear current job
-            with queue_lock:
-                current_job_id = None
-            
-            job_queue.task_done()
-            
+                    raise
+                continue
+
+            _run_queued_job(job_data)
         except queue.Empty:
             continue
-        except Exception as e:
-            logger.error(f"Worker thread error: {e}", exc_info=True)
+        except Exception as exc:
+            logger.error("Worker thread error: %s", exc, exc_info=True)
             time.sleep(1)
 
 
@@ -3752,7 +3845,10 @@ def process_audio_job(job_data):
 
             _persist_job_state(job_id)
 
-            if pause_flags.get(job_id, False):
+            # Engines report a completed chunk through progress_cb and then
+            # chunk_cb. Pause only after chunk_cb has registered its file, so
+            # the persisted resume index never advances beyond saved audio.
+            if increment == 0 and pause_flags.get(job_id, False):
                 raise JobPaused()
 
         def pause_cb() -> bool:
@@ -3928,11 +4024,25 @@ def process_audio_job(job_data):
                 if job_entry is not None:
                     job_entry.setdefault("chunks", []).append(record)
 
-        def make_chunk_callback(chapter_idx: int, output_files: Optional[List[str]] = None):
+        def make_chunk_callback(
+            chapter_idx: int,
+            output_files: Optional[List[str]] = None,
+            chunk_offset: int = 0,
+        ):
             def chunk_cb(chunk_idx: int, segment: Dict[str, Any], file_path: str):
-                register_chunk(chapter_idx, chunk_idx, segment, file_path)
+                adjusted_segment = dict(segment)
+                order_index = adjusted_segment.get("order_index")
+                if order_index is not None:
+                    adjusted_segment["order_index"] = int(order_index) + chunk_offset
+                register_chunk(
+                    chapter_idx,
+                    int(chunk_idx) + chunk_offset,
+                    adjusted_segment,
+                    file_path,
+                )
                 if output_files is not None:
                     output_files.append(file_path)
+                _persist_chunks_metadata(job_id, job_dir)
                 update_progress(0)  # progress_cb already increments; just register chunk
             return chunk_cb
 
@@ -4025,6 +4135,19 @@ def process_audio_job(job_data):
             segments = processor.process_text(section_text)
             if not segments:
                 return []
+            original_section_items: List[Dict[str, Any]] = []
+            for segment_index, original_segment in enumerate(segments):
+                for chunk_index, chunk_text in enumerate(original_segment.get("chunks") or []):
+                    original_section_items.append({
+                        "speaker": original_segment.get("speaker"),
+                        "emotion": original_segment.get("emotion"),
+                        "text": chunk_text,
+                        "segment_index": segment_index,
+                        "chunk_index": chunk_index,
+                        "order_index": len(original_section_items),
+                    })
+            section_skip = 0
+            resume_prefix_files: List[str] = []
             nonlocal remaining_skip
             if remaining_skip > 0:
                 segments, skipped = _apply_chunk_skip(segments, remaining_skip)
@@ -4040,6 +4163,62 @@ def process_audio_job(job_data):
                         if existing:
                             return existing
                     return []
+                section_skip = skipped
+                prefix_by_index: Dict[int, str] = {}
+                for record in job_chunks:
+                    try:
+                        record_chapter = int(record.get("chapter_index", -1))
+                    except (TypeError, ValueError):
+                        continue
+                    if record_chapter != chapter_idx:
+                        continue
+                    try:
+                        record_index = int(record.get("chunk_index"))
+                    except (TypeError, ValueError):
+                        continue
+                    file_path = str(record.get("file_path") or "")
+                    if 0 <= record_index < section_skip and file_path and Path(file_path).is_file():
+                        prefix_by_index[record_index] = file_path
+                for candidate in sorted(output_dir.glob("*")) if output_dir.exists() else []:
+                    if not candidate.is_file() or candidate.suffix.lower() not in {
+                        ".wav", ".mp3", ".ogg", ".flac"
+                    }:
+                        continue
+                    match = re.search(r"(\d+)$", candidate.stem)
+                    if not match:
+                        continue
+                    candidate_index = int(match.group(1))
+                    if 0 <= candidate_index < section_skip:
+                        prefix_by_index.setdefault(candidate_index, str(candidate))
+                resume_prefix_files = [
+                    prefix_by_index[index]
+                    for index in range(section_skip)
+                    if index in prefix_by_index
+                ]
+                if len(resume_prefix_files) != section_skip:
+                    job_log.warning(
+                        "Resume checkpoint expected %d prior chunk file(s) in chapter %d but found %d.",
+                        section_skip,
+                        chapter_idx,
+                        len(resume_prefix_files),
+                    )
+                existing_record_indices = {
+                    int(record.get("chunk_index"))
+                    for record in job_chunks
+                    if str(record.get("chapter_index")) == str(chapter_idx)
+                    and str(record.get("chunk_index", "")).isdigit()
+                }
+                for prefix_index, prefix_file in sorted(prefix_by_index.items()):
+                    if prefix_index in existing_record_indices or prefix_index >= len(original_section_items):
+                        continue
+                    register_chunk(
+                        chapter_idx,
+                        prefix_index,
+                        original_section_items[prefix_index],
+                        prefix_file,
+                    )
+                if prefix_by_index:
+                    _persist_chunks_metadata(job_id, job_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
             # Apply word replacements to each chunk before TTS submission
             if word_replacements:
@@ -4049,7 +4228,7 @@ def process_audio_job(job_data):
                         for chunk in (segment.get("chunks") or [])
                     ]
             generated_files: List[str] = []
-            chunk_cb = make_chunk_callback(chapter_idx, generated_files)
+            chunk_cb = make_chunk_callback(chapter_idx, generated_files, section_skip)
             supports_chunk_cb = False
             flat_segments: List[Dict[str, Any]] = []
             order_index = 0
@@ -4081,6 +4260,8 @@ def process_audio_job(job_data):
                 supports_chunk_cb = True
             if "parallel_workers" in sig_params:
                 engine_kwargs["parallel_workers"] = max(1, min(8, int(config.get("parallel_chunks", 1) or 1)))
+            if "start_index" in sig_params:
+                engine_kwargs["start_index"] = section_skip
             if "pause_cb" in sig_params:
                 engine_kwargs["pause_cb"] = pause_cb
             if "cancel_cb" in sig_params:
@@ -4110,7 +4291,7 @@ def process_audio_job(job_data):
                         file_path,
                     )
                     update_progress(1)
-            return audio_files
+            return resume_prefix_files + list(audio_files or [])
 
         def _prebuild_subprocess_engine_all_chapters():
             """Collect all chapter segments and run one worker subprocess.
@@ -4621,8 +4802,7 @@ def process_audio_job(job_data):
             review_manifest["all_full_story_chunks"] = [
                 os.path.relpath(path, job_dir) for path in (all_full_story_chunks or [])
             ]
-            with manifest_path.open("w", encoding="utf-8") as handle:
-                json.dump(review_manifest, handle, indent=2)
+            write_json_atomic(manifest_path, review_manifest)
             chunks_meta_path = job_dir / "chunks_metadata.json"
             _tm_for_meta = (jobs.get(job_id) or {}).get("timing_metrics")
             chunks_meta = {
@@ -4632,8 +4812,7 @@ def process_audio_job(job_data):
             }
             if _tm_for_meta:
                 chunks_meta["timing_metrics"] = _tm_for_meta
-            with chunks_meta_path.open("w", encoding="utf-8") as handle:
-                json.dump(chunks_meta, handle, indent=2)
+            write_json_atomic(chunks_meta_path, chunks_meta)
             
             # Auto-finish: merge audio and complete the job (review happens in library)
             with queue_lock:
@@ -4772,6 +4951,7 @@ def process_audio_job(job_data):
                 job_entry['eta_seconds'] = None
                 job_entry['last_update'] = datetime.now().isoformat()
         _persist_job_state(job_id, force=True)
+        _persist_chunks_metadata(job_id, job_dir)
         return
     except JobCancelled:
         logger.info(f"Job {job_id} cancelled – halting synthesis")
@@ -4784,16 +4964,22 @@ def process_audio_job(job_data):
                 job_entry['eta_seconds'] = None
                 job_entry['last_update'] = datetime.now().isoformat()
         _persist_job_state(job_id, force=True)
+        _persist_chunks_metadata(job_id, job_dir)
         return
     except Exception as e:
         logger.error(f"Error in job {job_id}: {e}", exc_info=True)
         if job_log:
             job_log.error("JOB FAILED: %s", e, exc_info=True)
         with queue_lock:
-            jobs[job_id]['status'] = 'failed'
-            jobs[job_id]['error'] = str(e)
-            jobs[job_id]['interrupted_at'] = datetime.now().isoformat()
+            job_entry = jobs[job_id]
+            job_entry['status'] = 'interrupted' if processed_chunks > 0 else 'failed'
+            job_entry['error'] = str(e)
+            job_entry['interrupted_at'] = datetime.now().isoformat()
+            if processed_chunks > 0:
+                job_entry['last_completed_chunk_index'] = processed_chunks - 1
+                job_entry['resume_from_chunk_index'] = processed_chunks
         _persist_job_state(job_id, force=True)
+        _persist_chunks_metadata(job_id, job_dir)
         raise
     finally:
         cancel_flags.pop(job_id, None)
@@ -7670,7 +7856,10 @@ def resume_job(job_id: str):
                 job_entry["interrupted_at"] = None
                 _persist_job_state(job_id, force=True)
                 return jsonify({"success": True, "message": "Job already completed"})
-            if job_entry.get("status") not in {"paused", "interrupted"}:
+            resumable_statuses = {"paused", "interrupted"}
+            if processed_chunks > 0:
+                resumable_statuses.add("failed")
+            if job_entry.get("status") not in resumable_statuses:
                 return jsonify({"success": False, "error": "Job is not paused"}), 409
             pause_flags.pop(job_id, None)
             resume_from = job_entry.get("resume_from_chunk_index")
@@ -7680,6 +7869,7 @@ def resume_job(job_id: str):
             job_entry["status"] = "queued"
             job_entry["paused_at"] = None
             job_entry["interrupted_at"] = None
+            job_entry["error"] = None
         job_data = _build_job_data_from_entry(job_id, job_entry)
         job_queue.put(job_data)
         _persist_job_state(job_id, force=True)
@@ -10430,6 +10620,7 @@ def get_queue():
                 "success": True,
                 "jobs": all_jobs,
                 "current_job": current_job_id,
+                "current_jobs": sorted(current_job_ids),
                 "queue_size": job_queue.qsize()
             })
         

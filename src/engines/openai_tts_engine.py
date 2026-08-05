@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -120,6 +120,7 @@ class OpenAITTSEngine(TtsEngineBase):
         progress_cb=None,
         chunk_cb=None,
         parallel_workers: int = 1,
+        start_index: int = 0,
     ) -> List[str]:
         destination = Path(output_dir)
         destination.mkdir(parents=True, exist_ok=True)
@@ -127,7 +128,7 @@ class OpenAITTSEngine(TtsEngineBase):
 
         def render(item: Dict[str, Any]) -> tuple[int, str]:
             wav = self._synthesize(item["text"], item["assignment"], fallback_speed=speed)
-            path = destination / f"openai_tts_chunk_{item['order_index']:06d}.wav"
+            path = destination / f"openai_tts_chunk_{start_index + item['order_index']:06d}.wav"
             path.write_bytes(wav)
             return item["order_index"], str(path)
 
@@ -140,12 +141,33 @@ class OpenAITTSEngine(TtsEngineBase):
                 self._notify(item, path, progress_cb, chunk_cb)
         else:
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="openai-tts") as pool:
-                futures = {pool.submit(render, item): item for item in items}
-                for future in as_completed(futures):
-                    item = futures[future]
-                    order, path = future.result()
-                    results[order] = path
-                    self._notify(item, path, progress_cb, chunk_cb)
+                pending = {}
+                next_submit = 0
+                next_callback = 0
+
+                def fill_workers() -> None:
+                    nonlocal next_submit
+                    while next_submit < len(items) and len(pending) < workers:
+                        item = items[next_submit]
+                        pending[pool.submit(render, item)] = item
+                        next_submit += 1
+
+                fill_workers()
+                try:
+                    while pending:
+                        completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                        for future in completed:
+                            pending.pop(future)
+                            order, path = future.result()
+                            results[order] = path
+                        while next_callback in results:
+                            self._notify(items[next_callback], results[next_callback], progress_cb, chunk_cb)
+                            next_callback += 1
+                        fill_workers()
+                except Exception:
+                    for future in pending:
+                        future.cancel()
+                    raise
         return [results[index] for index in range(len(items))]
 
     def cleanup(self) -> None:

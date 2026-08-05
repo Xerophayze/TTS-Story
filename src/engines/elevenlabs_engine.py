@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import quote
@@ -206,6 +206,7 @@ class ElevenLabsEngine(TtsEngineBase):
         progress_cb=None,
         chunk_cb=None,
         parallel_workers: int = 1,
+        start_index: int = 0,
     ) -> List[str]:
         destination = Path(output_dir)
         destination.mkdir(parents=True, exist_ok=True)
@@ -221,7 +222,7 @@ class ElevenLabsEngine(TtsEngineBase):
                 previous_text=item.get("previous_text"),
                 next_text=item.get("next_text"),
             )
-            path = destination / f"elevenlabs_chunk_{item['order_index']:06d}.wav"
+            path = destination / f"elevenlabs_chunk_{start_index + item['order_index']:06d}.wav"
             path.write_bytes(wav)
             return item["order_index"], str(path)
 
@@ -234,15 +235,33 @@ class ElevenLabsEngine(TtsEngineBase):
                 self._notify_callbacks(item, path, progress_cb, chunk_cb)
         else:
             with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="elevenlabs") as executor:
-                futures = {executor.submit(render, item): item for item in work_items}
+                pending = {}
+                next_submit = 0
+                next_callback = 0
+
+                def fill_workers() -> None:
+                    nonlocal next_submit
+                    while next_submit < len(work_items) and len(pending) < workers:
+                        item = work_items[next_submit]
+                        pending[executor.submit(render, item)] = item
+                        next_submit += 1
+
+                fill_workers()
                 try:
-                    for future in as_completed(futures):
-                        item = futures[future]
-                        order, path = future.result()
-                        results[order] = path
-                        self._notify_callbacks(item, path, progress_cb, chunk_cb)
+                    while pending:
+                        completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                        for future in completed:
+                            pending.pop(future)
+                            order, path = future.result()
+                            results[order] = path
+                        while next_callback in results:
+                            self._notify_callbacks(
+                                work_items[next_callback], results[next_callback], progress_cb, chunk_cb
+                            )
+                            next_callback += 1
+                        fill_workers()
                 except Exception:
-                    for future in futures:
+                    for future in pending:
                         future.cancel()
                     raise
         return [results[index] for index in range(len(work_items))]

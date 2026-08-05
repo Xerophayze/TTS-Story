@@ -803,6 +803,7 @@
                             <button type="button" class="engine-tab-btn active" data-engine-tab="kokoro">Kokoro</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-local">Chatterbox Local</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-replicate">Chatterbox Cloud</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="cloud-concurrency">Cloud Concurrency</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="azure-speech">Azure Speech</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="edge-tts">Edge TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="elevenlabs">ElevenLabs</button>
@@ -832,6 +833,21 @@
                                 </div>
                             </div>
                             <p class="help-text">For Replicate, add your API key in the API Keys tab.</p>
+                        </div>
+
+                        <!-- Microsoft Azure Speech Panel -->
+                        <div class="engine-panel" id="engine-panel-cloud-concurrency">
+                            <div class="section-title-inline settings-panel-title">
+                                <h4>Cloud Job Concurrency</h4>
+                            </div>
+                            <p class="help-text" style="margin-top:0;">Allow separate cloud TTS jobs to process at the same time. Local engines remain serialized to protect GPU and system resources.</p>
+                            <div class="settings-form-grid">
+                                <div class="form-group">
+                                    <label for="cloud-tts-concurrent-jobs">Maximum Concurrent Cloud Jobs</label>
+                                    <input type="number" id="cloud-tts-concurrent-jobs" min="1" max="4" step="1" value="2">
+                                    <small>Each job may also send parallel chunk requests according to the selected provider's limit.</small>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Microsoft Azure Speech Panel -->
@@ -881,6 +897,11 @@
                                     <input type="number" id="azure-speech-timeout" min="10" max="600" step="10" value="60">
                                 </div>
                                 <div class="form-group">
+                                    <label for="azure-speech-max-parallel">Maximum Parallel Requests</label>
+                                    <input type="number" id="azure-speech-max-parallel" min="1" max="8" step="1" value="2">
+                                    <small>Maximum simultaneous chunks within each Azure job.</small>
+                                </div>
+                                <div class="form-group">
                                     <label for="azure-speech-default-style">Default Style</label>
                                     <select id="azure-speech-default-style"><option value="">Neutral / default</option></select>
                                 </div>
@@ -924,6 +945,11 @@
                                     <label for="edge-tts-max-parallel">Maximum Parallel Requests</label>
                                     <input type="number" id="edge-tts-max-parallel" min="1" max="8" step="1" value="2">
                                     <small>A conservative value helps avoid temporary service blocks.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edge-tts-max-retries">Retries Per Chunk</label>
+                                    <input type="number" id="edge-tts-max-retries" min="0" max="6" step="1" value="4">
+                                    <small>Timed-out and transiently failed chunks are retried with a short backoff.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="edge-tts-default-volume">Default Volume (%)</label>

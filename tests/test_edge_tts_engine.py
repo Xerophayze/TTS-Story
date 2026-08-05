@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import io
+import asyncio
+import time
 import wave
+from pathlib import Path
 
 import pytest
 
@@ -123,3 +126,87 @@ def test_empty_text_is_rejected():
     )
     with pytest.raises(EdgeTTSError, match="empty"):
         engine.generate_audio("  ")
+
+
+def test_symbol_only_scene_break_becomes_local_silence_without_provider_call():
+    calls = []
+
+    class RecordingCommunicate:
+        def __init__(self, text, **kwargs):
+            calls.append(text)
+
+    engine = EdgeTTSEngine(
+        communicate_factory=RecordingCommunicate,
+        list_voices_func=lambda: [],
+        audio_converter=_converter,
+    )
+
+    audio = engine.generate_audio("***")
+
+    assert audio[:4] == b"RIFF"
+    assert len(audio) > 44
+    assert calls == []
+
+
+def test_hung_async_stream_hits_hard_timeout_and_retries():
+    calls = []
+    delays = []
+
+    class HangingCommunicate:
+        def __init__(self, text, **kwargs):
+            calls.append((text, kwargs))
+
+        async def stream(self):
+            await asyncio.sleep(1)
+            if False:
+                yield {}
+
+    engine = EdgeTTSEngine(
+        communicate_factory=HangingCommunicate,
+        list_voices_func=lambda: [],
+        audio_converter=_converter,
+        max_retries=1,
+        sleep_func=delays.append,
+    )
+    engine.timeout = 0.01
+
+    with pytest.raises(EdgeTTSError, match="timed out"):
+        engine.generate_audio("A request that never finishes")
+
+    assert len(calls) == 2
+    assert delays == [1]
+
+
+def test_parallel_callbacks_are_committed_in_order_for_safe_resume(tmp_path):
+    delays = {"One": 0.04, "Two": 0.001, "Three": 0.002}
+
+    class VariableCommunicate:
+        def __init__(self, text, **kwargs):
+            self.text = text
+
+        def stream_sync(self):
+            time.sleep(delays[self.text])
+            yield {"type": "audio", "data": self.text.encode("utf-8")}
+
+    engine = EdgeTTSEngine(
+        communicate_factory=VariableCommunicate,
+        list_voices_func=lambda: [],
+        audio_converter=lambda payload, **kwargs: _wav_bytes(),
+        max_parallel=3,
+    )
+    seen = []
+    paths = engine.generate_batch(
+        [{"speaker": "Narrator", "chunks": ["One", "Two", "Three"]}],
+        {"Narrator": {"voice": "en-US-TestNeural"}},
+        tmp_path,
+        parallel_workers=3,
+        chunk_cb=lambda index, metadata, path: seen.append((index, metadata["text"])),
+        start_index=7,
+    )
+
+    assert seen == [(0, "One"), (1, "Two"), (2, "Three")]
+    assert [Path(path).name for path in paths] == [
+        "edge_chunk_000007.wav",
+        "edge_chunk_000008.wav",
+        "edge_chunk_000009.wav",
+    ]

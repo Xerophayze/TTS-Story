@@ -934,7 +934,9 @@ function displayQueue(data) {
     let html = `
         <div style="margin-bottom: 15px;">
             <strong>Queue Size:</strong> ${data.queue_size} pending |
-            <strong>Current Job:</strong> ${data.current_job || 'None'}
+            <strong>Current Jobs:</strong> ${Array.isArray(data.current_jobs) && data.current_jobs.length
+                ? data.current_jobs.join(', ')
+                : (data.current_job || 'None')}
         </div>
         <table class="queue-table">
             <thead>
@@ -954,9 +956,12 @@ function displayQueue(data) {
         const statusClass = getStatusClass(job.status);
         const statusIcon = getStatusIcon(job.status);
         const createdTime = job.created_at ? new Date(job.created_at).toLocaleString() : '';
-        const isCurrentJob = job.job_id === data.current_job;
+        const currentJobs = Array.isArray(data.current_jobs) ? data.current_jobs : [data.current_job];
+        const isCurrentJob = currentJobs.includes(job.job_id);
         const canPause = job.status === 'queued' || job.status === 'processing';
-        const canResume = job.status === 'paused' || job.status === 'interrupted';
+        const canResume = job.status === 'paused'
+            || job.status === 'interrupted'
+            || (job.status === 'failed' && Number(job.processed_chunks || 0) > 0);
         const canDelete = job.status !== 'processing' && job.status !== 'pausing';
 
         html += `
