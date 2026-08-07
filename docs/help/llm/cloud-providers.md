@@ -2,7 +2,27 @@
 
 TTS-Story supports three cloud providers for Prep Text. Each provider requires internet access, sends manuscript sections outside your computer, and may charge for usage.
 
-Open [Settings](app:settings), expand **LLM Pre-Processing**, and select the provider before entering its credentials.
+Open [Settings](app:settings), expand **LLM Pre-Processing**, and select the primary provider before entering its credentials.
+
+## Build an ordered failover chain
+
+The **Primary LLM Provider** is contacted first for every new operation. To add backups:
+
+1. Configure the normal URL, API key, and model fields for every provider you intend to use.
+2. Set **Number of Backup LLM Profiles**. Increasing the number adds ordered profile cards; reducing it removes cards from the end of the list.
+3. Give each card a recognizable **Profile Name**, such as `OpenRouter - Fast` or `Gemini - Secondary Key`.
+4. Select that profile's **Provider**.
+5. Enter a **Model Override** when the profile should use a different model. Leave it blank to use that provider's normal model setting.
+6. Enter an **API Key Override** when the profile needs its own credential. Leave it blank to inherit that provider's normal API key.
+7. Click **Save Settings**.
+
+Profiles are attempted from top to bottom. The same provider may appear more than once with different models or keys, so multiple OpenRouter routes or separate provider credentials can be placed at different points in the chain. Each profile is independent; an API-key override on one profile is not applied to another.
+
+Backups are used only for retryable availability problems such as quota or rate limits, timeouts, connection failures, and HTTP 5xx outages. Invalid credentials, missing models, invalid prompts, and other configuration errors stop the operation so the setting that needs attention remains visible.
+
+During a multi-section **Prep Text** job, a successful backup remains active for the remaining sections. If it later fails, processing advances through the profiles after it. Pause and Resume preserve the active profile. Restart and every genuinely new operation begin with the primary again. **Build Profiles** and a speaker's **Build Profile** are separate operations, so each of those begins with the primary provider.
+
+> **Quota note:** Creating several API keys does not necessarily create several independent quotas. For example, multiple Gemini keys in one Google project can still share that project's quota. Check the provider's current account and project limits.
 
 ![Cloud LLM settings for Gemini, Atlas Cloud, and OpenRouter](../../../static/help/screenshots/llm-cloud-settings.png)
 
@@ -69,5 +89,7 @@ The repository ignores `config.json` so saved settings and API keys remain local
 - Confirm internet access and provider status.
 - Check account billing, quota, and model permissions.
 - Increase the timeout only when the provider is responding slowly; it will not fix authentication.
+
+If the primary works but a backup does not, test the provider settings inherited by that profile, then temporarily make the backup provider primary and run a small request. A blank override cannot compensate for a missing or invalid provider-level model or key.
 
 For status-code guidance, open [Cloud Credentials, Quota, and Network Errors](help:cloud-errors).

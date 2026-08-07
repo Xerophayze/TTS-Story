@@ -2627,7 +2627,7 @@ function _geminiPrepHash(text) {
     return (h >>> 0).toString(36) + '_' + text.length;
 }
 
-async function _savePrepProgress(textHash, sections, outputs, knownSpeakers) {
+async function _savePrepProgress(textHash, sections, outputs, knownSpeakers, activeProfile = '') {
     try {
         await fetch('/api/prep-progress/save', {
             method: 'POST',
@@ -2637,6 +2637,7 @@ async function _savePrepProgress(textHash, sections, outputs, knownSpeakers) {
                 sections,
                 outputs,
                 known_speakers: Array.from(knownSpeakers),
+                active_profile: activeProfile || '',
                 timestamp: Date.now()
             })
         });
@@ -2793,12 +2794,13 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
     showNotification('Preparing text with the selected LLM...', 'info');
 
     try {
-        let sections, outputs, knownSpeakers;
+        let sections, outputs, knownSpeakers, activeProfile;
 
         if (savedProgress) {
             sections = savedProgress.sections;
             outputs = savedProgress.outputs.slice();
             knownSpeakers = new Set(savedProgress.known_speakers || []);
+            activeProfile = savedProgress.active_profile || '';
             latestGeminiBookTitle = resolveBookTitleFromSections(sections) || latestGeminiBookTitle;
             updateGeminiProgress({
                 visible: true,
@@ -2837,6 +2839,7 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
 
             outputs = [];
             knownSpeakers = new Set();
+            activeProfile = '';
             if (currentStats?.speakers?.length) {
                 currentStats.speakers.forEach(name => {
                     if (typeof name === 'string' && name.trim()) {
@@ -2869,6 +2872,9 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
             if (knownSpeakers.size > 0) {
                 payload.known_speakers = Array.from(knownSpeakers);
             }
+            if (activeProfile) {
+                payload.preferred_profile = activeProfile;
+            }
 
             let sectionData = null;
             for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -2897,6 +2903,17 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
                 await new Promise(resolve => setTimeout(resolve, RETRY_BASE_DELAY_MS * (attempt + 1)));
             }
 
+            const previousProfile = activeProfile;
+            const profileUsed = sectionData.llm_profile_used || null;
+            if (profileUsed?.id) {
+                activeProfile = profileUsed.id;
+            }
+            if (profileUsed && previousProfile && activeProfile !== previousProfile) {
+                showNotification(`LLM preprocessing switched to ${profileUsed.name} (${profileUsed.provider}: ${profileUsed.model || 'default model'}).`, 'warning');
+            } else if (profileUsed && Array.isArray(sectionData.provider_failures) && sectionData.provider_failures.length > 0) {
+                showNotification(`Primary LLM was unavailable. Continuing with ${profileUsed.name} (${profileUsed.provider}: ${profileUsed.model || 'default model'}).`, 'warning');
+            }
+
             if (Array.isArray(sectionData.speakers)) {
                 sectionData.speakers.forEach(speaker => {
                     if (typeof speaker === 'string' && speaker.trim()) {
@@ -2905,7 +2922,7 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
                 });
             }
             outputs.push(sectionData.result_text || '');
-            await _savePrepProgress(textHash, sections, outputs, knownSpeakers);
+            await _savePrepProgress(textHash, sections, outputs, knownSpeakers, activeProfile);
 
             if (_geminiPrepAbortRequested) {
                 await _clearPrepProgress(textHash);
@@ -2917,7 +2934,7 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
                 _showPrepResumePanel(
                     outputs.length,
                     sections.length,
-                    () => _runGeminiPrep(buttonEl, text, textHash, { sections, outputs, known_speakers: Array.from(knownSpeakers) }),
+                    () => _runGeminiPrep(buttonEl, text, textHash, { sections, outputs, known_speakers: Array.from(knownSpeakers), active_profile: activeProfile }),
                     async () => {
                         await _clearPrepProgress(textHash);
                         await _runGeminiPrep(buttonEl, text, textHash, null);
@@ -4164,6 +4181,82 @@ function updateSpeakerProfileEntry(speaker, updates = {}) {
     speakerProfiles[targetKey] = nextProfile;
 }
 
+function findGeneratedSpeakerProfile(speaker, profiles) {
+    if (!speaker || !profiles || typeof profiles !== 'object') return null;
+    const speakerKey = normalizeSpeakerKey(speaker);
+    const speakerBaseKey = speakerKey.replace(/(male|female|neutral)$/i, '');
+    const entries = Object.entries(profiles);
+    const exactMatch = entries.find(([key, profile]) =>
+        normalizeSpeakerKey(profile?.name || key) === speakerKey
+    );
+    if (exactMatch) return exactMatch[1];
+    const baseMatch = entries.find(([key, profile]) => {
+        const candidateKey = normalizeSpeakerKey(profile?.name || key);
+        return speakerBaseKey && candidateKey.replace(/(male|female|neutral)$/i, '') === speakerBaseKey;
+    });
+    if (baseMatch) return baseMatch[1];
+    return entries.length === 1 ? entries[0][1] : null;
+}
+
+async function buildSingleSpeakerProfile(speaker) {
+    if (!speaker) return;
+    const buildBtn = document.querySelector('#speaker-profile-summary [data-role="speaker-build-profile"]');
+    const promptOverride = document.getElementById('gemini-speaker-profile-prompt')?.value?.trim() || '';
+    const processedText = document.getElementById('input-text')?.value?.trim() || '';
+    if (!processedText) {
+        showNotification('Paste or load tagged story text before building a speaker profile.', 'warning');
+        return;
+    }
+    const context = latestGeminiBookTitle ? `Book title: ${latestGeminiBookTitle}` : '';
+    try {
+        if (buildBtn) {
+            buildBtn.disabled = true;
+            buildBtn.classList.add('is-loading');
+            buildBtn.textContent = 'Building...';
+        }
+        showNotification(`Building a profile for ${speaker}...`, 'info');
+        const response = await fetch('/api/gemini/speaker-profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                speakers: [speaker],
+                context,
+                prompt_override: promptOverride || undefined,
+                processed_text: processedText
+            })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to build the speaker profile');
+        }
+        const generatedProfile = findGeneratedSpeakerProfile(speaker, data.profiles);
+        if (!generatedProfile) {
+            throw new Error(`The LLM did not return a usable profile for ${speaker}.`);
+        }
+        updateSpeakerProfileEntry(speaker, {
+            name: speaker,
+            description: generatedProfile.description || '',
+            voice: generatedProfile.voice || ''
+        });
+        renderSpeakerProfileSummary(speaker);
+        const profileName = data.llm_profile_used?.name;
+        showNotification(
+            `Profile built for ${speaker}${profileName ? ` using ${profileName}` : ''}.`,
+            'success'
+        );
+    } catch (error) {
+        console.error('Single-speaker profile generation failed:', error);
+        showNotification(error.message || 'Failed to build the speaker profile.', 'warning');
+    } finally {
+        const currentBuildBtn = document.querySelector('#speaker-profile-summary [data-role="speaker-build-profile"]');
+        if (currentBuildBtn) {
+            currentBuildBtn.disabled = false;
+            currentBuildBtn.classList.remove('is-loading');
+            currentBuildBtn.textContent = 'Build Profile';
+        }
+    }
+}
+
 function parseGenderFromSpeakerName(speaker) {
     const tokens = (speaker || '').toString().toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
     if (tokens.includes('female')) return 'Female';
@@ -4350,7 +4443,7 @@ function renderSpeakerProfileSummary(speaker) {
     const voice = profile?.voice || '';
     const emptyMessage = hasProfiles
         ? 'No profile matched this speaker yet.'
-        : 'No speaker profile data yet. Run Prep Text first.';
+        : 'No speaker profile data yet. Build this profile or run Prep Text.';
     summary.innerHTML = `
         <div class="speaker-profile-row speaker-profile-editor">
             <div class="speaker-profile-fields">
@@ -4364,12 +4457,14 @@ function renderSpeakerProfileSummary(speaker) {
                 </label>
             </div>
             <div class="speaker-profile-actions">
+                <button type="button" class="btn btn-secondary btn-sm" data-role="speaker-build-profile">Build Profile</button>
                 <button type="button" class="btn btn-secondary btn-sm" data-role="speaker-generate-voice">Generate Voice</button>
             </div>
         </div>
     `;
     const descriptionInput = summary.querySelector('[data-role="speaker-profile-description"]');
     const voiceInput = summary.querySelector('[data-role="speaker-profile-voice"]');
+    const buildBtn = summary.querySelector('[data-role="speaker-build-profile"]');
     const generateBtn = summary.querySelector('[data-role="speaker-generate-voice"]');
     if (descriptionInput) {
         descriptionInput.addEventListener('input', event => {
@@ -4380,6 +4475,9 @@ function renderSpeakerProfileSummary(speaker) {
         voiceInput.addEventListener('input', event => {
             updateSpeakerProfileEntry(speaker, { voice: event.currentTarget.value || '' });
         });
+    }
+    if (buildBtn) {
+        buildBtn.addEventListener('click', () => buildSingleSpeakerProfile(speaker));
     }
     if (generateBtn) {
         generateBtn.addEventListener('click', () => generateSpeakerVoicePrompt(speaker));

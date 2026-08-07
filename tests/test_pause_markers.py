@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.pause_markers import pause_seconds_for_text, write_silence_wav
+from src.pause_markers import pause_seconds_for_text, sanitize_display_title, write_silence_wav
 from src.text_processor import TextProcessor
 
 
@@ -79,6 +79,13 @@ def test_markdown_style_closing_asterisks_are_not_pause_markers():
     chunks = TextProcessor(chunk_size=100).chunk_text("This is important***")
 
     assert chunks == ["This is important***"]
+
+
+def test_display_title_removes_only_trailing_recognized_pause_groups():
+    assert sanitize_display_title("Chapter 1.******") == "Chapter 1."
+    assert sanitize_display_title("The Preface.  ***  ") == "The Preface."
+    assert sanitize_display_title("Stars *** inside a title") == "Stars *** inside a title"
+    assert sanitize_display_title("Chapter 1.**") == "Chapter 1.**"
 
 
 def test_silence_wav_has_requested_duration(tmp_path):

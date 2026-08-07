@@ -50,7 +50,9 @@ Model/voice discovery proves only that the catalog request works. Generation may
 
 Increase a timeout only when the provider is accepting requests but legitimately needs longer. A longer timeout does not fix 401, 403, 404, or 429 responses.
 
-Prep Text retries a section up to five times only when the provider marks the failure retryable or returns HTTP 503. Authentication, validation, and other non-retryable failures stop immediately. Correct Settings, then resume or restart as appropriate.
+Prep Text first advances through the configured primary and backup LLM profiles when a quota limit, timeout, connection failure, or service outage is retryable. After a backup succeeds, later sections continue with it; Pause and Resume retain that active profile. If the remaining chain fails retryably, the section can be retried up to five times. Authentication, invalid model, validation, and other non-retryable failures stop immediately. Correct Settings, then resume or restart as appropriate.
+
+Build Profiles and the individual Build Profile action are independent requests. Each begins with the primary LLM again. If a specific backup fails, verify its provider-level settings and any model or API-key overrides; a blank override inherits the chosen provider's normal value.
 
 ## Credential safety
 

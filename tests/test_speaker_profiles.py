@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import app as app_module
 from app import (
     build_speaker_profile_excerpts,
     compose_gemini_speaker_profile_prompt,
@@ -91,3 +92,54 @@ def test_generate_page_offers_profile_retry_without_reprocessing_text():
     assert 'id="build-speaker-profiles-btn"' in template
     assert "await fetchSpeakerProfiles();" in javascript
     assert "buildProfilesBtn.disabled = !hasDetectedSpeakers" in javascript
+
+
+def test_speaker_properties_offers_single_profile_generation():
+    javascript = (PROJECT_ROOT / "static" / "js" / "main.js").read_text(encoding="utf-8")
+
+    assert 'data-role="speaker-build-profile"' in javascript
+    assert "async function buildSingleSpeakerProfile(speaker)" in javascript
+    assert "speakers: [speaker]" in javascript
+    assert "processed_text: processedText" in javascript
+    assert "updateSpeakerProfileEntry(speaker" in javascript
+
+
+def test_single_profile_request_sends_only_the_selected_speakers_excerpt(monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(
+        app_module,
+        "load_config",
+        lambda: {
+            "llm_provider": "local",
+            "gemini_speaker_profile_prompt": "Analyze this speaker.",
+        },
+    )
+
+    def fake_run(prompt, _config):
+        captured["prompt"] = prompt
+        return (
+            "| Character Name | Full Description | Voice Profile |\n"
+            "| --- | --- | --- |\n"
+            "| alice-female | A decisive investigator who speaks with calm urgency. | Clear, focused alto |",
+            {"id": "primary", "name": "Primary", "provider": "local", "model": "test-model"},
+            [],
+        )
+
+    monkeypatch.setattr(app_module, "_run_llm_prompt_with_failover", fake_run)
+    response = app_module.app.test_client().post(
+        "/api/gemini/speaker-profiles",
+        json={
+            "speakers": ["alice-female"],
+            "processed_text": (
+                "[alice-female]We leave before sunrise.[/alice-female]\n"
+                "[bob-male]I will stay here.[/bob-male]"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert set(payload["profiles"]) == {"alice-female"}
+    assert "We leave before sunrise." in captured["prompt"]
+    assert "I will stay here." not in captured["prompt"]

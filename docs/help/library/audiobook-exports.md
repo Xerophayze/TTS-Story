@@ -33,7 +33,7 @@ These fields are saved with the Library item and shown in TTS-Story. In the curr
 - optional cover art; and
 - progress while encoding, merging, and adding chapter markers.
 
-The default M4B bitrate is 128 kbps. Cover art is converted for embedding; a square PNG or JPEG around 3000 by 3000 pixels is recommended by the interface.
+The default M4B bitrate is 128 kbps. The cover selector previews the chosen image and reports its dimensions. A square PNG or JPEG around 3000 by 3000 pixels is recommended; images below 1400 pixels on either side show a resolution warning. Non-square art requires explicit confirmation and is embedded at its existing aspect ratio. TTS-Story never crops cover art automatically.
 
 If the source job was already generated with ACX compliance, the M4B dialog disables the second ACX pass to avoid processing the audio twice.
 
@@ -43,7 +43,15 @@ M4B export requires FFmpeg. On Windows, setup places supported tools under the p
 
 The Generate page's ACX option selects MP3 at 192 kbps and applies the application's loudness/peak processing profile. It is a processing aid, not a publishing guarantee. Listen to the complete output and validate it with the distributor's current requirements and suitable audio-analysis tools before submission.
 
+ACX-oriented MP3 uses 44.1 kHz mono audio and 192 kbps constant-bitrate encoding. If an older Library item was created before the CBR correction, rebuild it from retained chunks; do not apply an extra loudness pass solely to change its bitrate.
+
 ACX processing cannot repair clipping, room noise, a poor reference recording, mispronunciation, or inconsistent performance. Fix those at chunk level first.
+
+## Why chapter packages can run longer than Full Story
+
+**Opening Silence** is applied independently to every standalone chapter file. The combined **Full Story** receives that opening silence once. Because M4B export concatenates the standalone chapter files, an M4B can be longer than Full Story by approximately `(chapter count - 1) × opening silence`, plus a very small AAC/container timing difference. This is expected packaging behavior and does not by itself indicate missing or duplicated narration.
+
+For example, 22 chapters with 1.5 seconds of opening silence produce approximately 31.5 additional seconds in the chapter-file package and M4B compared with Full Story.
 
 ## Generate video chapter time codes
 

@@ -73,7 +73,19 @@ Each card includes a speaker-name field and **Apply**. Applying a new name norma
 
 Review the manuscript after renaming. Spaces become hyphens, uppercase becomes lowercase, and unsupported punctuation is removed.
 
-Selecting a speaker chip opens **Edit Speaker**, where profile information and the **Mark as ready** checkbox can help track preparation. **Mark as ready** is an organizational indicator; it does not assign a voice, validate a sample, or bypass generation checks.
+Selecting a speaker chip opens **Speaker Properties**, where profile information and the **Mark as ready** checkbox can help track preparation.
+
+For text that is already speaker-tagged, use **Build Profile** to analyze only the selected speaker:
+
+1. Confirm the correct tagged speaker is shown in the title.
+2. Click **Build Profile**.
+3. Review and, if necessary, edit the generated **Profile** and **Voice Type**.
+4. Click **Generate Voice** only when you want to design and save a reference voice from those fields.
+5. Select or verify the resulting voice assignment and run **Quick Test**.
+
+Build Profile uses only bounded excerpts tagged for the selected speaker. It does not run Prep Text, rewrite the manuscript, clear other speakers' profiles, or generate audio. The larger **Build Profiles** button near the detected-speaker list remains available when every speaker needs a profile.
+
+**Mark as ready** is an organizational indicator; it does not assign a voice, validate a sample, or bypass generation checks.
 
 ## Generate Voices and Auto Assign
 
@@ -81,7 +93,7 @@ For tagged manuscripts, **Generate Voices** can design samples from speaker-prof
 
 These are accelerators, not editorial decisions:
 
-1. Run **Prep Text** only if you want LLM-generated profiles.
+1. Run **Prep Text** when the manuscript needs preparation, use **Build Profiles** for all detected speakers, or use **Build Profile** for one already tagged speaker.
 2. Inspect every generated or matched voice.
 3. Quick Test each assignment.
 4. Manually correct weak or ambiguous matches.

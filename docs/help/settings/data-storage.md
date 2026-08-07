@@ -33,7 +33,7 @@ Always keep the original manuscript as a normal file. Treat Projects as convenie
 
 ## API keys are plain text
 
-Saved API keys are written as plain text inside local `config.json`, even though the browser fields use password-style masking. This includes configured Gemini, Atlas Cloud, OpenRouter, Replicate, Azure, ElevenLabs, and optional local-server keys.
+Saved API keys are written as plain text inside local `config.json`, even though the browser fields use password-style masking. This includes configured Gemini, Atlas Cloud, OpenRouter, Replicate, Azure, ElevenLabs, optional local-server keys, and individual LLM backup-profile keys.
 
 `config.json` is intentionally ignored by Git. Changing defaults no longer creates repository changes or blocks Install/Update. Existing installations upgrading from an older tracked configuration preserve and restore the local file during the transition.
 

@@ -2456,6 +2456,8 @@ audio {
 
 .speaker-profile-actions {
     display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     align-items: flex-start;
     padding-top: 28px;
 }
@@ -4391,6 +4393,20 @@ audio {
     border: 1px solid rgba(99, 102, 241, 0.45);
     border-radius: 10px;
     background: linear-gradient(135deg, rgba(79, 70, 229, 0.14), rgba(15, 23, 42, 0.72));
+}
+
+.llm-backup-profile-card {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid rgba(129, 140, 248, 0.35);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.llm-backup-profile-heading {
+    margin-bottom: 10px;
+    color: var(--text-color);
+    font-weight: 700;
 }
 
 .library-regen-progress[hidden] {

@@ -59,7 +59,7 @@ from src.library_metadata import (
 )
 from src.library_cleanup import remove_directory_with_retries
 from src.json_storage import write_json_atomic
-from src.pause_markers import pause_seconds_for_text, write_silence_wav
+from src.pause_markers import pause_seconds_for_text, sanitize_display_title, write_silence_wav
 from src.atlas_cloud_processor import (
     AtlasCloudProcessor,
     AtlasCloudProcessorError,
@@ -194,6 +194,7 @@ PREP_PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
 JOB_METADATA_FILENAME = "metadata.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 DEFAULT_LLM_PROVIDER = "gemini"
+SUPPORTED_LLM_PROVIDERS = ("gemini", "atlas", "openrouter", "local")
 LIBRARY_CACHE_TTL = 5  # seconds
 MIN_CHATTERBOX_PROMPT_SECONDS = 5.0
 DEFAULT_CONFIG = {
@@ -217,6 +218,7 @@ DEFAULT_CONFIG = {
     "gemini_prompt_presets": [],
     "gemini_speaker_profile_prompt": "",
     "llm_provider": DEFAULT_LLM_PROVIDER,
+    "llm_backup_profiles": [],
     "atlas_cloud_api_key": "",
     "atlas_cloud_base_url": DEFAULT_ATLAS_CLOUD_BASE_URL,
     "atlas_cloud_model": DEFAULT_ATLAS_CLOUD_MODEL,
@@ -1110,7 +1112,7 @@ def _clean_heading_text(value: Optional[str]) -> str:
         return ""
     cleaned = re.sub(r"\[[^\]]+\]", "", str(value))
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned
+    return sanitize_display_title(cleaned)
 
 
 def _build_section_heading_pattern(section_headings: Optional[Any] = None) -> re.Pattern:
@@ -3259,25 +3261,176 @@ def compose_gemini_prompt(section: dict, prompt_prefix: str = "", known_speakers
     return "\n\n".join(parts).strip()
 
 
-def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
-    """Run a prompt through the configured LLM provider."""
-    provider = (config.get("llm_provider") or DEFAULT_LLM_PROVIDER).lower().strip()
+class LLMProviderChainError(RuntimeError):
+    """Raised when every eligible provider in the configured chain fails."""
+
+    def __init__(self, message: str, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = bool(retryable)
+
+
+def _default_llm_model_for_provider(config: Dict[str, Any], provider: str) -> str:
+    model_keys = {
+        "gemini": "gemini_model",
+        "atlas": "atlas_cloud_model",
+        "openrouter": "openrouter_model",
+        "local": "llm_local_model",
+    }
+    return str(config.get(model_keys.get(provider, "")) or "").strip()
+
+
+def _default_llm_api_key_for_provider(config: Dict[str, Any], provider: str) -> str:
+    key_names = {
+        "gemini": "gemini_api_key",
+        "atlas": "atlas_cloud_api_key",
+        "openrouter": "openrouter_api_key",
+        "local": "llm_local_api_key",
+    }
+    return str(config.get(key_names.get(provider, "")) or "").strip()
+
+
+def _resolve_llm_profile_chain(config: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Return the primary profile followed by any configured backup profiles."""
+    primary_provider = str(
+        config.get("llm_provider") or DEFAULT_LLM_PROVIDER
+    ).lower().strip()
+    if primary_provider not in SUPPORTED_LLM_PROVIDERS:
+        raise LLMProviderChainError(f"Unsupported LLM provider: {primary_provider}")
+
+    profiles: List[Dict[str, str]] = [{
+        "id": "primary",
+        "name": "Primary",
+        "provider": primary_provider,
+        "model": _default_llm_model_for_provider(config, primary_provider),
+        "api_key": "",
+    }]
+    raw_backups = config.get("llm_backup_profiles") or []
+    if not isinstance(raw_backups, list):
+        raise LLMProviderChainError("LLM backup profiles must be a list")
+
+    seen_ids = {"primary"}
+    primary_key = _default_llm_api_key_for_provider(config, primary_provider)
+    seen_targets = {(profiles[0]["provider"], profiles[0]["model"], primary_key)}
+    for index, raw_profile in enumerate(raw_backups, start=1):
+        if not isinstance(raw_profile, dict):
+            continue
+        provider = str(raw_profile.get("provider") or "").lower().strip()
+        if not provider:
+            continue
+        if provider not in SUPPORTED_LLM_PROVIDERS:
+            raise LLMProviderChainError(f"Unsupported LLM provider: {provider}")
+        model = str(raw_profile.get("model") or "").strip()
+        api_key = str(raw_profile.get("api_key") or "").strip()
+        resolved_model = model or _default_llm_model_for_provider(config, provider)
+        target = (
+            provider,
+            resolved_model,
+            api_key or _default_llm_api_key_for_provider(config, provider),
+        )
+        if target in seen_targets:
+            continue
+        profile_id = re.sub(
+            r"[^a-zA-Z0-9_-]",
+            "-",
+            str(raw_profile.get("id") or f"backup-{index}").strip(),
+        ).strip("-") or f"backup-{index}"
+        if profile_id in seen_ids:
+            profile_id = f"{profile_id}-{index}"
+        name = str(raw_profile.get("name") or f"Backup {index}").strip()
+        profiles.append({
+            "id": profile_id,
+            "name": name or f"Backup {index}",
+            "provider": provider,
+            "model": resolved_model,
+            "api_key": api_key,
+        })
+        seen_ids.add(profile_id)
+        seen_targets.add(target)
+    return profiles
+
+
+def _public_llm_profile(profile: Dict[str, str]) -> Dict[str, str]:
+    """Return profile status without ever exposing its API key."""
+    return {
+        "id": profile.get("id") or "",
+        "name": profile.get("name") or "",
+        "provider": profile.get("provider") or "",
+        "model": profile.get("model") or "",
+    }
+
+
+def _is_retryable_llm_error(exc: Exception) -> bool:
+    """Identify provider availability/rate errors that may use a backup."""
+    message = str(exc or "").lower()
+    status_match = re.search(r"(?:http|error)\s*\(?\s*(\d{3})", message)
+    if status_match:
+        status_code = int(status_match.group(1))
+        if status_code in (408, 409, 425, 429) or status_code >= 500:
+            return True
+        if 400 <= status_code < 500:
+            return False
+
+    non_retryable_markers = (
+        "api key is required",
+        "api key not configured",
+        "model is required",
+        "model name is required",
+        "base url is required",
+        "prompt must not be empty",
+        "unsupported llm provider",
+        "unsupported local llm provider",
+    )
+    if any(marker in message for marker in non_retryable_markers):
+        return False
+
+    retryable_markers = (
+        "429",
+        "quota",
+        "rate limit",
+        "rate_limit",
+        "resource_exhausted",
+        "unavailable",
+        "overloaded",
+        "high demand",
+        "timed out",
+        "timeout",
+        "connection",
+        "network",
+        "temporarily",
+        "try again",
+        "502",
+        "503",
+        "504",
+    )
+    return any(marker in message for marker in retryable_markers)
+
+
+def _run_llm_prompt_for_provider(
+    prompt: str,
+    config: Dict[str, Any],
+    provider: str,
+    model_override: Optional[str] = None,
+    api_key_override: Optional[str] = None,
+) -> str:
+    """Run one prompt through one explicitly selected provider."""
+    model_override = str(model_override or "").strip()
+    api_key_override = str(api_key_override or "").strip()
     if provider == "gemini":
-        api_key = (config.get("gemini_api_key") or "").strip()
+        api_key = api_key_override or (config.get("gemini_api_key") or "").strip()
         if not api_key:
             raise GeminiProcessorError("Gemini API key not configured")
-        model_name = config.get("gemini_model") or DEFAULT_GEMINI_MODEL
+        model_name = model_override or config.get("gemini_model") or DEFAULT_GEMINI_MODEL
         processor = GeminiProcessor(api_key=api_key, model_name=model_name)
         return processor.generate_text(prompt)
 
     if provider == "atlas":
-        api_key = (config.get("atlas_cloud_api_key") or "").strip()
+        api_key = api_key_override or (config.get("atlas_cloud_api_key") or "").strip()
         if not api_key:
             raise AtlasCloudProcessorError("Atlas Cloud API key not configured")
         processor = AtlasCloudProcessor(
             api_key=api_key,
             base_url=(config.get("atlas_cloud_base_url") or DEFAULT_ATLAS_CLOUD_BASE_URL),
-            model_name=(config.get("atlas_cloud_model") or DEFAULT_ATLAS_CLOUD_MODEL),
+            model_name=(model_override or config.get("atlas_cloud_model") or DEFAULT_ATLAS_CLOUD_MODEL),
             timeout=int(config.get("atlas_cloud_timeout") or 120),
             temperature=config.get("llm_local_temperature"),
             top_p=config.get("llm_local_top_p"),
@@ -3289,13 +3442,13 @@ def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
         return processor.generate_text(prompt)
 
     if provider == "openrouter":
-        api_key = (config.get("openrouter_api_key") or "").strip()
+        api_key = api_key_override or (config.get("openrouter_api_key") or "").strip()
         if not api_key:
             raise OpenRouterProcessorError("OpenRouter API key not configured")
         processor = OpenRouterProcessor(
             api_key=api_key,
             base_url=(config.get("openrouter_base_url") or DEFAULT_OPENROUTER_BASE_URL),
-            model_name=(config.get("openrouter_model") or DEFAULT_OPENROUTER_MODEL),
+            model_name=(model_override or config.get("openrouter_model") or DEFAULT_OPENROUTER_MODEL),
             timeout=int(config.get("openrouter_timeout") or 120),
             temperature=config.get("llm_local_temperature"),
             top_p=config.get("llm_local_top_p"),
@@ -3311,8 +3464,8 @@ def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
 
     local_provider = (config.get("llm_local_provider") or "").lower().strip()
     base_url = (config.get("llm_local_base_url") or "").strip()
-    model_name = (config.get("llm_local_model") or "").strip()
-    api_key = (config.get("llm_local_api_key") or "").strip()
+    model_name = model_override or (config.get("llm_local_model") or "").strip()
+    api_key = api_key_override or (config.get("llm_local_api_key") or "").strip()
     timeout = int(config.get("llm_local_timeout") or 120)
     temperature = config.get("llm_local_temperature")
     top_p = config.get("llm_local_top_p")
@@ -3335,6 +3488,74 @@ def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
         disable_reasoning=disable_reasoning,
     )
     return processor.generate_text(prompt)
+
+
+def _run_llm_prompt_with_failover(
+    prompt: str,
+    config: Dict[str, Any],
+    preferred_profile: Optional[str] = None,
+) -> tuple[str, Dict[str, str], List[Dict[str, str]]]:
+    """Run a prompt through the configured profile chain.
+
+    A preferred profile is used by multi-section prep after failover so every
+    later section does not repeatedly consume time against a provider already
+    known to be unavailable for that run.
+    """
+    profiles = _resolve_llm_profile_chain(config)
+    preferred = str(preferred_profile or "").strip()
+    preferred_index = next(
+        (index for index, profile in enumerate(profiles) if profile["id"] == preferred),
+        None,
+    )
+    if preferred_index is not None:
+        profiles = profiles[preferred_index:]
+
+    failures: List[Dict[str, str]] = []
+    for index, profile in enumerate(profiles):
+        provider = profile["provider"]
+        try:
+            result = _run_llm_prompt_for_provider(
+                prompt,
+                config,
+                provider,
+                model_override=profile.get("model"),
+                api_key_override=profile.get("api_key"),
+            )
+            return result, _public_llm_profile(profile), failures
+        except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
+            retryable = _is_retryable_llm_error(exc)
+            failures.append({
+                "profile_id": profile["id"],
+                "profile_name": profile["name"],
+                "provider": provider,
+                "model": profile.get("model") or "",
+                "error": str(exc),
+            })
+            has_backup = index + 1 < len(profiles)
+            if not retryable or not has_backup:
+                if len(failures) == 1:
+                    raise
+                summary = "; ".join(
+                    f"{entry['profile_name']}: {entry['error']}" for entry in failures
+                )
+                raise LLMProviderChainError(
+                    f"LLM provider chain failed ({summary})",
+                    retryable=retryable,
+                ) from exc
+            logger.warning(
+                "LLM profile %s failed with a retryable error; trying backup %s: %s",
+                profile["name"],
+                profiles[index + 1]["name"],
+                exc,
+            )
+
+    raise LLMProviderChainError("No LLM providers are configured")
+
+
+def _run_llm_prompt(prompt: str, config: Dict[str, Any]) -> str:
+    """Run a prompt through the configured primary and backup providers."""
+    result, _profile, _failures = _run_llm_prompt_with_failover(prompt, config)
+    return result
 
 
 def compose_gemini_speaker_profile_prompt(prompt_prefix: str, speakers: List[str], context: str = "", processed_text: str = "") -> str:
@@ -5116,8 +5337,10 @@ def process_audio_job(job_data):
             "book_count": book_count,
             "books": chapter_outputs if book_mode else [],
             "full_story": full_story_entry,
+            "crossfade_duration": float(config.get('crossfade_duration', 0) or 0),
             "intro_silence_ms": int(max(0, config.get('intro_silence_ms', 0) or 0)),
             "inter_chunk_silence_ms": int(max(0, config.get('inter_chunk_silence_ms', 0) or 0)),
+            "output_bitrate_kbps": int(config.get('output_bitrate_kbps') or 0),
             "acx_compliance": bool(config.get('acx_compliance', False)),
             "word_replacements": word_replacements,
         }
@@ -5459,6 +5682,9 @@ def _redact_config_secrets(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     for key in SECRET_CONFIG_KEYS:
         if key in snapshot:
             snapshot[key] = ""
+    for profile in snapshot.get("llm_backup_profiles") or []:
+        if isinstance(profile, dict) and "api_key" in profile:
+            profile["api_key"] = ""
     return snapshot
 
 
@@ -5469,6 +5695,17 @@ def _hydrate_config_secrets(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     for key in SECRET_CONFIG_KEYS:
         if not hydrated.get(key) and current.get(key):
             hydrated[key] = current[key]
+    current_profiles = {
+        str(profile.get("id") or ""): profile
+        for profile in (current.get("llm_backup_profiles") or [])
+        if isinstance(profile, dict) and profile.get("id")
+    }
+    for profile in hydrated.get("llm_backup_profiles") or []:
+        if not isinstance(profile, dict) or profile.get("api_key"):
+            continue
+        current_profile = current_profiles.get(str(profile.get("id") or ""))
+        if current_profile and current_profile.get("api_key"):
+            profile["api_key"] = current_profile["api_key"]
     return hydrated
 
 
@@ -7353,8 +7590,10 @@ def _merge_review_job(job_id: str, job_entry: Dict[str, Any], manifest: Dict[str
         "books": book_outputs,
         "book_count": len(book_outputs),
         "full_story": full_story_entry,
+        "crossfade_duration": float(merge_options.get("crossfade_duration") or 0),
         "intro_silence_ms": int(max(0, merge_options.get("intro_silence_ms") or 0)),
         "inter_chunk_silence_ms": int(max(0, merge_options.get("inter_chunk_silence_ms") or 0)),
+        "output_bitrate_kbps": int(merge_options.get("output_bitrate_kbps") or 0),
         "acx_compliance": bool(merge_options.get("acx_compliance", False)),
         "word_replacements": (
             job_entry.get("word_replacements")
@@ -8334,6 +8573,7 @@ def process_text_with_gemini():
 
         text_processor = TextProcessor(chunk_size=config.get('chunk_size', 500))
         known_speakers = set(text_processor.extract_speakers(text))
+        active_profile = None
 
         processed_sections = []
         for idx, section in enumerate(sections, start=1):
@@ -8346,7 +8586,12 @@ def process_text_with_gemini():
                 prompt_prefix,
                 sorted(known_speakers)
             )
-            response_text = _run_llm_prompt(combined_prompt, config)
+            response_text, profile_used, provider_failures = _run_llm_prompt_with_failover(
+                combined_prompt,
+                config,
+                preferred_profile=active_profile,
+            )
+            active_profile = profile_used["id"]
             detected_speakers = text_processor.extract_speakers(response_text)
             for speaker_name in detected_speakers:
                 known_speakers.add(speaker_name)
@@ -8355,7 +8600,10 @@ def process_text_with_gemini():
                 "title": section.get('title'),
                 "source": section.get('source'),
                 "output": response_text.strip(),
-                "speakers": detected_speakers
+                "speakers": detected_speakers,
+                "llm_profile_used": profile_used,
+                "llm_provider_used": profile_used["provider"],
+                "provider_failures": provider_failures,
             })
 
         if not processed_sections:
@@ -8374,11 +8622,13 @@ def process_text_with_gemini():
             "success": True,
             "result_text": final_text,
             "processed_sections": processed_sections,
+            "llm_profile_used": profile_used,
+            "llm_provider_used": profile_used["provider"],
             "chapter_mode": any(section.get('source') == 'chapter' for section in sections),
             "section_count": len(processed_sections)
         })
 
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -8423,14 +8673,20 @@ def process_full_text_with_gemini():
         prompt_parts.append(text)
         combined_prompt = "\n\n".join(part.strip() for part in prompt_parts if part).strip()
 
-        response_text = _run_llm_prompt(combined_prompt, config)
+        response_text, profile_used, provider_failures = _run_llm_prompt_with_failover(
+            combined_prompt,
+            config,
+        )
 
         return jsonify({
             "success": True,
-            "result_text": response_text.strip()
+            "result_text": response_text.strip(),
+            "llm_profile_used": profile_used,
+            "llm_provider_used": profile_used["provider"],
+            "provider_failures": provider_failures,
         })
 
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -8478,7 +8734,10 @@ def process_gemini_speaker_profiles():
         processed_text = (data.get('processed_text') or '').strip()
         profile_excerpts = build_speaker_profile_excerpts(processed_text, speakers)
         prompt = compose_gemini_speaker_profile_prompt(prompt_prefix, speakers, context, profile_excerpts)
-        response_text = _run_llm_prompt(prompt, config)
+        response_text, profile_used, provider_failures = _run_llm_prompt_with_failover(
+            prompt,
+            config,
+        )
         profiles = parse_gemini_speaker_table(response_text)
 
         if not profiles:
@@ -8506,9 +8765,12 @@ def process_gemini_speaker_profiles():
             "success": True,
             "profiles": profiles,
             "missing_speakers": missing_speakers,
-            "raw": response_text.strip()
+            "raw": response_text.strip(),
+            "llm_profile_used": profile_used,
+            "llm_provider_used": profile_used["provider"],
+            "provider_failures": provider_failures,
         })
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -8569,6 +8831,7 @@ def process_gemini_section():
         data = request.json or {}
         content = (data.get('content') or '').strip()
         prompt_override = (data.get('prompt_override') or '').strip()
+        preferred_profile = (data.get('preferred_profile') or '').strip()
 
         if not content:
             return jsonify({
@@ -8603,19 +8866,31 @@ def process_gemini_section():
             prompt_prefix,
             known_speakers
         )
-        response_text = _run_llm_prompt(prompt, config)
+        response_text, profile_used, provider_failures = _run_llm_prompt_with_failover(
+            prompt,
+            config,
+            preferred_profile=preferred_profile,
+        )
         detected_speakers = text_processor.extract_speakers(response_text)
 
         return jsonify({
             "success": True,
             "result_text": response_text.strip(),
-            "speakers": detected_speakers
+            "speakers": detected_speakers,
+            "llm_profile_used": profile_used,
+            "llm_provider_used": profile_used["provider"],
+            "provider_failures": provider_failures,
         })
 
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
         err_str = str(exc)
         transient_markers = ("503", "UNAVAILABLE", "429", "quota", "rate limit", "rate_limit", "high demand", "try again")
-        is_transient = any(m.lower() in err_str.lower() for m in transient_markers)
+        explicit_retryable = getattr(exc, "retryable", None)
+        is_transient = (
+            bool(explicit_retryable)
+            if explicit_retryable is not None
+            else any(m.lower() in err_str.lower() for m in transient_markers)
+        )
         if is_transient:
             return jsonify({
                 "success": False,
@@ -9040,6 +9315,7 @@ def download_m4b(job_id):
         bitrate_kbps = int(payload.get("bitrate", 128))
         requested_acx_compliance = bool(payload.get("acx_compliance", False))
         cover_art_data = payload.get("cover_art")
+        allow_non_square_cover = bool(payload.get("allow_non_square_cover", False))
 
         job_dir = OUTPUT_DIR / job_id
         if not job_dir.exists():
@@ -9085,7 +9361,9 @@ def download_m4b(job_id):
             if chapter_path.exists():
                 chapter_files.append(str(chapter_path))
                 chapter_metadata.append({
-                    "title": chapter.get("title", f"Chapter {chapter.get('index', 0)}"),
+                    "title": sanitize_display_title(
+                        chapter.get("title", f"Chapter {chapter.get('index', 0)}")
+                    ),
                     "start_time": chapter.get("start_time", 0),
                 })
 
@@ -9100,21 +9378,39 @@ def download_m4b(job_id):
         if cover_art_data:
             try:
                 import base64
-                from PIL import Image
+                from PIL import Image, ImageOps
                 import io
-                
+
                 header, encoded = cover_art_data.split(",", 1)
                 img_data = base64.b64decode(encoded)
                 img = Image.open(io.BytesIO(img_data))
-                
-                # Convert to RGB if necessary (for JPEG)
-                if img.mode in ("RGBA", "P"):
+                img.load()
+                img = ImageOps.exif_transpose(img)
+                width, height = img.size
+                if width != height and not allow_non_square_cover:
+                    return jsonify({
+                        "success": False,
+                        "error": (
+                            f"Cover art is {width}x{height}, not square. "
+                            "Confirm non-square cover embedding in the M4B dialog or select square artwork."
+                        ),
+                        "cover_width": width,
+                        "cover_height": height,
+                        "requires_non_square_confirmation": True,
+                    }), 400
+
+                # Convert without cropping; preserve the user's approved aspect ratio.
+                if img.mode != "RGB":
                     img = img.convert("RGB")
-                
+
                 cover_art_path = job_dir / "cover_art.jpg"
                 img.save(cover_art_path, "JPEG", quality=95)
             except Exception as e:
                 logger.warning(f"Failed to process cover art: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": "Cover art could not be decoded. Select a valid PNG or JPEG image."
+                }), 400
 
         output_filename = f"{job_id}.m4b"
         output_path = job_dir / output_filename
@@ -9216,7 +9512,7 @@ def _build_library_listing():
 
                 chapters_data.append({
                     "index": chapter.get("index"),
-                    "title": chapter.get("title"),
+                    "title": sanitize_display_title(chapter.get("title")),
                     "output_file": f"/static/audio/{job_id}/{Path(rel_path).as_posix()}",
                     "relative_path": Path(rel_path).as_posix(),
                     "file_size": file_size,
@@ -9261,7 +9557,7 @@ def _build_library_listing():
 
                         chapters_data.append({
                             "index": chapter.get("index"),
-                            "title": chapter.get("title"),
+                            "title": sanitize_display_title(chapter.get("title")),
                             "output_file": f"/static/audio/{job_id}/{rel_path}",
                             "relative_path": rel_path,
                             "file_size": file_size,
@@ -9839,6 +10135,31 @@ def _build_review_merger(config_snapshot: Optional[Dict[str, Any]] = None) -> Au
     )
 
 
+def _load_library_merge_options(
+    job_dir: Path,
+    manifest: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Load rebuild settings without replacing a job's saved export choices."""
+    current = dict(load_config())
+    metadata = load_job_metadata(job_dir) or {}
+    manifest = manifest or {}
+    option_names = (
+        "output_format",
+        "crossfade_duration",
+        "intro_silence_ms",
+        "inter_chunk_silence_ms",
+        "output_bitrate_kbps",
+        "acx_compliance",
+    )
+    resolved = dict(current)
+    for option_name in option_names:
+        if option_name in metadata and metadata[option_name] is not None:
+            resolved[option_name] = metadata[option_name]
+        elif option_name in manifest and manifest[option_name] is not None:
+            resolved[option_name] = manifest[option_name]
+    return resolved
+
+
 def _update_metadata_chapter(job_id: str, job_dir: Path, chapter_entry: Dict[str, Any]) -> None:
     metadata = load_job_metadata(job_dir) or {}
     chapters = metadata.get("chapters") or []
@@ -10076,7 +10397,8 @@ def _rebuild_review_manifest_from_chunks(job_id: str, job_dir: Path, force_rebui
     if not chapter_map:
         raise ValueError("No chapter data could be derived from chunks")
 
-    merger = _build_review_merger(load_config())
+    merge_options = _load_library_merge_options(job_dir, existing_manifest)
+    merger = _build_review_merger(merge_options)
     chapter_entries = []
     chapter_outputs = []
 
@@ -10306,8 +10628,8 @@ def rebuild_library_chapter(job_id):
         if missing:
             return jsonify({"success": False, "error": "Missing chunk files for this chapter"}), 409
 
-        config_snapshot = load_config()
-        output_format = manifest.get("output_format") or config_snapshot.get("output_format") or "mp3"
+        config_snapshot = _load_library_merge_options(job_dir, manifest)
+        output_format = config_snapshot.get("output_format") or "mp3"
         output_path = _resolve_chapter_output_path(job_dir, target, output_format, chapter_index)
         _remove_existing_output(output_path)
 
@@ -10362,8 +10684,8 @@ def rebuild_library_full_story(job_id):
         if missing:
             return jsonify({"success": False, "error": "Missing chunk files for full story"}), 409
 
-        config_snapshot = load_config()
-        output_format = manifest.get("output_format") or config_snapshot.get("output_format") or "mp3"
+        config_snapshot = _load_library_merge_options(job_dir, manifest)
+        output_format = config_snapshot.get("output_format") or "mp3"
         full_story_name = f"full_story.{output_format}"
         full_story_path = job_dir / full_story_name
         _remove_existing_output(full_story_path)
@@ -10417,8 +10739,8 @@ def rebuild_library_selected_chapters(job_id):
         if not targets:
             return jsonify({"success": False, "error": "No matching chapters found"}), 404
 
-        config_snapshot = load_config()
-        output_format = manifest.get("output_format") or config_snapshot.get("output_format") or "mp3"
+        config_snapshot = _load_library_merge_options(job_dir, manifest)
+        output_format = config_snapshot.get("output_format") or "mp3"
         merger = _build_review_merger(config_snapshot)
         rebuilt = []
 
@@ -10511,8 +10833,8 @@ def rebuild_library_all(job_id):
         chapters = manifest.get("chapters") or []
         all_full_story_chunks = manifest.get("all_full_story_chunks") or []
 
-        config_snapshot = load_config()
-        output_format = config_snapshot.get("output_format") or manifest.get("output_format") or "mp3"
+        config_snapshot = _load_library_merge_options(job_dir, manifest)
+        output_format = config_snapshot.get("output_format") or "mp3"
         merger = _build_review_merger(config_snapshot)
         rebuilt_chapters = []
 

@@ -264,7 +264,6 @@ class AudioMerger:
                 codec_args = [
                     "-c:a", "libmp3lame",
                     "-b:a", "192k",
-                    "-q:a", "0",
                 ]
             elif fmt == "mp3":
                 codec_args = ["-c:a", "libmp3lame"]

@@ -51,13 +51,28 @@ Read [Prompt Presets, Chunking, and Review](help:llm-prompts) before processing 
 7. After every section succeeds, the outputs are combined and replace **Input Text**.
 8. TTS-Story automatically analyzes the new text and can request speaker profiles.
 
-If profile generation fails or a provider omits one or more speakers, use **Build Profiles** beside the detected-speaker list. This retries only the profile and voice-type analysis using the text already in the editor; it does not rerun Prep Text or rewrite the manuscript.
+If profile generation fails or a provider omits one or more speakers, use **Build Profiles** beside the detected-speaker list. This retries profile and voice-type analysis for all detected speakers using the text already in the editor; it does not rerun Prep Text or rewrite the manuscript.
 
 ![Paused Prep Text operation with Resume, Restart, and Abort controls](../../../static/help/screenshots/prep-text-resume.png)
 
 *A paused or interrupted preparation preserves completed sections and offers distinct Resume, Restart, and Abort actions.*
 
 Saved preparation progress is tied to the text being processed. Changing the source can make an older resume state inappropriate.
+
+## Build one profile without running Prep Text
+
+An already tagged manuscript does not need to be rewritten just to obtain speaker profiles:
+
+1. Paste or load text containing valid tags such as `[alice-female]...[/alice-female]`.
+2. Wait for automatic analysis to display the detected speaker chips.
+3. Select the speaker you want to work on.
+4. In **Speaker Properties**, click **Build Profile** beside **Generate Voice**.
+5. Wait while TTS-Story collects bounded tagged excerpts for that speaker and submits a single profile request through the configured LLM chain.
+6. Review the returned **Profile** and **Voice Type**, and edit either field before designing or assigning a voice.
+
+This action processes only the selected speaker. It does not rewrite Input Text, replace other speaker profiles, or create audio. **Generate Voice** is the separate next step when you want to design a reference voice from the completed profile. Each Build Profile request is a new operation and starts with the primary LLM before trying configured backups.
+
+If the result does not reflect the character, confirm that the opening and closing tags match exactly and that the tagged passages contain enough representative dialogue. A speaker with no usable tagged excerpt may be inferred only from its speaker ID and will usually need manual correction.
 
 ## Review the result before speech generation
 

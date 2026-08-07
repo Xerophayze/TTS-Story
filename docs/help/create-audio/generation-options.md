@@ -22,7 +22,7 @@ The **MP3 Bitrate** control applies when MP3 is selected. Higher bitrates increa
 
 ## ACX Compliant Output
 
-When selected, TTS-Story applies ACX-oriented MP3 encoding and loudness/peak processing: 192 kbps, 44.1 kHz, a target around -19 dB integrated, and a true-peak ceiling below -3 dBTP.
+When selected, TTS-Story applies ACX-oriented MP3 encoding and loudness/peak processing: 192 kbps constant bitrate, 44.1 kHz, a target around -19 dB integrated, and a true-peak ceiling below -3 dBTP.
 
 > This processing helps meet technical audio targets; it does not guarantee that an audiobook will pass every ACX content, mastering, room-tone, chapter, metadata, or rights requirement.
 

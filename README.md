@@ -10,12 +10,13 @@ Every contribution is appreciated. Thank you for helping make this work possible
 
 ---
 
-# Current Updates and Notes - updated 08-04-2026
-- **More reliable cloud generation** - cloud providers now support configurable parallel work, stronger Edge TTS timeout and retry handling, and safer processing of unusual text separators.
-- **Resumable long-running jobs** - pausing or recovering from an interruption now preserves completed audio and continues from the saved chunk instead of restarting the project.
-- **Improved progress and finalization** - generation, bulk speaker regeneration, and audio recompilation provide clearer progress while safer checkpoint handling prevents temporary Windows file errors from stopping a job.
+# Current Updates and Notes - updated 08-06-2026
+- **Flexible LLM failover and speaker profiling** - configure an ordered list of backup LLM profiles, each with its own provider, model, and API key. Speaker Properties can now build an AI profile for one selected tagged speaker without processing every character.
+- **Production-ready audiobook exports** - corrected ACX-oriented MP3 encoding, improved chapter title handling, preserved saved rebuild settings, and added clearer M4B cover-art validation and confirmation.
+- **More reliable online generation** - configurable parallel cloud jobs, stronger timeout and retry handling, resumable progress, and safer finalization help long audiobook projects complete without restarting finished work.
 
 ### Previous Updates
+- Improved progress feedback for generation, bulk speaker regeneration, and audio recompilation.
 - Added OpenAI-compatible TTS with configurable models, voices, instructions, concurrency, and custom compatible endpoints.
 - Improved cross-platform installation and updates for Windows, Linux, macOS, Apple Silicon, and Pinokio.
 - Added Edge TTS, ElevenLabs, and Microsoft Azure Speech cloud engines, plus the illustrated in-app Help Center.
@@ -114,6 +115,8 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 
 ### AI & Processing
 - **Multi-Provider LLM Pre-Processing**: Clean up and tag text with Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama
+- **Configurable LLM Failover**: Add ordered backup profiles with independent provider, model, and API-key settings; each new job tries the primary first and advances through backups only when needed
+- **Individual Speaker Profile Building**: Build or refresh the AI-generated description and voice type for one tagged speaker directly from Speaker Properties
 - **Atlas Cloud Model Discovery**: Save an Atlas Cloud API key and retrieve current LLM choices from the authenticated API and public LLM catalog
 - **OpenRouter Model Discovery**: Retrieve the text models allowed by your key's provider preferences, privacy settings, and guardrails
 - **Speaker Memory Between Chunks**: LLM requests carry forward discovered speaker tags for consistency
@@ -591,7 +594,7 @@ You can use any alphanumeric name (letters, numbers, underscores). The system wi
 
 Need to tidy a manuscript or add consistent speaker tags before running TTS? Use the **Prep Text** button:
 
-1. In **Settings**, select Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama as the LLM provider.
+1. In **Settings**, select Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama as the primary LLM provider. Add as many ordered backup profiles as needed; every profile can override the provider model and API key, including multiple OpenRouter models. Failover applies to quota limits, timeouts, connection failures, and provider outages. New jobs always try the primary first.
    - For Atlas Cloud, enter your API key and click **Fetch Atlas Models**, then select a model from the returned list.
    - For OpenRouter, enter your API key and click **Fetch OpenRouter Models** to load the text models allowed by that key.
    - For Gemini, enter your API key and use **Fetch Models**.

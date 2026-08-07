@@ -22,10 +22,12 @@ Cloud providers receive the text sent for processing. If the manuscript must rem
 
 1. Open [Settings](app:settings).
 2. Expand **LLM Pre-Processing**.
-3. Select Gemini, Atlas Cloud, OpenRouter, or Local.
-4. Enter the provider settings and use its **Fetch Models** button.
-5. Select a returned model.
-6. Click **Save Settings**.
+3. Select Gemini, Atlas Cloud, OpenRouter, or Local as the **Primary LLM Provider**.
+4. Enter the number of backup LLM profiles to create (up to 100).
+5. Configure each ordered profile with a name, provider, model override, and API key override. Blank overrides inherit that provider's main model or key.
+6. Enter any shared provider settings and use each provider's **Fetch Models** button.
+7. Select or enter the models.
+8. Click **Save Settings**.
 
 Fetching models verifies the URL and credentials well enough to retrieve a catalog; it does not guarantee that every listed model accepts the same parameters or has sufficient quota for a long manuscript.
 
@@ -43,9 +45,11 @@ Fetching models verifies the URL and credentials well enough to retrieve a catal
 6. When it finishes, review the entire replacement text before generating audio.
 7. Wait for automatic text analysis, then correct any speaker-tag or heading warnings.
 
-TTS-Story divides the text into sections and processes them one at a time. A section failure marked retryable by the provider, including an HTTP 503 response, is retried up to five times with increasing delays. Authentication, validation, and other non-retryable failures stop immediately. Progress is retained locally so a paused or interrupted preparation can be resumed when its source text still matches.
+TTS-Story divides the text into sections and processes them one at a time. When the primary profile encounters a quota limit, timeout, connection failure, or service outage, TTS-Story tries the backup profiles in order. Profiles may use the same provider with different models or API keys. After a backup succeeds, the remaining sections continue with that profile instead of repeatedly contacting the unavailable primary. If that profile later fails, processing continues forward through the remaining backups. Pause/Resume retains the active profile. Restart and every genuinely new Prep Text job begin with the primary again. If every profile reports a retryable failure, the section is retried up to five times with increasing delays. Authentication, invalid configuration, prompt validation, and other non-retryable failures stop immediately.
 
-After successful preparation, TTS-Story also requests speaker profiles for detected speakers. Those profiles can guide Qwen3 or OmniVoice voice design; they are not a substitute for listening to previews. Learn more in [Generate and Auto-Assign Voices](help:auto-assign-voices).
+After successful preparation, TTS-Story also requests speaker profiles for detected speakers. Those profiles can guide Qwen3 or OmniVoice voice design; they are not a substitute for listening to previews.
+
+If the manuscript was already tagged before you pasted it, you do not need to run Prep Text merely to create profiles. Wait for automatic speaker detection, select a speaker chip, and use **Build Profile** in Speaker Properties. This sends bounded excerpts belonging only to that speaker through the configured LLM chain, fills that speaker's Profile and Voice Type, and leaves the manuscript and other speaker profiles unchanged. Use **Build Profiles** beside the speaker list only when you want to process all detected speakers together. Learn more in [Assign and Test Voices](help:assign-voices) and [Generate and Auto-Assign Voices](help:auto-assign-voices).
 
 ## Review before synthesis
 

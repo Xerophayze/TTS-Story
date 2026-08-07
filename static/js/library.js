@@ -1056,7 +1056,14 @@ function openM4BDownloadModal(jobId, title) {
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; margin-bottom: 6px; font-weight: 500;">Cover Art (optional):</label>
                     <input type="file" id="m4b-cover-art" accept="image/*" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color);">
-                    <small style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.85rem;">Recommended: 3000x3000px PNG or JPG</small>
+                    <small style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.85rem;">Recommended: square 3000x3000px PNG or JPG; minimum warning threshold: 1400x1400px.</small>
+                    <div id="m4b-cover-preview" style="display: none; margin-top: 10px; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; gap: 10px; align-items: center;">
+                        <img id="m4b-cover-preview-image" alt="Selected audiobook cover preview" style="width: 84px; height: 84px; object-fit: contain; background: #090d18; border-radius: 4px;">
+                        <div>
+                            <div id="m4b-cover-dimensions" style="font-size: 0.9rem; color: var(--text-color);"></div>
+                            <div id="m4b-cover-warning" style="margin-top: 4px; font-size: 0.82rem; color: #f59e0b;"></div>
+                        </div>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
                     <button type="button" id="m4b-cancel" style="padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-color); color: var(--text-color); cursor: pointer;">Cancel</button>
@@ -1067,6 +1074,70 @@ function openM4BDownloadModal(jobId, title) {
     `;
 
     document.body.appendChild(modal);
+
+    const coverArtInput = modal.querySelector('#m4b-cover-art');
+    const coverPreview = modal.querySelector('#m4b-cover-preview');
+    const coverPreviewImage = modal.querySelector('#m4b-cover-preview-image');
+    const coverDimensions = modal.querySelector('#m4b-cover-dimensions');
+    const coverWarning = modal.querySelector('#m4b-cover-warning');
+    let coverArtInfo = null;
+
+    const inspectCoverFile = (file) => new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+            const info = {
+                file,
+                width: image.naturalWidth,
+                height: image.naturalHeight,
+                previewUrl: objectUrl,
+            };
+            resolve(info);
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            reject(new Error('The selected cover image could not be decoded.'));
+        };
+        image.src = objectUrl;
+    });
+
+    const renderCoverInfo = (info) => {
+        if (coverArtInfo?.previewUrl && coverArtInfo.previewUrl !== info?.previewUrl) {
+            URL.revokeObjectURL(coverArtInfo.previewUrl);
+        }
+        coverArtInfo = info;
+        if (!info) {
+            coverPreview.style.display = 'none';
+            coverPreviewImage.removeAttribute('src');
+            return;
+        }
+        coverPreview.style.display = 'flex';
+        coverPreviewImage.src = info.previewUrl;
+        coverDimensions.textContent = `${info.width} × ${info.height}px`;
+        const warnings = [];
+        if (info.width !== info.height) {
+            warnings.push('This image is not square. Explicit confirmation will be required; TTS-Story will not crop it.');
+        }
+        if (Math.min(info.width, info.height) < 1400) {
+            warnings.push('Resolution is below the 1400px minimum warning threshold.');
+        }
+        coverWarning.textContent = warnings.join(' ');
+    };
+
+    coverArtInput?.addEventListener('change', async () => {
+        const file = coverArtInput.files?.[0];
+        if (!file) {
+            renderCoverInfo(null);
+            return;
+        }
+        try {
+            renderCoverInfo(await inspectCoverFile(file));
+        } catch (error) {
+            renderCoverInfo(null);
+            coverArtInput.value = '';
+            alert(error.message || 'Unable to inspect cover art.');
+        }
+    });
 
     // Check if files are already ACX compliant
     (async () => {
@@ -1093,6 +1164,9 @@ function openM4BDownloadModal(jobId, title) {
     })();
 
     const closeModal = () => {
+        if (coverArtInfo?.previewUrl) {
+            URL.revokeObjectURL(coverArtInfo.previewUrl);
+        }
         modal.remove();
     };
 
@@ -1105,11 +1179,26 @@ function openM4BDownloadModal(jobId, title) {
     modal.querySelector('#m4b-download').addEventListener('click', async () => {
         const bitrate = parseInt(document.getElementById('m4b-bitrate').value);
         const acxCompliance = document.getElementById('m4b-acx-compliance').checked;
-        const coverArtInput = document.getElementById('m4b-cover-art');
         let coverArtData = null;
+        let allowNonSquareCover = false;
 
         if (coverArtInput.files.length > 0) {
             const file = coverArtInput.files[0];
+            try {
+                if (!coverArtInfo || coverArtInfo.file !== file) {
+                    renderCoverInfo(await inspectCoverFile(file));
+                }
+            } catch (error) {
+                alert(error.message || 'Unable to inspect cover art.');
+                return;
+            }
+            if (coverArtInfo.width !== coverArtInfo.height) {
+                allowNonSquareCover = confirm(
+                    `The selected cover is ${coverArtInfo.width}x${coverArtInfo.height}px, not square. ` +
+                    'Embed it without cropping anyway?'
+                );
+                if (!allowNonSquareCover) return;
+            }
             coverArtData = await new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => resolve(e.target.result);
@@ -1197,7 +1286,8 @@ function openM4BDownloadModal(jobId, title) {
                 body: JSON.stringify({
                     bitrate,
                     acx_compliance: acxCompliance,
-                    cover_art: coverArtData
+                    cover_art: coverArtData,
+                    allow_non_square_cover: allowNonSquareCover
                 })
             });
 

@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from typing import Any, List, Optional
 
+from src.pause_markers import pause_seconds_for_text, sanitize_display_title
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MAIN_SCRIPT = PROJECT_ROOT / "static" / "js" / "main.js"
@@ -43,6 +45,7 @@ def _load_heading_helpers():
         "Any": Any,
         "List": List,
         "Optional": Optional,
+        "sanitize_display_title": sanitize_display_title,
     }
     exec(compile(ast.Module(body=selected, type_ignores=[]), str(source_path), "exec"), namespace)
     return namespace
@@ -126,6 +129,17 @@ class SectionHeadingPatternTests(unittest.TestCase):
         self.assertEqual(["CHAPTER XIV.", "CHAPTER XV."], [
             section["title"] for section in hierarchy["sections"]
         ])
+
+    def test_pause_control_is_hidden_from_title_but_preserved_in_content(self) -> None:
+        text = "Chapter 1.******\nThe room was silent.\n\nChapter 2.***\nMorning came."
+
+        hierarchy = split_book_sections(text, ["chapter"])
+
+        self.assertEqual(["Chapter 1.", "Chapter 2."], [
+            section["title"] for section in hierarchy["sections"]
+        ])
+        self.assertIn("Chapter 1.******", hierarchy["sections"][0]["content"])
+        self.assertEqual(0.5, pause_seconds_for_text("******"))
 
     def test_section_review_cache_includes_active_heading_selection(self) -> None:
         source = MAIN_SCRIPT.read_text(encoding="utf-8")

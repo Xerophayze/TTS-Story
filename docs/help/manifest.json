@@ -1,7 +1,7 @@
 {
   "title": "TTS-Story User Guide",
   "subtitle": "From first launch to a finished, reviewed audiobook",
-  "version": "2026.07.15.1",
+  "version": "2026.08.06.1",
   "categories": [
     {
       "id": "start-here",
@@ -203,8 +203,8 @@
       "id": "prep-text",
       "file": "create-audio/prep-text.md",
       "title": "Prepare Text with an LLM",
-      "summary": "Optionally clean, tag, or normalize a manuscript while reviewing every change before synthesis.",
-      "keywords": ["Prep Text", "LLM", "cleanup", "speaker detection", "prompt preset"],
+      "summary": "Prepare a manuscript with an LLM or build profiles from text that is already speaker-tagged.",
+      "keywords": ["Prep Text", "LLM", "cleanup", "speaker detection", "prompt preset", "Build Profile", "Build Profiles"],
       "related": ["llm-overview", "llm-prompts", "speaker-tags"]
     },
     {
@@ -227,8 +227,8 @@
       "id": "assign-voices",
       "file": "create-audio/assign-voices.md",
       "title": "Assign and Test Voices",
-      "summary": "Give each detected speaker a compatible voice, reference prompt, and restrained FX settings.",
-      "keywords": ["voice assignment", "speaker", "quick test", "pitch", "speed", "FX"],
+      "summary": "Build individual speaker profiles and assign each detected speaker a compatible, tested voice.",
+      "keywords": ["voice assignment", "speaker", "speaker properties", "Build Profile", "quick test", "pitch", "speed", "FX"],
       "related": ["available-voices", "voice-prompts", "auto-assign-voices"]
     },
     {
@@ -386,16 +386,16 @@
       "id": "llm-overview",
       "file": "llm/overview.md",
       "title": "LLM Preparation Overview",
-      "summary": "Decide when AI text preparation helps, what it changes, and how to review it safely.",
-      "keywords": ["LLM", "Prep Text", "Gemini", "Atlas Cloud", "OpenRouter", "local"],
+      "summary": "Prepare text, build speaker profiles, and use ordered LLM failover while preserving source material.",
+      "keywords": ["LLM", "Prep Text", "Gemini", "Atlas Cloud", "OpenRouter", "local", "backup profile", "failover"],
       "related": ["prep-text", "llm-cloud", "llm-prompts"]
     },
     {
       "id": "llm-cloud",
       "file": "llm/cloud-providers.md",
       "title": "Gemini, Atlas Cloud, and OpenRouter",
-      "summary": "Configure supported cloud LLM providers and retrieve models available to your key.",
-      "keywords": ["Gemini", "Atlas Cloud", "OpenRouter", "model discovery", "API key"],
+      "summary": "Configure cloud LLM providers, per-profile models and API keys, and an ordered failover chain.",
+      "keywords": ["Gemini", "Atlas Cloud", "OpenRouter", "model discovery", "API key", "backup LLM", "failover", "profile override"],
       "related": ["online-services", "llm-prompts", "cloud-errors"]
     },
     {
@@ -509,8 +509,8 @@
       "id": "auto-assign-voices",
       "file": "voices/auto-assign.md",
       "title": "Generate and Auto-Assign Voices",
-      "summary": "Generate voices from speaker profiles or name-match saved prompts, then verify every assignment.",
-      "keywords": ["auto assign", "generate voices", "speaker profile", "match threshold"],
+      "summary": "Build speaker profiles, generate voices from them, or name-match saved prompts and verify assignments.",
+      "keywords": ["auto assign", "generate voices", "speaker profile", "Build Profile", "Build Profiles", "match threshold"],
       "related": ["assign-voices", "voice-creation", "prep-text"]
     },
 

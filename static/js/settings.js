@@ -28,6 +28,8 @@ let settingsAzureSpeechVoices = [];
 let settingsEdgeTtsVoices = [];
 let settingsElevenLabsVoices = [];
 let settingsElevenLabsModels = [];
+let llmBackupProfiles = [];
+const MAX_LLM_BACKUP_PROFILES = 100;
 
 document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
@@ -50,11 +52,19 @@ function updateLLMSettingsUI(provider = 'gemini') {
     const localChunkChaptersGroup = document.getElementById('llm-local-chunk-chapters-group');
     const nonGeminiTuning = document.getElementById('llm-non-gemini-tuning');
 
-    const normalizedProvider = (provider || '').toLowerCase();
-    const isGemini = normalizedProvider === 'gemini';
-    const isAtlas = normalizedProvider === 'atlas';
-    const isOpenRouter = normalizedProvider === 'openrouter';
-    const isLocal = normalizedProvider === 'local';
+    const primaryProvider = (
+        document.getElementById('llm-provider')?.value || provider || 'gemini'
+    ).toLowerCase();
+    const configuredProviders = new Set([
+        primaryProvider,
+        ...llmBackupProfiles.map(profile => (profile.provider || '').toLowerCase())
+    ].filter(Boolean));
+    const backupSection = document.getElementById('llm-backup-profiles-section');
+    if (backupSection) backupSection.style.display = llmBackupProfiles.length ? '' : 'none';
+    const isGemini = configuredProviders.has('gemini');
+    const isAtlas = configuredProviders.has('atlas');
+    const isOpenRouter = configuredProviders.has('openrouter');
+    const isLocal = configuredProviders.has('local');
     if (geminiCredentials) geminiCredentials.style.display = isGemini ? '' : 'none';
     if (geminiModelGroup) geminiModelGroup.style.display = isGemini ? '' : 'none';
     if (geminiModelsActions) geminiModelsActions.style.display = isGemini ? '' : 'none';
@@ -64,11 +74,139 @@ function updateLLMSettingsUI(provider = 'gemini') {
     if (openRouterModelsActions) openRouterModelsActions.style.display = isOpenRouter ? '' : 'none';
     if (localSettings) localSettings.style.display = isLocal ? '' : 'none';
     if (localModelsActions) localModelsActions.style.display = isLocal ? '' : 'none';
-    if (geminiChunkGroup) geminiChunkGroup.style.display = isGemini ? '' : 'none';
-    if (geminiChunkChaptersGroup) geminiChunkChaptersGroup.style.display = isGemini ? '' : 'none';
-    if (localChunkGroup) localChunkGroup.style.display = isGemini ? 'none' : '';
-    if (localChunkChaptersGroup) localChunkChaptersGroup.style.display = isGemini ? 'none' : '';
-    if (nonGeminiTuning) nonGeminiTuning.style.display = isGemini ? 'none' : '';
+    const primaryIsGemini = primaryProvider === 'gemini';
+    if (geminiChunkGroup) geminiChunkGroup.style.display = primaryIsGemini ? '' : 'none';
+    if (geminiChunkChaptersGroup) geminiChunkChaptersGroup.style.display = primaryIsGemini ? '' : 'none';
+    if (localChunkGroup) localChunkGroup.style.display = primaryIsGemini ? 'none' : '';
+    if (localChunkChaptersGroup) localChunkChaptersGroup.style.display = primaryIsGemini ? 'none' : '';
+    if (nonGeminiTuning) nonGeminiTuning.style.display = configuredProviders.size === 1 && primaryIsGemini ? 'none' : '';
+}
+
+function createLLMBackupProfile(index) {
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `llm-backup-${Date.now()}-${index}`;
+    return {
+        id,
+        name: `Backup ${index + 1}`,
+        provider: 'openrouter',
+        model: '',
+        api_key: ''
+    };
+}
+
+function normalizeLLMBackupProfile(profile, index) {
+    const supportedProviders = new Set(['gemini', 'atlas', 'openrouter', 'local']);
+    const provider = String(profile?.provider || 'openrouter').toLowerCase().trim();
+    return {
+        id: String(profile?.id || createLLMBackupProfile(index).id),
+        name: String(profile?.name || `Backup ${index + 1}`).trim() || `Backup ${index + 1}`,
+        provider: supportedProviders.has(provider) ? provider : 'openrouter',
+        model: String(profile?.model || '').trim(),
+        api_key: String(profile?.api_key || '').trim()
+    };
+}
+
+function syncLLMBackupProfilesFromRows() {
+    const rows = Array.from(document.querySelectorAll('[data-llm-backup-profile-index]'));
+    rows.forEach(row => {
+        const index = parseInt(row.dataset.llmBackupProfileIndex, 10);
+        const profile = llmBackupProfiles[index];
+        if (!profile) return;
+        profile.name = row.querySelector('[data-profile-field="name"]')?.value?.trim() || `Backup ${index + 1}`;
+        profile.provider = row.querySelector('[data-profile-field="provider"]')?.value || 'openrouter';
+        profile.model = row.querySelector('[data-profile-field="model"]')?.value?.trim() || '';
+        profile.api_key = row.querySelector('[data-profile-field="api_key"]')?.value?.trim() || '';
+    });
+}
+
+function renderLLMBackupProfiles() {
+    const list = document.getElementById('llm-backup-profiles-list');
+    if (!list) return;
+    list.innerHTML = llmBackupProfiles.map((profile, index) => `
+        <div class="llm-backup-profile-card" data-llm-backup-profile-index="${index}">
+            <div class="llm-backup-profile-heading">${index + 1}. ${escapeHtml(profile.name || `Backup ${index + 1}`)}</div>
+            <div class="settings-form-grid">
+                <div class="form-group">
+                    <label>Profile Name</label>
+                    <input type="text" data-profile-field="name" value="${escapeHtml(profile.name || '')}" placeholder="Backup ${index + 1}">
+                </div>
+                <div class="form-group">
+                    <label>Provider</label>
+                    <select data-profile-field="provider">
+                        <option value="gemini" ${profile.provider === 'gemini' ? 'selected' : ''}>Gemini</option>
+                        <option value="atlas" ${profile.provider === 'atlas' ? 'selected' : ''}>Atlas Cloud</option>
+                        <option value="openrouter" ${profile.provider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
+                        <option value="local" ${profile.provider === 'local' ? 'selected' : ''}>Local (LM Studio / Ollama)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Model Override</label>
+                    <input type="text" data-profile-field="model" list="llm-backup-model-suggestions" value="${escapeHtml(profile.model || '')}" placeholder="Blank uses provider default">
+                </div>
+                <div class="form-group">
+                    <label>API Key Override</label>
+                    <input type="password" data-profile-field="api_key" value="${escapeHtml(profile.api_key || '')}" placeholder="Blank uses provider API key above" autocomplete="off">
+                </div>
+            </div>
+        </div>
+    `).join('');
+    list.querySelectorAll('input, select').forEach(control => {
+        control.addEventListener('change', () => {
+            syncLLMBackupProfilesFromRows();
+            renderLLMModelSuggestions();
+            updateLLMSettingsUI();
+        });
+        control.addEventListener('input', syncLLMBackupProfilesFromRows);
+    });
+    renderLLMModelSuggestions();
+    updateLLMSettingsUI();
+}
+
+function resizeLLMBackupProfiles(rawCount) {
+    syncLLMBackupProfilesFromRows();
+    const count = Math.max(0, Math.min(
+        MAX_LLM_BACKUP_PROFILES,
+        parseInt(rawCount, 10) || 0
+    ));
+    while (llmBackupProfiles.length < count) {
+        llmBackupProfiles.push(createLLMBackupProfile(llmBackupProfiles.length));
+    }
+    if (llmBackupProfiles.length > count) {
+        llmBackupProfiles.length = count;
+    }
+    const countInput = document.getElementById('llm-backup-profile-count');
+    if (countInput) countInput.value = String(count);
+    renderLLMBackupProfiles();
+}
+
+function setLLMBackupProfiles(profiles) {
+    llmBackupProfiles = (Array.isArray(profiles) ? profiles : [])
+        .slice(0, MAX_LLM_BACKUP_PROFILES)
+        .map(normalizeLLMBackupProfile);
+    const countInput = document.getElementById('llm-backup-profile-count');
+    if (countInput) countInput.value = String(llmBackupProfiles.length);
+    renderLLMBackupProfiles();
+}
+
+function renderLLMModelSuggestions() {
+    const datalist = document.getElementById('llm-backup-model-suggestions');
+    if (!datalist) return;
+    const modelIds = new Set();
+    ['gemini-model', 'atlas-cloud-model', 'openrouter-model', 'llm-local-model'].forEach(id => {
+        const control = document.getElementById(id);
+        if (!control) return;
+        if (control.tagName === 'SELECT') {
+            Array.from(control.options).forEach(option => {
+                if (option.value) modelIds.add(option.value);
+            });
+        } else if (control.value?.trim()) {
+            modelIds.add(control.value.trim());
+        }
+    });
+    datalist.innerHTML = Array.from(modelIds).sort().map(model => (
+        `<option value="${escapeHtml(model)}"></option>`
+    )).join('');
 }
 
 async function fetchAtlasCloudModels(buttonEl) {
@@ -131,6 +269,7 @@ async function fetchAtlasCloudModels(buttonEl) {
             buttonEl.disabled = false;
             buttonEl.textContent = originalLabel || 'Fetch Atlas Models';
         }
+        renderLLMModelSuggestions();
     }
 }
 
@@ -189,6 +328,7 @@ async function fetchOpenRouterModels(buttonEl) {
             buttonEl.disabled = false;
             buttonEl.textContent = originalLabel || 'Fetch OpenRouter Models';
         }
+        renderLLMModelSuggestions();
     }
 }
 
@@ -268,16 +408,19 @@ async function fetchLocalLlmModels(buttonEl) {
             buttonEl.disabled = false;
             buttonEl.textContent = originalLabel || 'Fetch Local Models';
         }
+        renderLLMModelSuggestions();
     }
 }
 
 function setupLlmProviderHandlers() {
     const providerSelect = document.getElementById('llm-provider');
+    const backupProfileCount = document.getElementById('llm-backup-profile-count');
     const localProviderSelect = document.getElementById('llm-local-provider');
     if (providerSelect) {
-        providerSelect.addEventListener('change', () => {
-            updateLLMSettingsUI(providerSelect.value);
-        });
+        providerSelect.addEventListener('change', () => updateLLMSettingsUI(providerSelect.value));
+    }
+    if (backupProfileCount) {
+        backupProfileCount.addEventListener('change', () => resizeLLMBackupProfiles(backupProfileCount.value));
     }
     if (localProviderSelect) {
         localProviderSelect.addEventListener('change', () => {
@@ -776,6 +919,7 @@ async function fetchGeminiModels(buttonEl) {
             buttonEl.disabled = false;
             buttonEl.textContent = originalLabel || 'Fetch Available Models';
         }
+        renderLLMModelSuggestions();
     }
 }
 
@@ -1277,7 +1421,7 @@ function applySettings(settings) {
     setElementValue('llm-local-chunk-size', settings.llm_local_chunk_size ?? 500, 500);
     setCheckboxValue('llm-gemini-chunk-chapters', settings.llm_gemini_chunk_chapters ?? true, true);
     setCheckboxValue('llm-local-chunk-chapters', settings.llm_local_chunk_chapters ?? true, true);
-    updateLLMSettingsUI(llmProvider);
+    setLLMBackupProfiles(settings.llm_backup_profiles || []);
 
     // Engine + Chatterbox settings
     const ttsEngineSelect = document.getElementById('settings-tts-engine');
@@ -1709,6 +1853,7 @@ async function saveSettings() {
     };
 
     const kokoroReplicateKeyEl = document.getElementById('kokoro-replicate-api-key');
+    syncLLMBackupProfilesFromRows();
     const settings = {
         replicate_api_key: kokoroReplicateKeyEl ? kokoroReplicateKeyEl.value : '',
         chunk_size: parseInt(document.getElementById('chunk-size').value),
@@ -1727,6 +1872,7 @@ async function saveSettings() {
         gemini_speaker_profile_prompt: document.getElementById('gemini-speaker-profile-prompt')?.value || '',
         gemini_prompt_presets: geminiPresetState.list.map(preset => ({ ...preset })),
         llm_provider: document.getElementById('llm-provider')?.value || 'gemini',
+        llm_backup_profiles: llmBackupProfiles.map(profile => ({ ...profile })),
         atlas_cloud_api_key: document.getElementById('atlas-cloud-api-key')?.value || '',
         atlas_cloud_base_url: document.getElementById('atlas-cloud-base-url')?.value || ATLAS_CLOUD_BASE_URL,
         atlas_cloud_model: document.getElementById('atlas-cloud-model')?.value || 'deepseek-v3',
@@ -1977,6 +2123,7 @@ async function resetSettings() {
         gemini_prompt: '',
         gemini_prompt_presets: [],
         llm_provider: 'gemini',
+        llm_backup_profiles: [],
         atlas_cloud_api_key: '',
         atlas_cloud_base_url: ATLAS_CLOUD_BASE_URL,
         atlas_cloud_model: 'deepseek-v3',

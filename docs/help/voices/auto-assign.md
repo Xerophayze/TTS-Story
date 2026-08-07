@@ -8,7 +8,7 @@ The Generate page offers two different automation tools. **Generate Voices** des
 
 ## Generate Voices from profiles
 
-Speaker profiles are normally created after a successful Prep Text run. You can review and edit a speaker's Profile and Voice Type by clicking its speaker chip.
+Speaker profiles can be created after a successful Prep Text run, with **Build Profiles** for all detected speakers, or individually from Speaker Properties. If the text is already tagged, click a speaker chip and choose **Build Profile**; only that speaker's bounded tagged excerpts are analyzed, and the manuscript is not rewritten. Review and edit the returned Profile and Voice Type before using them.
 
 To generate samples for all speakers:
 
@@ -22,6 +22,8 @@ To generate samples for all speakers:
 For each speaker, TTS-Story generates a preview, saves it into Voice Prompts, refreshes the prompt list, and attempts to select the newly saved prompt for that speaker. The completion message reports how many voices succeeded.
 
 This operation can be slow and can consume significant GPU resources. Test one voice through [Voice Creation](app:voices) before launching a large batch.
+
+To build and design only one speaker, open that speaker's properties, click **Build Profile**, review the two generated fields, and then click **Generate Voice**. These buttons perform separate operations: Build Profile calls the configured LLM chain, while Generate Voice creates and saves the audio reference.
 
 ## Auto Assign existing prompts
 

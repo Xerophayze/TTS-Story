@@ -15,6 +15,7 @@ from typing import List, Tuple
 PAUSE_MARKER_PATTERN = re.compile(
     r"(?<![\w*])(\*{3}(?:\*{3})*)(?!\*)(?=\s|$)",
 )
+TRAILING_PAUSE_MARKER_PATTERN = re.compile(r"\s*\*{3}(?:\*{3})*\s*$")
 
 
 def pause_seconds_for_text(text: str) -> float | None:
@@ -23,6 +24,12 @@ def pause_seconds_for_text(text: str) -> float | None:
     if not re.fullmatch(r"\*{3}(?:\*{3})*", candidate):
         return None
     return (len(candidate) // 3) * 0.25
+
+
+def sanitize_display_title(value: str | None) -> str:
+    """Remove only recognized trailing pause controls from public titles."""
+    title = str(value or "")
+    return TRAILING_PAUSE_MARKER_PATTERN.sub("", title).strip()
 
 
 def split_text_and_pause_markers(text: str) -> List[Tuple[str, str]]:

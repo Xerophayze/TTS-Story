@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TTS-Story - Multi-Voice TTS</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2326324a'/%3E%3Cpath d='M18 22h6v20h-6zM28 22h6v20h-6zM38 22h6v20h-6z' fill='%23a78bfa'/%3E%3Ccircle cx='32' cy='16' r='4' fill='%23fcd34d'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23fcd34d'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="/static/css/style.css?v=34">
+    <link rel="stylesheet" href="/static/css/style.css?v=35">
     <link rel="stylesheet" href="/static/css/help.css?v=3">
 </head>
 <body>
@@ -1786,13 +1786,19 @@
                         <p class="help-text" style="margin-top:0;">Use Gemini, Atlas Cloud, OpenRouter, or a local LLM (LM Studio / Ollama) to clean up or enhance text before TTS.</p>
                         <div class="settings-form-grid">
                             <div class="form-group">
-                                <label for="llm-provider">LLM Provider</label>
+                                <label for="llm-provider">Primary LLM Provider</label>
                                 <select id="llm-provider">
                                     <option value="gemini">Gemini (cloud)</option>
                                     <option value="atlas">Atlas Cloud (cloud)</option>
                                     <option value="openrouter">OpenRouter (cloud)</option>
                                     <option value="local">Local (LM Studio / Ollama)</option>
                                 </select>
+                                <small>Used first for every preprocessing run.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="llm-backup-profile-count">Number of Backup LLM Profiles</label>
+                                <input type="number" id="llm-backup-profile-count" min="0" max="100" step="1" value="0">
+                                <small>Create up to 100 ordered backups. Each profile can use its own provider, model, and API key.</small>
                             </div>
                             <div class="form-group" id="llm-gemini-chunk-group">
                                 <label for="llm-gemini-chunk-size">Gemini chunk size (words)</label>
@@ -1831,6 +1837,12 @@
                                     <option value="gemini-1.0-pro-latest">gemini-1.0-pro-latest</option>
                                 </select>
                             </div>
+                        </div>
+                        <div id="llm-backup-profiles-section" class="settings-subsection" style="margin-top:16px; display:none;">
+                            <h4>Backup LLM Profiles</h4>
+                            <p class="help-text">Profiles are attempted from top to bottom. A blank model or API key inherits that provider's main setting.</p>
+                            <datalist id="llm-backup-model-suggestions"></datalist>
+                            <div id="llm-backup-profiles-list"></div>
                         </div>
                         <div class="button-group" style="margin-top: 10px;" id="gemini-models-actions">
                             <button type="button" id="fetch-gemini-models-btn" class="btn btn-secondary btn-sm">Fetch Models</button>
@@ -2495,10 +2507,10 @@
     </div>
 
     <script src="/static/js/help.js?v=3"></script>
-<script src="/static/js/main.js?v=42"></script>
+<script src="/static/js/main.js?v=45"></script>
     <script src="/static/js/queue.js?v=4"></script>
-<script src="/static/js/library.js?v=43"></script>
+<script src="/static/js/library.js?v=44"></script>
     <script src="/static/js/voice-manager.js?v=14"></script>
-    <script src="/static/js/settings.js?v=10"></script>
+    <script src="/static/js/settings.js?v=13"></script>
 </body>
 </html>
