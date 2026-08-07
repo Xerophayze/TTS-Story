@@ -10,8 +10,8 @@ Every contribution is appreciated. Thank you for helping make this work possible
 
 ---
 
-# Current Updates and Notes - updated 08-06-2026
-- **Flexible LLM failover and speaker profiling** - configure an ordered list of backup LLM profiles, each with its own provider, model, and API key. Speaker Properties can now build an AI profile for one selected tagged speaker without processing every character.
+# Current Updates and Notes - updated 08-07-2026
+- **Smarter LLM failover and speaker profiling** - Prep Text now retries temporary high-demand errors on the same profile before advancing, switches immediately on explicit quota exhaustion, and supports a daily request cap for each backup profile (18 by default; 0 for unlimited). Speaker Properties can also build an AI profile for one selected tagged speaker.
 - **Production-ready audiobook exports** - corrected ACX-oriented MP3 encoding, improved chapter title handling, preserved saved rebuild settings, and added clearer M4B cover-art validation and confirmation.
 - **More reliable online generation** - configurable parallel cloud jobs, stronger timeout and retry handling, resumable progress, and safer finalization help long audiobook projects complete without restarting finished work.
 
@@ -115,7 +115,7 @@ A web-based Text-to-Speech application supporting multiple TTS engines including
 
 ### AI & Processing
 - **Multi-Provider LLM Pre-Processing**: Clean up and tag text with Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama
-- **Configurable LLM Failover**: Add ordered backup profiles with independent provider, model, and API-key settings; each new job tries the primary first and advances through backups only when needed
+- **Configurable LLM Failover**: Add ordered backup profiles with independent provider, model, API-key, and daily-request-limit settings; Prep Text retries temporary capacity errors before advancing while explicit quota exhaustion moves to the next profile
 - **Individual Speaker Profile Building**: Build or refresh the AI-generated description and voice type for one tagged speaker directly from Speaker Properties
 - **Atlas Cloud Model Discovery**: Save an Atlas Cloud API key and retrieve current LLM choices from the authenticated API and public LLM catalog
 - **OpenRouter Model Discovery**: Retrieve the text models allowed by your key's provider preferences, privacy settings, and guardrails

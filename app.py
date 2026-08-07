@@ -35,6 +35,7 @@ from functools import lru_cache
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 from werkzeug.utils import secure_filename
 import soundfile as sf
 
@@ -191,6 +192,8 @@ CHATTERBOX_VOICE_REGISTRY = Path("data/chatterbox_voices.json")
 EXTERNAL_VOICES_ARCHIVE_FILE = Path("data/external_voice_archives.json")
 PREP_PROGRESS_DIR = Path("data/prep")
 PREP_PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
+LLM_PROFILE_USAGE_FILE = Path("data/llm_profile_usage.json")
+LLM_PROFILE_USAGE_LOCK = threading.Lock()
 JOB_METADATA_FILENAME = "metadata.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 DEFAULT_LLM_PROVIDER = "gemini"
@@ -3269,6 +3272,23 @@ class LLMProviderChainError(RuntimeError):
         self.retryable = bool(retryable)
 
 
+class LLMProfileRetryError(LLMProviderChainError):
+    """Ask the section client to retry one profile before advancing."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        current_profile: Dict[str, Any],
+        next_profile: Optional[Dict[str, Any]] = None,
+        failures: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        super().__init__(message, retryable=True)
+        self.current_profile = _public_llm_profile(current_profile)
+        self.next_profile = _public_llm_profile(next_profile) if next_profile else None
+        self.failures = list(failures or [])
+
+
 def _default_llm_model_for_provider(config: Dict[str, Any], provider: str) -> str:
     model_keys = {
         "gemini": "gemini_model",
@@ -3289,7 +3309,15 @@ def _default_llm_api_key_for_provider(config: Dict[str, Any], provider: str) -> 
     return str(config.get(key_names.get(provider, "")) or "").strip()
 
 
-def _resolve_llm_profile_chain(config: Dict[str, Any]) -> List[Dict[str, str]]:
+def _coerce_llm_daily_request_limit(value: Any, default: int = 18) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = int(default)
+    return max(0, min(parsed, 1000000))
+
+
+def _resolve_llm_profile_chain(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Return the primary profile followed by any configured backup profiles."""
     primary_provider = str(
         config.get("llm_provider") or DEFAULT_LLM_PROVIDER
@@ -3303,6 +3331,7 @@ def _resolve_llm_profile_chain(config: Dict[str, Any]) -> List[Dict[str, str]]:
         "provider": primary_provider,
         "model": _default_llm_model_for_provider(config, primary_provider),
         "api_key": "",
+        "daily_request_limit": 0,
     }]
     raw_backups = config.get("llm_backup_profiles") or []
     if not isinstance(raw_backups, list):
@@ -3343,20 +3372,67 @@ def _resolve_llm_profile_chain(config: Dict[str, Any]) -> List[Dict[str, str]]:
             "provider": provider,
             "model": resolved_model,
             "api_key": api_key,
+            "daily_request_limit": _coerce_llm_daily_request_limit(
+                raw_profile.get("daily_request_limit"),
+                18,
+            ),
         })
         seen_ids.add(profile_id)
         seen_targets.add(target)
     return profiles
 
 
-def _public_llm_profile(profile: Dict[str, str]) -> Dict[str, str]:
+def _public_llm_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
     """Return profile status without ever exposing its API key."""
     return {
         "id": profile.get("id") or "",
         "name": profile.get("name") or "",
         "provider": profile.get("provider") or "",
         "model": profile.get("model") or "",
+        "daily_request_limit": int(profile.get("daily_request_limit") or 0),
     }
+
+
+def _llm_usage_day_key(now: Optional[datetime] = None) -> str:
+    """Return the current usage day using Gemini's Pacific-time boundary."""
+    pacific = ZoneInfo("America/Los_Angeles")
+    current = now or datetime.now(tz=pacific)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=pacific)
+    else:
+        current = current.astimezone(pacific)
+    return current.date().isoformat()
+
+
+def _load_llm_profile_usage(day_key: str) -> Dict[str, Any]:
+    try:
+        payload = json.loads(LLM_PROFILE_USAGE_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        payload = {}
+    if payload.get("pacific_date") != day_key or not isinstance(payload.get("profiles"), dict):
+        return {"pacific_date": day_key, "profiles": {}}
+    return payload
+
+
+def _reserve_llm_profile_request(profile: Dict[str, Any]) -> tuple[bool, int, int]:
+    """Atomically reserve one provider request under a profile's daily cap."""
+    limit = _coerce_llm_daily_request_limit(profile.get("daily_request_limit"), 0)
+    if limit == 0:
+        return True, 0, 0
+    profile_id = str(profile.get("id") or "").strip()
+    if not profile_id:
+        return True, 0, limit
+    day_key = _llm_usage_day_key()
+    with LLM_PROFILE_USAGE_LOCK:
+        payload = _load_llm_profile_usage(day_key)
+        profiles = payload["profiles"]
+        used = max(0, int(profiles.get(profile_id) or 0))
+        if used >= limit:
+            return False, used, limit
+        used += 1
+        profiles[profile_id] = used
+        write_json_atomic(LLM_PROFILE_USAGE_FILE, payload)
+        return True, used, limit
 
 
 def _is_retryable_llm_error(exc: Exception) -> bool:
@@ -3403,6 +3479,48 @@ def _is_retryable_llm_error(exc: Exception) -> bool:
         "504",
     )
     return any(marker in message for marker in retryable_markers)
+
+
+def _llm_error_action(exc: Exception) -> str:
+    """Return stop, retry_profile, or advance_profile for a provider failure."""
+    if not _is_retryable_llm_error(exc):
+        return "stop"
+    message = str(exc or "").lower()
+    high_demand_markers = (
+        "high demand",
+        "overloaded",
+    )
+    if any(marker in message for marker in high_demand_markers):
+        return "retry_profile"
+    quota_markers = (
+        "quota exceeded",
+        "exceeded your current quota",
+        "resource_exhausted",
+        "resource exhausted",
+        "insufficient quota",
+        "requests per day",
+        "daily request limit",
+    )
+    if any(marker in message for marker in quota_markers):
+        return "advance_profile"
+    transient_capacity_markers = (
+        "temporarily unavailable",
+        "service unavailable",
+        "unavailable",
+        "try again",
+        "timed out",
+        "timeout",
+        "connection",
+        "network",
+        "502",
+        "503",
+        "504",
+    )
+    if any(marker in message for marker in transient_capacity_markers):
+        return "retry_profile"
+    if "429" in message or "rate limit" in message or "rate_limit" in message:
+        return "retry_profile"
+    return "retry_profile"
 
 
 def _run_llm_prompt_for_provider(
@@ -3494,7 +3612,8 @@ def _run_llm_prompt_with_failover(
     prompt: str,
     config: Dict[str, Any],
     preferred_profile: Optional[str] = None,
-) -> tuple[str, Dict[str, str], List[Dict[str, str]]]:
+    defer_transient_failover: bool = False,
+) -> tuple[str, Dict[str, Any], List[Dict[str, Any]]]:
     """Run a prompt through the configured profile chain.
 
     A preferred profile is used by multi-section prep after failover so every
@@ -3510,9 +3629,36 @@ def _run_llm_prompt_with_failover(
     if preferred_index is not None:
         profiles = profiles[preferred_index:]
 
-    failures: List[Dict[str, str]] = []
+    failures: List[Dict[str, Any]] = []
     for index, profile in enumerate(profiles):
         provider = profile["provider"]
+        allowed, used, limit = _reserve_llm_profile_request(profile)
+        if not allowed:
+            failures.append({
+                "profile_id": profile["id"],
+                "profile_name": profile["name"],
+                "provider": provider,
+                "model": profile.get("model") or "",
+                "error": (
+                    f"Daily request limit reached ({used}/{limit}); "
+                    "the counter resets at midnight Pacific Time"
+                ),
+                "failure_kind": "daily_limit",
+            })
+            if index + 1 < len(profiles):
+                logger.info(
+                    "LLM profile %s reached its daily request limit; trying backup %s",
+                    profile["name"],
+                    profiles[index + 1]["name"],
+                )
+                continue
+            summary = "; ".join(
+                f"{entry['profile_name']}: {entry['error']}" for entry in failures
+            )
+            raise LLMProviderChainError(
+                f"LLM provider chain stopped ({summary})",
+                retryable=False,
+            )
         try:
             result = _run_llm_prompt_for_provider(
                 prompt,
@@ -3523,28 +3669,37 @@ def _run_llm_prompt_with_failover(
             )
             return result, _public_llm_profile(profile), failures
         except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
-            retryable = _is_retryable_llm_error(exc)
+            action = _llm_error_action(exc)
             failures.append({
                 "profile_id": profile["id"],
                 "profile_name": profile["name"],
                 "provider": provider,
                 "model": profile.get("model") or "",
                 "error": str(exc),
+                "failure_kind": action,
             })
             has_backup = index + 1 < len(profiles)
-            if not retryable or not has_backup:
-                if len(failures) == 1:
+            if action == "retry_profile" and defer_transient_failover:
+                raise LLMProfileRetryError(
+                    str(exc),
+                    current_profile=profile,
+                    next_profile=profiles[index + 1] if has_backup else None,
+                    failures=failures,
+                ) from exc
+            if action == "stop" or not has_backup:
+                if len(failures) == 1 and action != "advance_profile":
                     raise
                 summary = "; ".join(
                     f"{entry['profile_name']}: {entry['error']}" for entry in failures
                 )
                 raise LLMProviderChainError(
                     f"LLM provider chain failed ({summary})",
-                    retryable=retryable,
+                    retryable=action == "retry_profile",
                 ) from exc
             logger.warning(
-                "LLM profile %s failed with a retryable error; trying backup %s: %s",
+                "LLM profile %s failed (%s); trying backup %s: %s",
                 profile["name"],
+                action,
                 profiles[index + 1]["name"],
                 exc,
             )
@@ -8870,6 +9025,7 @@ def process_gemini_section():
             prompt,
             config,
             preferred_profile=preferred_profile,
+            defer_transient_failover=True,
         )
         detected_speakers = text_processor.extract_speakers(response_text)
 
@@ -8892,11 +9048,21 @@ def process_gemini_section():
             else any(m.lower() in err_str.lower() for m in transient_markers)
         )
         if is_transient:
-            return jsonify({
+            response_payload = {
                 "success": False,
                 "error": err_str,
                 "retryable": True
-            }), 503
+            }
+            current_profile = getattr(exc, "current_profile", None)
+            next_profile = getattr(exc, "next_profile", None)
+            failures = getattr(exc, "failures", None)
+            if current_profile:
+                response_payload["retry_profile"] = current_profile
+            if next_profile:
+                response_payload["next_profile"] = next_profile
+            if failures:
+                response_payload["provider_failures"] = failures
+            return jsonify(response_payload), 503
         return jsonify({
             "success": False,
             "error": err_str

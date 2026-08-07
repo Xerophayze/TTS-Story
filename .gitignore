@@ -70,6 +70,7 @@ data/prep/
 data/chatterbox_voices.json
 data/custom_voices.json
 data/external_voice_archives.json
+data/llm_profile_usage.json
 data/*.db
 
 # External voices cache

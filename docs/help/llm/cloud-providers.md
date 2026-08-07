@@ -14,11 +14,14 @@ The **Primary LLM Provider** is contacted first for every new operation. To add 
 4. Select that profile's **Provider**.
 5. Enter a **Model Override** when the profile should use a different model. Leave it blank to use that provider's normal model setting.
 6. Enter an **API Key Override** when the profile needs its own credential. Leave it blank to inherit that provider's normal API key.
-7. Click **Save Settings**.
+7. Set the **Daily Request Limit**. New profiles default to 18 requests; use `0` for unlimited requests.
+8. Click **Save Settings**.
 
 Profiles are attempted from top to bottom. The same provider may appear more than once with different models or keys, so multiple OpenRouter routes or separate provider credentials can be placed at different points in the chain. Each profile is independent; an API-key override on one profile is not applied to another.
 
-Backups are used only for retryable availability problems such as quota or rate limits, timeouts, connection failures, and HTTP 5xx outages. Invalid credentials, missing models, invalid prompts, and other configuration errors stop the operation so the setting that needs attention remains visible.
+During multi-section Prep Text, TTS-Story distinguishes temporary capacity problems from exhausted quota. High-demand, overloaded, timeout, connection, and temporary service errors use the existing five-retry cycle on the current profile before advancing. Explicit quota-exceeded or `RESOURCE_EXHAUSTED` responses advance to the next profile immediately. Invalid credentials, missing models, invalid prompts, and other configuration errors stop the operation so the setting that needs attention remains visible.
+
+The daily request limit is a local safety control, not a provider billing guarantee. TTS-Story counts every request attempt made with that profile, including failed and retried requests, and resets its counter at midnight Pacific Time. It cannot see requests made by other applications. Limits belong to profiles, so reusing one API key in several profiles gives each profile a separate counter.
 
 During a multi-section **Prep Text** job, a successful backup remains active for the remaining sections. If it later fails, processing advances through the profiles after it. Pause and Resume preserve the active profile. Restart and every genuinely new operation begin with the primary again. **Build Profiles** and a speaker's **Build Profile** are separate operations, so each of those begins with the primary provider.
 

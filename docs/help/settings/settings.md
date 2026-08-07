@@ -38,7 +38,7 @@ The **Audio & Generation** group contains shared chunking, crossfade, silence, p
 
 ## LLM pre-processing
 
-The **LLM Pre-Processing** group selects Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama as the primary provider. It stores provider URLs, model selection, tuning values, prompts, and credentials. **Number of Backup LLM Profiles** creates an ordered fallback chain; each profile has its own name, provider, optional model override, and optional API-key override. Blank overrides inherit the selected provider's normal settings.
+The **LLM Pre-Processing** group selects Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama as the primary provider. It stores provider URLs, model selection, tuning values, prompts, and credentials. **Number of Backup LLM Profiles** creates an ordered fallback chain; each profile has its own name, provider, optional model override, optional API-key override, and daily request limit. Blank model/key overrides inherit the selected provider's normal settings. New profiles default to 18 requests per Pacific day; `0` means unlimited.
 
 These settings support Prep Text, Build Profiles, and the individual Build Profile action in Speaker Properties; they do not select a TTS engine. Every new operation starts with the primary profile. A multi-section Prep Text run remains on a successful backup for the rest of that run unless it also fails.
 

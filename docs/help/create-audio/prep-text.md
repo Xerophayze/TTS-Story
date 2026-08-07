@@ -45,7 +45,7 @@ Read [Prompt Presets, Chunking, and Review](help:llm-prompts) before processing 
 1. TTS-Story builds a section list using the enabled section-heading terms.
 2. It processes the sections in sequence and carries forward known speaker names.
 3. The progress display reports the current section.
-4. Temporary failures that the provider marks as retryable, including HTTP 503 responses, can be retried up to five times. Authentication and validation failures stop immediately so you can correct the setting.
+4. High-demand, overloaded, timeout, connection, and temporary service failures retry the current LLM profile up to five times. Explicit quota exhaustion or the profile's local daily request cap advances to the next backup immediately. Authentication and validation failures stop so you can correct the setting.
 5. **Pause** requests a stop after the current section and preserves progress.
 6. **Resume** continues saved progress; **Restart** clears the saved sections and begins again from section 1; **Abort** discards the saved preparation progress.
 7. After every section succeeds, the outputs are combined and replace **Input Text**.

@@ -1,7 +1,7 @@
 {
   "title": "TTS-Story User Guide",
   "subtitle": "From first launch to a finished, reviewed audiobook",
-  "version": "2026.08.06.1",
+  "version": "2026.08.07.1",
   "categories": [
     {
       "id": "start-here",
@@ -387,7 +387,7 @@
       "file": "llm/overview.md",
       "title": "LLM Preparation Overview",
       "summary": "Prepare text, build speaker profiles, and use ordered LLM failover while preserving source material.",
-      "keywords": ["LLM", "Prep Text", "Gemini", "Atlas Cloud", "OpenRouter", "local", "backup profile", "failover"],
+      "keywords": ["LLM", "Prep Text", "Gemini", "Atlas Cloud", "OpenRouter", "local", "backup profile", "failover", "daily request limit", "high demand", "quota"],
       "related": ["prep-text", "llm-cloud", "llm-prompts"]
     },
     {
@@ -395,7 +395,7 @@
       "file": "llm/cloud-providers.md",
       "title": "Gemini, Atlas Cloud, and OpenRouter",
       "summary": "Configure cloud LLM providers, per-profile models and API keys, and an ordered failover chain.",
-      "keywords": ["Gemini", "Atlas Cloud", "OpenRouter", "model discovery", "API key", "backup LLM", "failover", "profile override"],
+      "keywords": ["Gemini", "Atlas Cloud", "OpenRouter", "model discovery", "API key", "backup LLM", "failover", "profile override", "daily request limit", "quota"],
       "related": ["online-services", "llm-prompts", "cloud-errors"]
     },
     {

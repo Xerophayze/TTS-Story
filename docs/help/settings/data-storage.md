@@ -13,6 +13,7 @@ TTS-Story stores configuration, generated audio, jobs, prompts, models, and brow
 | `data/chatterbox_voices.json` | Friendly voice registry and prompt metadata |
 | `data/custom_voices.json` | Custom Kokoro blend definitions |
 | `data/prep/` | Saved Prep Text progress |
+| `data/llm_profile_usage.json` | Local per-profile daily LLM request counters; contains profile IDs and counts, not API keys |
 | `data/external_voices/` and related cache files | Downloaded/cataloged external voices |
 | `static/samples/` | Generated catalog preview audio |
 | `models/` and engine-specific model/cache directories | Downloaded local model data |

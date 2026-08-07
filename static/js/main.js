@@ -2877,7 +2877,9 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
             }
 
             let sectionData = null;
-            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            let retryAttempt = 0;
+            let retryProfileId = payload.preferred_profile || '';
+            while (true) {
                 const sectionResponse = await fetch('/api/gemini/process-section', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2889,18 +2891,43 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
                 if (sectionData.success) break;
 
                 const isRetryable = sectionData.retryable === true || sectionResponse.status === 503;
-                if (!isRetryable || attempt >= MAX_RETRIES) {
+                if (!isRetryable) {
                     throw new Error(sectionData.error || `The LLM failed on section ${currentIndex}`);
                 }
 
-                const delaySec = Math.round((RETRY_BASE_DELAY_MS * (attempt + 1)) / 1000);
+                const reportedRetryProfile = sectionData.retry_profile?.id || payload.preferred_profile || '';
+                if (reportedRetryProfile && reportedRetryProfile !== retryProfileId) {
+                    retryProfileId = reportedRetryProfile;
+                    payload.preferred_profile = reportedRetryProfile;
+                    retryAttempt = 0;
+                }
+
+                if (retryAttempt >= MAX_RETRIES) {
+                    const nextProfile = sectionData.next_profile || null;
+                    if (!nextProfile?.id) {
+                        throw new Error(sectionData.error || `The LLM failed on section ${currentIndex}`);
+                    }
+                    const previousName = sectionData.retry_profile?.name || retryProfileId || 'current LLM profile';
+                    retryProfileId = nextProfile.id;
+                    payload.preferred_profile = nextProfile.id;
+                    activeProfile = nextProfile.id;
+                    retryAttempt = 0;
+                    showNotification(
+                        `${previousName} remained unavailable after ${MAX_RETRIES} retries. Switching to ${nextProfile.name || nextProfile.id}.`,
+                        'warning'
+                    );
+                    continue;
+                }
+
+                retryAttempt += 1;
+                const delaySec = Math.round((RETRY_BASE_DELAY_MS * retryAttempt) / 1000);
                 updateGeminiProgress({
                     visible: true,
-                    label: `Section ${currentIndex}: LLM busy — retrying in ${delaySec}s (attempt ${attempt + 1}/${MAX_RETRIES})…`,
+                    label: `Section ${currentIndex}: ${sectionData.retry_profile?.name || 'LLM'} busy — retrying in ${delaySec}s (${retryAttempt}/${MAX_RETRIES})…`,
                     count: `${currentIndex} / ${sections.length}`,
                     fill: Math.round((currentIndex / sections.length) * 100)
                 });
-                await new Promise(resolve => setTimeout(resolve, RETRY_BASE_DELAY_MS * (attempt + 1)));
+                await new Promise(resolve => setTimeout(resolve, RETRY_BASE_DELAY_MS * retryAttempt));
             }
 
             const previousProfile = activeProfile;

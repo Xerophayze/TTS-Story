@@ -91,19 +91,22 @@ function createLLMBackupProfile(index) {
         name: `Backup ${index + 1}`,
         provider: 'openrouter',
         model: '',
-        api_key: ''
+        api_key: '',
+        daily_request_limit: 18
     };
 }
 
 function normalizeLLMBackupProfile(profile, index) {
     const supportedProviders = new Set(['gemini', 'atlas', 'openrouter', 'local']);
     const provider = String(profile?.provider || 'openrouter').toLowerCase().trim();
+    const rawDailyLimit = Number.parseInt(profile?.daily_request_limit, 10);
     return {
         id: String(profile?.id || createLLMBackupProfile(index).id),
         name: String(profile?.name || `Backup ${index + 1}`).trim() || `Backup ${index + 1}`,
         provider: supportedProviders.has(provider) ? provider : 'openrouter',
         model: String(profile?.model || '').trim(),
-        api_key: String(profile?.api_key || '').trim()
+        api_key: String(profile?.api_key || '').trim(),
+        daily_request_limit: Number.isFinite(rawDailyLimit) ? Math.max(0, rawDailyLimit) : 18
     };
 }
 
@@ -117,6 +120,8 @@ function syncLLMBackupProfilesFromRows() {
         profile.provider = row.querySelector('[data-profile-field="provider"]')?.value || 'openrouter';
         profile.model = row.querySelector('[data-profile-field="model"]')?.value?.trim() || '';
         profile.api_key = row.querySelector('[data-profile-field="api_key"]')?.value?.trim() || '';
+        const dailyLimit = Number.parseInt(row.querySelector('[data-profile-field="daily_request_limit"]')?.value, 10);
+        profile.daily_request_limit = Number.isFinite(dailyLimit) ? Math.max(0, dailyLimit) : 18;
     });
 }
 
@@ -147,6 +152,11 @@ function renderLLMBackupProfiles() {
                 <div class="form-group">
                     <label>API Key Override</label>
                     <input type="password" data-profile-field="api_key" value="${escapeHtml(profile.api_key || '')}" placeholder="Blank uses provider API key above" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label>Daily Request Limit</label>
+                    <input type="number" data-profile-field="daily_request_limit" min="0" max="1000000" step="1" value="${profile.daily_request_limit ?? 18}">
+                    <small>Resets at midnight Pacific Time. Use 0 for unlimited requests.</small>
                 </div>
             </div>
         </div>
