@@ -51,20 +51,19 @@ SETUP_PLATFORM_ID="$(printf '%s-%s' "$PLATFORM" "$ARCHITECTURE" | tr '[:upper:]'
 # 1/12 Check Python installation
 echo
 echo "[1/12] Checking Python installation..."
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "ERROR: python3 is not installed or not in PATH"
-    echo "Please install Python 3.9 or higher."
+PYTHON_BIN="$(tts_story_find_compatible_python || true)"
+if [ -z "$PYTHON_BIN" ]; then
+    DEFAULT_PYTHON_VERSION="not found"
+    if command -v python3 >/dev/null 2>&1; then
+        DEFAULT_PYTHON_VERSION="$(python3 --version 2>&1 || true)"
+    fi
+    echo "ERROR: Python 3.9 through 3.12 is required. Default python3: $DEFAULT_PYTHON_VERSION"
+    echo "Install Python 3.11 with Homebrew (brew install python@3.11), or set:"
+    echo "  TTS_STORY_PYTHON=/full/path/to/python3.11 ./setup.sh"
     exit 1
 fi
-
-PYTHON_VERSION=$(python3 --version 2>&1)
-echo "Found $PYTHON_VERSION"
-
-# Check Python version (3.9-3.12 supported)
-if ! tts_story_python_supported python3; then
-    echo "ERROR: Python 3.9 through 3.12 is required. Found: $PYTHON_VERSION"
-    exit 1
-fi
+PYTHON_VERSION="$("$PYTHON_BIN" --version 2>&1)"
+echo "Using $PYTHON_VERSION at $PYTHON_BIN"
 
 # 1b/12 Check and install git if not present
 echo
@@ -100,7 +99,7 @@ git config --global --add safe.directory "*" 2>/dev/null || true
 # Check and install python3-venv if not present
 echo
 echo "[1c/12] Checking python3-venv installation..."
-if ! python3 -m venv --help >/dev/null 2>&1; then
+if ! "$PYTHON_BIN" -m venv --help >/dev/null 2>&1; then
     if [ "$PINOKIO_MODE" = "1" ]; then
         echo "ERROR: Python venv support is missing from the Pinokio managed environment."
         echo "Run the Pinokio Install action again so its Conda environment can be repaired."
@@ -111,7 +110,8 @@ if ! python3 -m venv --help >/dev/null 2>&1; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq python3-venv python3-pip
         elif command -v brew >/dev/null 2>&1; then
-            brew install python@3.10
+            brew install python@3.11
+            PYTHON_BIN="$(tts_story_find_compatible_python || true)"
         elif command -v pacman >/dev/null 2>&1; then
             sudo pacman -Sy --noconfirm python-pythonz
         elif command -v dnf >/dev/null 2>&1; then
@@ -121,7 +121,11 @@ if ! python3 -m venv --help >/dev/null 2>&1; then
         fi
     fi
 fi
-echo "python3-venv is available."
+if [ -z "$PYTHON_BIN" ] || ! "$PYTHON_BIN" -m venv --help >/dev/null 2>&1; then
+    echo "ERROR: venv support is unavailable for a compatible Python interpreter."
+    exit 1
+fi
+echo "Python venv support is available through $PYTHON_BIN."
 
 # 2/12 Create virtual environment
 echo
@@ -131,16 +135,16 @@ if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
     if [ -z "$VENV_MM" ]; then
         echo "Existing venv Python cannot start. Recreating venv."
         rm -rf venv
-        python3 -m venv venv
+        "$PYTHON_BIN" -m venv venv
     elif tts_story_python_supported venv/bin/python; then
         echo "Virtual environment already exists, skipping..."
     else
         echo "Existing venv Python is outside the supported 3.9-3.12 range (detected: ${VENV_MM:-unknown}). Recreating venv."
         rm -rf venv
-        python3 -m venv venv
+        "$PYTHON_BIN" -m venv venv
     fi
 else
-    python3 -m venv venv
+    "$PYTHON_BIN" -m venv venv
 fi
 
 # 3/12 Activate virtual environment

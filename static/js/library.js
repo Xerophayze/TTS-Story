@@ -1245,7 +1245,8 @@ function openM4BDownloadModal(jobId, title) {
                     
                     if (data.status === 'encoding') {
                         if (data.progress < 0.5) {
-                            progressStatus.textContent = `Encoding chapters (${Math.round(data.progress * 200)}/${Math.round(chapters.length)})...`;
+                            const encodingPercent = Math.min(100, Math.round((data.progress / 0.5) * 100));
+                            progressStatus.textContent = `Encoding audio (${encodingPercent}% of first pass)...`;
                         } else if (data.progress < 0.75) {
                             progressStatus.textContent = 'Merging audio files...';
                         } else if (data.progress < 0.95) {

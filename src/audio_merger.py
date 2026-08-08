@@ -428,13 +428,18 @@ class AudioMerger:
         bitrate_kbps: int,
         acx_compliance: bool,
         ffmpeg_path: str,
+        duration_seconds: float = 0.0,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
-        """Encode a single chapter to AAC format."""
+        """Encode a single chapter to AAC format with live FFmpeg progress."""
         cmd = [
             ffmpeg_path,
             "-hide_banner",
             "-loglevel",
             "error",
+            "-progress",
+            "pipe:1",
+            "-nostats",
             "-threads",
             "0",
             "-i",
@@ -454,7 +459,40 @@ class AudioMerger:
             ])
 
         cmd.extend(["-f", "ipod", "-y", _win_long_path(output_file)])
-        subprocess.run(cmd, capture_output=True, text=True)
+        process = subprocess.Popen(
+            [str(item) for item in cmd],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+        )
+
+        if process.stdout is not None:
+            for raw_line in process.stdout:
+                line = raw_line.strip()
+                if line.startswith("out_time_ms=") and duration_seconds > 0:
+                    try:
+                        encoded_seconds = int(line.split("=", 1)[1]) / 1_000_000
+                        ratio = min(max(encoded_seconds / duration_seconds, 0.0), 0.99)
+                        if progress_callback:
+                            progress_callback(ratio)
+                    except (TypeError, ValueError):
+                        pass
+
+        stderr_output = process.stderr.read() if process.stderr is not None else ""
+        return_code = process.wait()
+        if return_code != 0:
+            raise RuntimeError(
+                f"FFmpeg AAC encoding failed for {Path(input_file).name}: "
+                f"{stderr_output.strip() or f'exit code {return_code}'}"
+            )
+        if not output_file.exists() or output_file.stat().st_size <= 0:
+            raise RuntimeError(
+                f"FFmpeg reported success but did not create AAC output for {Path(input_file).name}"
+            )
+        if progress_callback:
+            progress_callback(1.0)
 
     def merge_to_m4b(
         self,
@@ -501,6 +539,7 @@ class AudioMerger:
         # Parallel pre-encode chapters to AAC
         import concurrent.futures
         import multiprocessing
+        import threading
         import time
 
         # Determine optimal worker count (leave one core free for system)
@@ -518,6 +557,36 @@ class AudioMerger:
 
         try:
             encode_start = time.time()
+            input_durations = []
+            for input_file in input_files:
+                try:
+                    from pydub.utils import mediainfo
+                    input_durations.append(float(mediainfo(str(input_file)).get("duration", 0)))
+                except Exception as exc:
+                    logging.warning("Could not measure M4B source duration for %s: %s", input_file, exc)
+                    input_durations.append(0.0)
+
+            # Track time-based progress for every encoder. This is especially
+            # important when a complete audiobook is stored as one long file:
+            # the previous implementation stayed at 0% until that file ended.
+            progress_lock = threading.Lock()
+            encode_ratios = [0.0] * len(input_files)
+            progress_weights = [duration if duration > 0 else 1.0 for duration in input_durations]
+            total_weight = sum(progress_weights) or float(len(input_files) or 1)
+
+            def report_encode_progress(index: int, ratio: float) -> None:
+                with progress_lock:
+                    encode_ratios[index] = max(encode_ratios[index], min(max(ratio, 0.0), 1.0))
+                    combined_ratio = sum(
+                        item_ratio * weight
+                        for item_ratio, weight in zip(encode_ratios, progress_weights)
+                    ) / total_weight
+                if progress_callback:
+                    try:
+                        progress_callback(combined_ratio * 0.5)
+                    except Exception:
+                        pass
+
             # Encode files in parallel
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {}
@@ -530,6 +599,8 @@ class AudioMerger:
                         bitrate_kbps,
                         acx_compliance,
                         ffmpeg_path,
+                        input_durations[i],
+                        lambda ratio, index=i: report_encode_progress(index, ratio),
                     )
                     futures[future] = output_file
 
@@ -541,13 +612,6 @@ class AudioMerger:
                         future.result()
                         encoded_files.append(futures[future])
                         completed_count += 1
-                        # Update progress (0-50% for encoding phase)
-                        progress = (completed_count / total_files) * 0.5
-                        if progress_callback:
-                            try:
-                                progress_callback(progress)
-                            except Exception:
-                                pass
                         logging.info(f"Encoded: {futures[future].name} ({completed_count}/{total_files})")
                     except Exception as e:
                         logging.error(f"Failed to encode {futures[future]}: {e}")

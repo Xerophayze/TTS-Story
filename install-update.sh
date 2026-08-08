@@ -93,21 +93,10 @@ fi
 echo "Git is installed: $(git --version)"
 echo
 
-# Pre-check: Install python3-venv with ensurepip if needed
-echo "Checking Python venv support..."
-TEST_VENV="/tmp/venv_test_$$"
-if ! python3 -m venv "$TEST_VENV" >/dev/null 2>&1; then
-    echo "venv creation failed. Installing python3-venv..."
-    if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq python3-venv python3-pip
-    elif command -v brew >/dev/null 2>&1; then
-        brew install python@3.10
-    elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y python3.10-venv
-    fi
-fi
-rm -rf "$TEST_VENV"
+# setup.sh selects a compatible interpreter before checking venv support.
+# Do not probe the default `python3` here: on macOS it may be Python 3.13+
+# even when a supported Homebrew or pyenv Python is already installed.
+echo "Python selection and venv support will be verified by setup.sh."
 
 # Clone or update repository
 echo "Cloning or updating repository..."

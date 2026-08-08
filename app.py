@@ -60,7 +60,12 @@ from src.library_metadata import (
 )
 from src.library_cleanup import remove_directory_with_retries
 from src.json_storage import write_json_atomic
-from src.pause_markers import pause_seconds_for_text, sanitize_display_title, write_silence_wav
+from src.pause_markers import (
+    pause_seconds_for_text,
+    sanitize_display_title,
+    split_text_and_pause_markers,
+    write_silence_wav,
+)
 from src.atlas_cloud_processor import (
     AtlasCloudProcessor,
     AtlasCloudProcessorError,
@@ -1558,34 +1563,67 @@ def _perform_chunk_regeneration(
     generated_files: List[str] = []
     try:
         regen_text = _apply_word_replacements(chunk_text, word_replacements) if word_replacements else chunk_text
+        render_parts = split_text_and_pause_markers(regen_text, allow_attached=True)
+        has_pause_controls = any(kind == "pause" for kind, _value in render_parts)
+        spoken_parts = [value.strip() for kind, value in render_parts if kind == "text" and value.strip()]
         segments = [{
             "speaker": speaker,
-            "text": regen_text,
-            "chunks": [regen_text],
-        }]
+            "text": " ".join(spoken_parts),
+            "chunks": spoken_parts,
+        }] if spoken_parts else []
         engine_name = _normalize_engine_name(config_snapshot.get("tts_engine"))
-        
-        # Acquire GPU lock to prevent concurrent inference which causes
-        # GPU contention and "badcase" retry loops with VoxCPM
-        with gpu_inference_lock:
-            engine = get_tts_engine(engine_name, config=config_snapshot)
-            generated_files = engine.generate_batch(
-                segments=segments,
-                voice_config=voice_config,
-                output_dir=str(tmp_dir),
-                speed=speed,
-                sample_rate=sample_rate,
-            )
 
-        if not generated_files:
-            raise RuntimeError("TTS engine did not return any audio for the chunk.")
-        temp_file = Path(generated_files[0])
+        if spoken_parts:
+            # Acquire GPU lock to prevent concurrent inference which causes
+            # GPU contention and "badcase" retry loops with VoxCPM.
+            with gpu_inference_lock:
+                engine = get_tts_engine(engine_name, config=config_snapshot)
+                generated_files = engine.generate_batch(
+                    segments=segments,
+                    voice_config=voice_config,
+                    output_dir=str(tmp_dir),
+                    speed=speed,
+                    sample_rate=sample_rate,
+                )
+
+            if len(generated_files or []) != len(spoken_parts):
+                raise RuntimeError(
+                    "TTS engine did not return all spoken parts surrounding the pause marker."
+                )
+
+        if has_pause_controls:
+            # A review chunk may come from an older job where attached controls
+            # such as ``CHAPTER ONE******`` were stored with the spoken text.
+            # Rebuild that one logical chunk from separately rendered speech
+            # and digital silence so regeneration cannot speak or discard stars.
+            from pydub import AudioSegment
+
+            combined_audio = AudioSegment.empty()
+            spoken_index = 0
+            silence_rate = int(sample_rate or 24000)
+            for kind, value in render_parts:
+                if kind == "pause":
+                    pause_seconds = pause_seconds_for_text(value)
+                    if pause_seconds is not None:
+                        combined_audio += AudioSegment.silent(
+                            duration=int(round(pause_seconds * 1000)),
+                            frame_rate=silence_rate,
+                        )
+                elif value.strip():
+                    combined_audio += AudioSegment.from_file(generated_files[spoken_index])
+                    spoken_index += 1
+            temp_file = tmp_dir / f"pause_aware_{chunk_id}.wav"
+            combined_audio.export(temp_file, format="wav")
+        else:
+            if not generated_files:
+                raise RuntimeError("TTS engine did not return any audio for the chunk.")
+            temp_file = Path(generated_files[0])
         target_path = job_dir / relative_file
         target_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Extract leading/trailing silence from voice assignment
-        leading_silence_ms = int(effective_assignment.get("leading_silence_ms", 0) or 0)
-        trailing_silence_ms = int(effective_assignment.get("trailing_silence_ms", 0) or 0)
+        leading_silence_ms = int((effective_assignment or {}).get("leading_silence_ms", 0) or 0)
+        trailing_silence_ms = int((effective_assignment or {}).get("trailing_silence_ms", 0) or 0)
 
         # Always apply silence (even if zero) to ensure any existing silence is removed
         from src.audio_merger import apply_chunk_silence

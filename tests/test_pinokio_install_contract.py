@@ -38,6 +38,26 @@ def test_shared_torch_helper_routes_macos_to_pypi():
     assert "(3, 9) <= sys.version_info[:2] < (3, 13)" in helper
 
 
+def test_unix_setup_discovers_compatible_macos_python_instead_of_using_default_only():
+    helper = read("scripts/unix_torch.sh")
+    setup = read("setup.sh")
+    updater = read("install-update.sh")
+
+    assert "tts_story_find_compatible_python" in helper
+    assert "python3.11 python3.12 python3.10 python3.9" in helper
+    assert "/opt/homebrew/opt/python@3.$minor/bin/python3.$minor" in helper
+    assert "/usr/local/opt/python@3.$minor/bin/python3.$minor" in helper
+    assert "/Library/Frameworks/Python.framework/Versions/3.$minor/bin/python3" in helper
+    assert '"$pyenv_root"/versions/3."$minor"*/bin/python3' in helper
+    assert "TTS_STORY_PYTHON" in helper
+
+    assert 'PYTHON_BIN="$(tts_story_find_compatible_python || true)"' in setup
+    assert '"$PYTHON_BIN" -m venv venv' in setup
+    assert "python3 -m venv venv" not in setup
+    assert "Python selection and venv support will be verified by setup.sh." in updater
+    assert 'TEST_VENV="/tmp/venv_test_$$"' not in updater
+
+
 def test_setup_completion_marker_only_follows_verification():
     unix_setup = read("setup.sh")
     windows_setup = read("setup.bat")

@@ -16,6 +16,63 @@ from src.audio_merger import AudioMerger
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_m4b_aac_encoding_reports_time_based_progress(monkeypatch, tmp_path):
+    output = tmp_path / "chapter.m4a"
+    output.write_bytes(b"encoded-audio")
+
+    class FakeProcess:
+        stdout = io.StringIO(
+            "out_time_ms=25000000\nprogress=continue\n"
+            "out_time_ms=50000000\nprogress=end\n"
+        )
+        stderr = io.StringIO("")
+
+        @staticmethod
+        def wait():
+            return 0
+
+    monkeypatch.setattr(audio_merger_module.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+    progress = []
+
+    AudioMerger()._encode_chapter_to_aac(
+        str(tmp_path / "source.mp3"),
+        output,
+        128,
+        False,
+        "ffmpeg",
+        duration_seconds=100,
+        progress_callback=progress.append,
+    )
+
+    assert progress[:2] == [0.25, 0.5]
+    assert progress[-1] == 1.0
+
+
+def test_m4b_aac_encoding_surfaces_ffmpeg_failure(monkeypatch, tmp_path):
+    class FakeProcess:
+        stdout = io.StringIO("")
+        stderr = io.StringIO("invalid input stream")
+
+        @staticmethod
+        def wait():
+            return 1
+
+    monkeypatch.setattr(audio_merger_module.subprocess, "Popen", lambda *args, **kwargs: FakeProcess())
+
+    try:
+        AudioMerger()._encode_chapter_to_aac(
+            str(tmp_path / "broken.mp3"),
+            tmp_path / "chapter.m4a",
+            128,
+            False,
+            "ffmpeg",
+        )
+    except RuntimeError as exc:
+        assert "invalid input stream" in str(exc)
+    else:
+        raise AssertionError("Expected the FFmpeg encoding failure to be raised")
+
+
 def test_acx_mp3_command_uses_only_192k_cbr_mode(monkeypatch, tmp_path):
     source = tmp_path / "source.wav"
     source.write_bytes(b"placeholder")

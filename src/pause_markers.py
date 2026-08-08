@@ -15,6 +15,12 @@ from typing import List, Tuple
 PAUSE_MARKER_PATTERN = re.compile(
     r"(?<![\w*])(\*{3}(?:\*{3})*)(?!\*)(?=\s|$)",
 )
+# Speaker-tagged audiobook text is an explicit TTS control context. Be more
+# permissive there so an LLM-produced heading such as ``CHAPTER ONE******``
+# is treated as speech followed by silence rather than literal asterisks.
+TAGGED_PAUSE_MARKER_PATTERN = re.compile(
+    r"(?<!\*)(\*{3}(?:\*{3})*)(?!\*)(?=\s|$)",
+)
 TRAILING_PAUSE_MARKER_PATTERN = re.compile(r"\s*\*{3}(?:\*{3})*\s*$")
 
 
@@ -32,12 +38,17 @@ def sanitize_display_title(value: str | None) -> str:
     return TRAILING_PAUSE_MARKER_PATTERN.sub("", title).strip()
 
 
-def split_text_and_pause_markers(text: str) -> List[Tuple[str, str]]:
+def split_text_and_pause_markers(
+    text: str,
+    *,
+    allow_attached: bool = False,
+) -> List[Tuple[str, str]]:
     """Split prose from standalone or inline pause markers, preserving order."""
     source = str(text or "")
     parts: List[Tuple[str, str]] = []
     cursor = 0
-    for match in PAUSE_MARKER_PATTERN.finditer(source):
+    pattern = TAGGED_PAUSE_MARKER_PATTERN if allow_attached else PAUSE_MARKER_PATTERN
+    for match in pattern.finditer(source):
         prose = source[cursor:match.start()]
         if prose.strip():
             parts.append(("text", prose))

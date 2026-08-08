@@ -139,12 +139,21 @@ class TextProcessor:
                 
         return segments
         
-    def chunk_text(self, text: str, max_words: int = None) -> List[str]:
+    def chunk_text(
+        self,
+        text: str,
+        max_words: int = None,
+        *,
+        allow_attached_pause_markers: bool = False,
+    ) -> List[str]:
         """
         Split text into chunks at sentence boundaries
         """
         chunks: List[str] = []
-        parts = split_text_and_pause_markers(text)
+        parts = split_text_and_pause_markers(
+            text,
+            allow_attached=allow_attached_pause_markers,
+        )
         if not parts:
             return []
         for kind, value in parts:
@@ -312,7 +321,13 @@ class TextProcessor:
             # Chunk each segment
             processed_segments = []
             for segment in segments:
-                chunks = self.chunk_text(segment["text"])
+                # Inside a validated speaker tag, stars are intentional TTS
+                # controls rather than Markdown. This accepts LLM-produced
+                # headings such as ``CHAPTER ONE******``.
+                chunks = self.chunk_text(
+                    segment["text"],
+                    allow_attached_pause_markers=True,
+                )
                 processed_segment = {
                     "speaker": segment["speaker"],
                     "text": segment["text"],
