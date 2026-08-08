@@ -360,25 +360,38 @@ The same canonical Markdown articles are available in [`docs/help`](docs/help) f
 
 TTS-Story supports seventeen TTS engine options. In the **Settings** tab, choose your preferred default engine:
 
-| Engine | Description | Requirements |
-|--------|-------------|--------------|
-| **Kokoro · Local GPU** | Run Kokoro-82M locally | NVIDIA GPU with CUDA |
-| **Kokoro · Replicate** | Kokoro via cloud API | Replicate API token |
-| **Chatterbox · Local GPU** | Chatterbox with voice cloning | NVIDIA GPU (~8GB VRAM) |
-| **Chatterbox · Replicate** | Chatterbox via cloud API | Replicate API token |
-| **VoxCPM 1.5 · Local GPU** | VoxCPM with voice cloning & auto-transcription | NVIDIA GPU (~6GB VRAM) |
-| **Qwen3 TTS · Custom Voice** | Qwen3 TTS custom voice prompts | NVIDIA GPU (local) |
-| **Qwen3 TTS · Clone** | Qwen3 TTS voice cloning from reference audio | NVIDIA GPU (local) |
-| **OmniVoice · Voice Clone** | Voice cloning from reference prompts | NVIDIA GPU recommended; isolated venv |
-| **Pocket TTS · Preset Voices** | CPU-only preset voices, no GPU needed | CPU only |
-| **Pocket TTS · Voice Clone** | CPU-only voice cloning from reference prompts | CPU only |
-| **KittenTTS** | Ultra-lightweight CPU-only, 8 built-in voices | CPU only |
-| **IndexTTS** | Zero-shot voice cloning, English + Chinese | NVIDIA GPU recommended; isolated venv |
-| **Dot.TTS** | High-similarity zero-shot voice cloning with reference transcript | NVIDIA GPU recommended; isolated venv |
-| **Microsoft Azure Speech · Cloud** | Regional multilingual neural voices with styles, roles, and SSML controls | Azure Speech resource key and region |
-| **Microsoft Edge TTS · Experimental Cloud** | Dynamically discovered Microsoft consumer voices | Internet connection; no API key |
-| **ElevenLabs · Cloud** | Account voices and current text-to-speech models | ElevenLabs API key and available character quota |
-| **OpenAI-compatible TTS · Cloud** | Built-in or custom voice IDs through an editable speech endpoint | Provider API key when required |
+#### Local engine hardware guide
+
+The figures below are practical planning ranges for the models and default precision used by TTS-Story, not guaranteed minimums. **Free VRAM** matters: an 8 GB card with 2 GB already occupied does not provide 8 GB to the model.
+
+| Local engine | Processing support | Approximate free VRAM to plan for | CPU-only use | Important notes |
+|---|---|---:|---|---|
+| **[Kokoro-82M](docs/help/engines/kokoro.md)** | CPU or NVIDIA CUDA | **0 GB required**; allow roughly **1–2 GB** when using CUDA | **Practical** | Lightweight built-in voices and local blends; one of the easiest engines for lower-resource computers. |
+| **[Chatterbox Turbo](docs/help/engines/chatterbox.md)** | NVIDIA CUDA recommended | About **8 GB** | Selectable, but slow | English voice cloning and supported non-verbal tags; close other GPU-heavy programs before loading. |
+| **[VoxCPM 1.5](docs/help/engines/voxcpm.md)** | NVIDIA CUDA recommended | About **6 GB** | Selectable, but impractical for long books | English/Chinese cloning; automatic reference transcription can add memory overhead. |
+| **[Qwen3-TTS CustomVoice / Clone](docs/help/engines/qwen3.md)** | NVIDIA CUDA recommended | Roughly **6–8 GB** in bf16/fp16; **8 GB+ recommended** | Selectable, but impractical for long books | Each mode normally loads its own 1.7B model. Float32 and eager attention can require more memory. |
+| **[OmniVoice Clone](docs/help/engines/omnivoice.md)** | NVIDIA CUDA, Apple MPS, or CPU | Roughly **4–6 GB** in float16; **8 GB is safer** | Supported, but extremely slow | Runs in an isolated environment; reference transcription or float32 can increase memory use. |
+| **[Pocket TTS Preset / Clone](docs/help/engines/pocket-tts.md)** | CPU only | **0 GB** | **Designed for CPU** | English-only in the current adapter; preset mode is lighter and faster than cloning. |
+| **[KittenTTS](docs/help/engines/kitten-tts.md)** | CPU only | **0 GB** | **Designed for CPU** | Eight English voices; model variants are approximately 25–80 MB. |
+| **[IndexTTS](docs/help/engines/index-tts.md)** | NVIDIA CUDA strongly recommended | Roughly **6–8 GB with FP16**; allow **10–12 GB** for FP32 | Selectable, but very slow | English/Chinese zero-shot cloning in an isolated environment; FP16 substantially reduces memory use. |
+| **[Dot.TTS](docs/help/engines/dots-tts.md)** | NVIDIA CUDA strongly recommended | Plan for roughly **10–12 GB** | Installation may work, but inference can be impractical | 2B-parameter, 48 kHz cloning model; exact reference transcripts and multi-GB downloads are expected. |
+
+#### Cloud engine requirements
+
+Cloud engines perform speech-model inference remotely and therefore require **no local TTS VRAM**. TTS-Story still uses normal system RAM and CPU for text handling, downloading, audio effects, merging, and encoding.
+
+| Cloud engine | Local VRAM | Account or service requirement | Main consideration |
+|---|---:|---|---|
+| **Kokoro · Replicate** | **0 GB** | Replicate API token and billing/credits | Sends text to Replicate; provider queue and prediction charges apply. |
+| **Chatterbox · Replicate** | **0 GB** | Replicate API token and billing/credits | Sends text and assigned reference audio to Replicate. |
+| **[Microsoft Azure Speech](docs/help/engines/azure-speech.md)** | **0 GB** | Azure Speech resource key, matching region, and quota | Supported commercial service with regional voices and usage billing. |
+| **[Microsoft Edge TTS](docs/help/engines/edge-tts.md)** | **0 GB** | Internet connection; no API key | Experimental consumer endpoint with no availability guarantee. |
+| **[ElevenLabs](docs/help/engines/elevenlabs.md)** | **0 GB** | ElevenLabs API key, model/voice access, and character quota | Subscription, concurrency, and character limits apply. |
+| **[OpenAI-compatible TTS](docs/help/engines/openai-tts.md)** | **0 GB** | OpenAI or compatible-provider endpoint, model, voice, and key when required | Cost and capabilities depend on the configured endpoint. |
+
+VRAM use changes with precision, attention backend, chunk length, transcription device, driver/runtime versions, and other models already loaded. FP16/bfloat16 generally use less memory than float32. TTS-Story normally unloads a different cached local TTS engine before loading the next one, but other applications and GPU-based transcription can still consume VRAM. Apple Silicon uses unified memory rather than a separate VRAM pool; NVIDIA CUDA remains the primary tested path for the heavier local engines.
+
+Qwen3 VoiceDesign and OmniVoice Design are supported through **Voice Creation** rather than as normal full-job engines. See the complete [Engine Reference and Comparison](docs/help/engines/overview.md) for voice sources, languages, privacy, setup, and tradeoffs.
 
 You can also override the engine per-job in the **Generate** tab.
 
