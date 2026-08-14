@@ -135,7 +135,7 @@ def test_bulk_regeneration_uses_one_aggregate_watcher_and_cleans_it_up():
 def test_library_progress_assets_have_fresh_cache_versions():
     template = INDEX_TEMPLATE.read_text(encoding="utf-8")
 
-    assert "/static/css/style.css?v=35" in template
+    assert "/static/css/style.css?v=37" in template
     assert "/static/js/library.js?v=45" in template
 
 

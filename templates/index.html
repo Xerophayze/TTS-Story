@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TTS-Story - Multi-Voice TTS</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2326324a'/%3E%3Cpath d='M18 22h6v20h-6zM28 22h6v20h-6zM38 22h6v20h-6z' fill='%23a78bfa'/%3E%3Ccircle cx='32' cy='16' r='4' fill='%23fcd34d'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23fcd34d'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="/static/css/style.css?v=35">
+    <link rel="stylesheet" href="/static/css/style.css?v=37">
     <link rel="stylesheet" href="/static/css/help.css?v=3">
 </head>
 <body>
@@ -1670,6 +1670,11 @@
                                     <input type="number" id="omnivoice-num-step" min="8" max="64" step="8" value="32">
                                     <small>32 = quality, 16 = faster inference</small>
                                 </div>
+                                <div class="form-group">
+                                    <label for="omnivoice-duration-safety-margin">Ending Duration Buffer (seconds)</label>
+                                    <input type="number" id="omnivoice-duration-safety-margin" min="0" max="2" step="0.05" value="0.25">
+                                    <small>Adds generation headroom so final words can finish. Does not alter text or replace pause markers. Set to 0 to disable.</small>
+                                </div>
                                 <div class="form-group" style="align-self: end;">
                                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
                                         <input type="checkbox" id="omnivoice-post-process" checked>
@@ -1746,6 +1751,16 @@
                             <div class="form-group">
                                 <label for="inter-silence">Segment Silence (ms)</label>
                                 <input type="number" id="inter-silence" value="0" min="0" max="2000" step="100">
+                            </div>
+                            <div class="form-group">
+                                <label for="pause-marker-three-seconds">*** Pause (seconds)</label>
+                                <input type="number" id="pause-marker-three-seconds" value="0.25" min="0" max="30" step="0.05">
+                                <small>Digital silence inserted for three asterisks</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="pause-marker-six-seconds">****** Pause (seconds)</label>
+                                <input type="number" id="pause-marker-six-seconds" value="0.5" min="0" max="30" step="0.05">
+                                <small>Digital silence inserted for six asterisks</small>
                             </div>
                             <div class="form-group">
                                 <label for="parallel-chunks">Parallel Chunks</label>
@@ -2011,17 +2026,15 @@
                 <button class="modal-close" id="speaker-batch-modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="help-text">Generate voice samples for all detected speakers using AI voice design.</p>
-                <div class="form-group" style="margin-bottom: 12px;">
-                    <label>Voice Design Engine</label>
-                    <div class="btn-group" id="batch-voice-engine-toggle" role="group">
-                        <button type="button" class="btn btn-secondary active" data-batch-engine="qwen3" id="batch-engine-qwen3-btn">Qwen3-TTS</button>
-                        <button type="button" class="btn btn-secondary" data-batch-engine="omnivoice" id="batch-engine-omnivoice-btn">OmniVoice</button>
-                    </div>
-                </div>
+                <p class="help-text"><strong>Qwen3-TTS VoiceDesign</strong> creates all bulk voice candidates. Generation can take several minutes per speaker, especially when multiple candidates are requested.</p>
                 <div class="form-group">
                     <label for="speaker-batch-prefix">Name prefix</label>
                     <input type="text" id="speaker-batch-prefix" placeholder="e.g., Dracula">
+                </div>
+                <div class="form-group">
+                    <label for="speaker-batch-candidate-count">Candidates per speaker</label>
+                    <input type="number" id="speaker-batch-candidate-count" min="1" max="10" step="1" value="1">
+                    <p class="help-text">One candidate is generated and assigned automatically. Higher values create alternatives for review in Speaker Properties.</p>
                 </div>
                 <div class="batch-progress" id="speaker-batch-progress" style="display: none;">
                     <div class="batch-progress-track">
@@ -2507,10 +2520,10 @@
     </div>
 
     <script src="/static/js/help.js?v=3"></script>
-<script src="/static/js/main.js?v=46"></script>
+<script src="/static/js/main.js?v=57"></script>
     <script src="/static/js/queue.js?v=4"></script>
 <script src="/static/js/library.js?v=45"></script>
     <script src="/static/js/voice-manager.js?v=14"></script>
-    <script src="/static/js/settings.js?v=14"></script>
+    <script src="/static/js/settings.js?v=16"></script>
 </body>
 </html>

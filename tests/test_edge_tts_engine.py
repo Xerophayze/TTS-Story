@@ -168,6 +168,21 @@ def test_six_star_marker_becomes_half_second_of_local_silence():
     assert calls == []
 
 
+def test_edge_pause_markers_use_configured_durations():
+    engine = EdgeTTSEngine(
+        communicate_factory=FakeCommunicate,
+        list_voices_func=lambda: [],
+        audio_converter=_converter,
+        pause_marker_three_seconds=0.4,
+        pause_marker_six_seconds=1.1,
+    )
+
+    with wave.open(io.BytesIO(engine.generate_audio("***")), "rb") as short_wav:
+        assert short_wav.getnframes() / short_wav.getframerate() == pytest.approx(0.4)
+    with wave.open(io.BytesIO(engine.generate_audio("******")), "rb") as long_wav:
+        assert long_wav.getnframes() / long_wav.getframerate() == pytest.approx(1.1)
+
+
 def test_hung_async_stream_hits_hard_timeout_and_retries():
     calls = []
     delays = []

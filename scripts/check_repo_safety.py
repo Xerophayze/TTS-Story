@@ -34,6 +34,7 @@ FORBIDDEN_EXACT_PATHS = {
     "data/custom_voices.json",
     "data/external_voice_archives.json",
     "data/external_voices_cache.json",
+    "data/projects.json",
     "jobs.db",
 }
 

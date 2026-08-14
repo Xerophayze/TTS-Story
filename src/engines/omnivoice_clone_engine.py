@@ -87,6 +87,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         default_prompt: Optional[str] = None,
         default_prompt_text: Optional[str] = None,
         post_process: bool = True,
+        duration_safety_margin: float = 0.25,
     ):
         if not OMNIVOICE_AVAILABLE:
             raise ImportError(
@@ -102,6 +103,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         self.default_prompt = default_prompt
         self.default_prompt_text = default_prompt_text
         self.post_process = post_process
+        self.duration_safety_margin = max(0.0, min(float(duration_safety_margin), 2.0))
         self.post_processor = AudioPostProcessor()
 
         self._transcript_cache: Dict[str, str] = {}
@@ -173,6 +175,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                     # requested adjustment is not applied twice.
                     "speed": 1.0,
                     "post_process": self.post_process,
+                    "duration_safety_margin": self.duration_safety_margin,
                     "chunks": [{
                         "text": text,
                         "ref_audio": prompt_path,
@@ -337,6 +340,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
             "num_step": self.num_step,
             "speed": speed,
             "post_process": self.post_process,
+            "duration_safety_margin": self.duration_safety_margin,
             "chunks": worker_chunks,
         }
 

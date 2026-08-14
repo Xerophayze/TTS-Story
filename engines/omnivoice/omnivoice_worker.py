@@ -30,6 +30,7 @@ Job file schema
   "dtype": "float16", // float16 | bfloat16 | float32
   "num_step": 32,
   "speed": 1.0,
+  "duration_safety_margin": 0.25, // extra generation time; 0 disables
   "post_process": true   // set to false to disable silence-trimming post-processing
 }
 """
@@ -47,8 +48,72 @@ import numpy as np
 import soundfile as sf
 import torch
 from omnivoice import OmniVoice  # type: ignore
+from omnivoice.models import omnivoice as omnivoice_model_module  # type: ignore
 
 DEFAULT_MODEL_ID = "k2-fsa/OmniVoice"
+
+
+def _fade_in_and_pad_audio(
+    audio: torch.Tensor,
+    pad_duration: float = 0.1,
+    fade_duration: float = 0.1,
+    sample_rate: int = 24000,
+) -> torch.Tensor:
+    """Keep OmniVoice edge padding without fading out active final speech."""
+    if audio.shape[-1] == 0:
+        return audio
+
+    processed = audio.clone()
+    fade_samples = int(fade_duration * sample_rate)
+    if fade_samples > 0:
+        fade_length = min(fade_samples, processed.shape[-1] // 2)
+        if fade_length > 0:
+            fade_in = torch.linspace(
+                0,
+                1,
+                fade_length,
+                device=processed.device,
+                dtype=processed.dtype,
+            )[None, :]
+            processed[..., :fade_length] *= fade_in
+
+    pad_samples = int(pad_duration * sample_rate)
+    if pad_samples > 0:
+        silence = torch.zeros(
+            (processed.shape[0], pad_samples),
+            dtype=processed.dtype,
+            device=processed.device,
+        )
+        processed = torch.cat([silence, processed, silence], dim=-1)
+
+    return processed
+
+
+# OmniVoice's bundled helper applies a 100 ms fade-out even when the generated
+# waveform ends in active speech. Override that helper in this isolated worker
+# so the final phoneme remains untouched while the normal edge padding remains.
+omnivoice_model_module.fade_and_pad_audio = _fade_in_and_pad_audio
+
+
+def _apply_duration_safety_margin(model: OmniVoice, seconds: float) -> int:
+    """Add fixed output-token headroom without changing the synthesis text."""
+    try:
+        margin_seconds = max(0.0, min(float(seconds), 2.0))
+    except (TypeError, ValueError):
+        margin_seconds = 0.25
+
+    frame_rate = float(model.audio_tokenizer.config.frame_rate)
+    margin_tokens = max(0, int(round(margin_seconds * frame_rate)))
+    if margin_tokens <= 0:
+        return 0
+
+    original_estimate = model.duration_estimator.estimate_duration
+
+    def estimate_with_margin(*args, **kwargs):
+        return original_estimate(*args, **kwargs) + margin_tokens
+
+    model.duration_estimator.estimate_duration = estimate_with_margin
+    return margin_tokens
 
 
 def _resolve_device(device: str) -> str:
@@ -121,6 +186,13 @@ def main() -> None:
     dtype = _resolve_dtype(job.get("dtype") or "float16")
     num_step = int(job.get("num_step") or 32)
     speed = float(job.get("speed") or 1.0)
+    try:
+        duration_safety_margin = max(
+            0.0,
+            min(float(job.get("duration_safety_margin", 0.25)), 2.0),
+        )
+    except (TypeError, ValueError):
+        duration_safety_margin = 0.25
     post_process = job.get("post_process", True)
     mode = job.get("mode") or "clone"
 
@@ -136,6 +208,14 @@ def main() -> None:
         device_map=device,
         dtype=dtype,
     )
+    margin_tokens = _apply_duration_safety_margin(model, duration_safety_margin)
+    if margin_tokens:
+        print(
+            "[omnivoice_worker] Added "
+            f"{float(duration_safety_margin):.2f}s ending-duration buffer "
+            f"({margin_tokens} audio tokens)",
+            file=sys.stderr,
+        )
 
     sample_rate = 24000
 
@@ -147,11 +227,15 @@ def main() -> None:
             ref_text = chunk.get("ref_text") or None
             output_path = chunk["output_path"]
 
-            kwargs = dict(text=text, ref_audio=ref_audio, num_step=num_step, speed=speed)
+            kwargs = dict(
+                text=text,
+                ref_audio=ref_audio,
+                num_step=num_step,
+                speed=speed,
+                postprocess_output=bool(post_process),
+            )
             if ref_text:
                 kwargs["ref_text"] = ref_text
-            if not post_process:
-                kwargs["post_process"] = False
 
             audio_list = model.generate(**kwargs)
             audio = np.asarray(audio_list[0], dtype=np.float32)
@@ -167,9 +251,13 @@ def main() -> None:
         instruct = job["instruct"]
         output_path = job["output_path"]
 
-        design_kwargs = dict(text=text, instruct=instruct, num_step=num_step, speed=speed)
-        if not post_process:
-            design_kwargs["post_process"] = False
+        design_kwargs = dict(
+            text=text,
+            instruct=instruct,
+            num_step=num_step,
+            speed=speed,
+            postprocess_output=bool(post_process),
+        )
         audio_list = model.generate(**design_kwargs)
         audio = np.asarray(audio_list[0], dtype=np.float32)
         if audio.ndim > 1:

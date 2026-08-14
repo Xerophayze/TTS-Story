@@ -199,12 +199,28 @@ PREP_PROGRESS_DIR = Path("data/prep")
 PREP_PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
 LLM_PROFILE_USAGE_FILE = Path("data/llm_profile_usage.json")
 LLM_PROFILE_USAGE_LOCK = threading.Lock()
+PROJECTS_FILE = Path(__file__).resolve().parent / "data" / "projects.json"
+PROJECTS_LOCK = threading.RLock()
 JOB_METADATA_FILENAME = "metadata.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 DEFAULT_LLM_PROVIDER = "gemini"
 SUPPORTED_LLM_PROVIDERS = ("gemini", "atlas", "openrouter", "local")
 LIBRARY_CACHE_TTL = 5  # seconds
 MIN_CHATTERBOX_PROMPT_SECONDS = 5.0
+MIN_VOICE_DESIGN_PREVIEW_SECONDS = 10.0
+MIN_VOICE_DESIGN_PREVIEW_WORDS = 40
+# Qwen's stock 0.9 temperatures are intentionally creative, but VoiceDesign
+# casting needs prompt adherence more than maximum variety.  These conservative
+# defaults still let separate candidate seeds produce alternatives while greatly
+# reducing gender/style drift, whispering, and other extreme performances.
+VOICE_DESIGN_CASTING_GENERATION = {
+    "temperature": 0.6,
+    "top_p": 0.9,
+    "top_k": 40,
+    "subtalker_temperature": 0.6,
+    "subtalker_top_p": 0.9,
+    "subtalker_top_k": 40,
+}
 DEFAULT_CONFIG = {
     "replicate_api_key": "",
     "chunk_size": 500,
@@ -220,6 +236,8 @@ DEFAULT_CONFIG = {
     "crossfade_duration": 0.1,
     "intro_silence_ms": 0,
     "inter_chunk_silence_ms": 0,
+    "pause_marker_three_seconds": 0.25,
+    "pause_marker_six_seconds": 0.5,
     "gemini_api_key": "",
     "gemini_model": DEFAULT_GEMINI_MODEL,
     "gemini_prompt": "",
@@ -330,6 +348,7 @@ DEFAULT_CONFIG = {
     "qwen3_clone_default_prompt": "",
     "qwen3_clone_default_prompt_text": "",
     "qwen3_voice_design_model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+    "omnivoice_duration_safety_margin": 0.25,
     "pocket_tts_model_variant": "b6369a24",
     "pocket_tts_temp": 0.7,
     "pocket_tts_lsd_decode_steps": 1,
@@ -870,6 +889,7 @@ OMNIVOICE_CLONE_SETTING_KEYS = {
     "omnivoice_clone_default_prompt_text",
     "omnivoice_chunk_size",
     "omnivoice_post_process",
+    "omnivoice_duration_safety_margin",
 }
 
 OMNIVOICE_DESIGN_SETTING_KEYS = {
@@ -880,6 +900,7 @@ OMNIVOICE_DESIGN_SETTING_KEYS = {
     "omnivoice_design_default_instruct",
     "omnivoice_chunk_size",
     "omnivoice_post_process",
+    "omnivoice_duration_safety_margin",
 }
 
 
@@ -890,7 +911,10 @@ def _normalize_omnivoice_clone_options(options: Dict[str, Any]) -> Dict[str, Any
             continue
         key = str(raw_key).strip().lower()
         if key in OMNIVOICE_CLONE_SETTING_KEYS:
-            result[key] = (value or "").strip() if isinstance(value, str) else value
+            if key == "omnivoice_duration_safety_margin":
+                result[key] = _coerce_float(value, minimum=0.0, maximum=2.0, fallback=0.25)
+            else:
+                result[key] = (value or "").strip() if isinstance(value, str) else value
     return result
 
 
@@ -901,7 +925,10 @@ def _normalize_omnivoice_design_options(options: Dict[str, Any]) -> Dict[str, An
             continue
         key = str(raw_key).strip().lower()
         if key in OMNIVOICE_DESIGN_SETTING_KEYS:
-            result[key] = (value or "").strip() if isinstance(value, str) else value
+            if key == "omnivoice_duration_safety_margin":
+                result[key] = _coerce_float(value, minimum=0.0, maximum=2.0, fallback=0.25)
+            else:
+                result[key] = (value or "").strip() if isinstance(value, str) else value
     return result
 
 
@@ -1603,7 +1630,11 @@ def _perform_chunk_regeneration(
             silence_rate = int(sample_rate or 24000)
             for kind, value in render_parts:
                 if kind == "pause":
-                    pause_seconds = pause_seconds_for_text(value)
+                    pause_seconds = pause_seconds_for_text(
+                        value,
+                        config_snapshot.get("pause_marker_three_seconds", 0.25),
+                        config_snapshot.get("pause_marker_six_seconds", 0.5),
+                    )
                     if pause_seconds is not None:
                         combined_audio += AudioSegment.silent(
                             duration=int(round(pause_seconds * 1000)),
@@ -2347,6 +2378,7 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             (config.get("omnivoice_clone_default_prompt") or "").strip(),
             (config.get("omnivoice_clone_default_prompt_text") or "").strip(),
             str(config.get("omnivoice_post_process", True)),
+            str(config.get("omnivoice_duration_safety_margin", 0.25)),
         )
         return f"{engine_name}::{'|'.join(parts)}"
     if engine_name == "omnivoice_design":
@@ -2357,6 +2389,7 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             str(config.get("omnivoice_design_num_step") or 32),
             (config.get("omnivoice_design_default_instruct") or "").strip(),
             str(config.get("omnivoice_post_process", True)),
+            str(config.get("omnivoice_duration_safety_margin", 0.25)),
         )
         return f"{engine_name}::{'|'.join(parts)}"
     if engine_name == "dots_tts":
@@ -2415,6 +2448,8 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             str(config.get("edge_tts_max_parallel") or 2),
             str(config.get("edge_tts_max_retries") if config.get("edge_tts_max_retries") is not None else 4),
             str(config.get("edge_tts_default_volume") or 0),
+            str(config.get("pause_marker_three_seconds", 0.25)),
+            str(config.get("pause_marker_six_seconds", 0.5)),
         )
         return f"{engine_name}::{'|'.join(parts)}"
     if engine_name == "elevenlabs":
@@ -2560,6 +2595,7 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             default_prompt=(config.get("omnivoice_clone_default_prompt") or "").strip() or None,
             default_prompt_text=(config.get("omnivoice_clone_default_prompt_text") or "").strip() or None,
             post_process=bool(config.get("omnivoice_post_process", True)),
+            duration_safety_margin=float(config.get("omnivoice_duration_safety_margin", 0.25)),
         )
 
     if engine_name == "omnivoice_design":
@@ -2573,6 +2609,7 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             num_step=int(config.get("omnivoice_design_num_step") or 32),
             default_instruct=(config.get("omnivoice_design_default_instruct") or "").strip() or None,
             post_process=bool(config.get("omnivoice_post_process", True)),
+            duration_safety_margin=float(config.get("omnivoice_duration_safety_margin", 0.25)),
         )
 
     if engine_name == "dots_tts":
@@ -2701,6 +2738,8 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
                 else 4
             ),
             default_volume=int(config.get("edge_tts_default_volume") or 0),
+            pause_marker_three_seconds=float(config.get("pause_marker_three_seconds", 0.25)),
+            pause_marker_six_seconds=float(config.get("pause_marker_six_seconds", 0.5)),
         )
 
     if engine_name == "elevenlabs":
@@ -3769,10 +3808,21 @@ def compose_gemini_speaker_profile_prompt(prompt_prefix: str, speakers: List[str
         parts.append("Create one row for every exact speaker ID in this list:\n" + speaker_line)
     parts.append(
         "REQUIRED OUTPUT FORMAT: Return only a Markdown table with exactly these "
-        "columns: Character Name | Full Description | Voice Profile. Preserve each "
-        "speaker ID exactly as supplied. Full Description must be a useful casting "
-        "profile, and Voice Profile must state a concrete voice type, tone, or vocal "
-        "range. Do not omit narrator and do not return blank cells."
+        "columns: Character Name | Full Description | Voice Type | Voice Design Prompt. "
+        "Preserve each speaker ID exactly as supplied. Keep Full Description limited to "
+        "the narrative character profile: role, personality, dramatic purpose, and "
+        "emotional range. Voice Type must be a concise casting label describing the sound "
+        "of the voice. Voice Design Prompt must be a synthesis-ready positive instruction "
+        "in this order: [explicit gender], [age/range], [timbre], "
+        "[pace using a rate term such as slow, measured, lively, or brisk], [accent], "
+        "[emotional delivery]. Begin with an age-aware, all-capitals label: 'FEMALE CHILD "
+        "VOICE' or 'MALE CHILD VOICE' for children; 'TEENAGE FEMALE/MALE VOICE', 'YOUNG "
+        "ADULT FEMALE/MALE VOICE', 'ADULT FEMALE/MALE VOICE', 'MIDDLE-AGED FEMALE/MALE "
+        "VOICE', or 'ELDERLY FEMALE/MALE VOICE' as appropriate. Use GENDER-NEUTRAL in "
+        "place of FEMALE/MALE when needed. Never label a child or teenager as ADULT. Keep it concise at 75-150 "
+        "characters. Do not mention audiobooks, narration, dialogue, or a use case, and never "
+        "include negative wording such as 'not', 'never', or 'no'. Do not omit narrator "
+        "and do not return blank cells."
     )
     return "\n\n".join(parts).strip()
 
@@ -3819,24 +3869,28 @@ def build_speaker_profile_excerpts(
 
 
 def parse_gemini_speaker_table(text: str) -> Dict[str, Dict[str, str]]:
-    """Parse common JSON or 3-column table responses into speaker profiles."""
+    """Parse JSON or speaker tables, including dedicated VoiceDesign prompts."""
     if not text:
         return {}
     cleaned = text.strip()
     cleaned = re.sub(r"^```(?:json|markdown|md)?\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*```$", "", cleaned)
 
-    def add_profile(profiles, name, description, voice):
+    def add_profile(profiles, name, description, voice, voice_design_prompt=""):
         name = str(name or "").strip()
         description = str(description or "").strip()
         voice = str(voice or "").strip()
+        voice_design_prompt = str(voice_design_prompt or "").strip()
         if not name or not description or not voice:
             return
-        profiles[name.lower()] = {
+        profile = {
             "name": name,
             "description": description,
             "voice": voice,
         }
+        if voice_design_prompt:
+            profile["voice_design_prompt"] = voice_design_prompt
+        profiles[name.lower()] = profile
 
     try:
         decoded = json.loads(cleaned)
@@ -3855,6 +3909,7 @@ def parse_gemini_speaker_table(text: str) -> Dict[str, Dict[str, str]]:
                     entry.get("name") or entry.get("character") or entry.get("speaker") or name,
                     entry.get("description") or entry.get("full_description") or entry.get("profile"),
                     entry.get("voice") or entry.get("voice_profile") or entry.get("voice_type"),
+                    entry.get("voice_design_prompt") or entry.get("voice_prompt") or entry.get("tts_prompt"),
                 )
         elif isinstance(decoded, list):
             for entry in decoded:
@@ -3865,6 +3920,7 @@ def parse_gemini_speaker_table(text: str) -> Dict[str, Dict[str, str]]:
                     entry.get("name") or entry.get("character") or entry.get("speaker"),
                     entry.get("description") or entry.get("full_description") or entry.get("profile"),
                     entry.get("voice") or entry.get("voice_profile") or entry.get("voice_type"),
+                    entry.get("voice_design_prompt") or entry.get("voice_prompt") or entry.get("tts_prompt"),
                 )
         if profiles:
             return profiles
@@ -3877,18 +3933,141 @@ def parse_gemini_speaker_table(text: str) -> Dict[str, Dict[str, str]]:
         if '|' in line:
             parts = [part.strip() for part in line.strip('|').split('|')]
             if len(parts) >= 3:
-                rows.append(parts[:3])
+                rows.append(parts[:4])
     if not rows:
         return {}
     profiles = {}
-    for name, description, voice in rows:
+    for row in rows:
+        name, description, voice = row[:3]
+        voice_design_prompt = row[3] if len(row) > 3 else ""
         normalized_columns = [column.strip().lower().replace(" ", "_") for column in (name, description, voice)]
         if all(re.fullmatch(r":?-{3,}:?", column.replace(" ", "")) for column in (name, description, voice)):
             continue
         if normalized_columns[0] in {"character", "character_name", "speaker", "speaker_name", "name"}:
             continue
-        add_profile(profiles, name, description, voice)
+        add_profile(profiles, name, description, voice, voice_design_prompt)
     return profiles
+
+
+def _voice_age_category(source: str) -> str:
+    """Infer a conservative casting age category from explicit wording or an age."""
+    text = (source or "").lower()
+    age_match = re.search(
+        r"\b(\d{1,2})(?:\s*[-–]\s*(\d{1,2}))?\s*[- ]?\s*(?:years?|yrs?)(?:\s*[- ]\s*old)?\b",
+        text,
+    )
+    if age_match:
+        low = int(age_match.group(1))
+        high = int(age_match.group(2) or low)
+        age = max(low, high)
+        if age <= 12:
+            return "child"
+        if age <= 17:
+            return "teenage"
+        if age <= 29:
+            return "young_adult"
+        if age >= 65:
+            return "elderly"
+        if age >= 45:
+            return "middle_aged"
+        return "adult"
+    if re.search(r"\b(child|child-like|kid|pre-?teen|boy|girl)\b", text):
+        return "child"
+    if re.search(r"\b(teen|teenage|adolescent)\b", text):
+        return "teenage"
+    if re.search(r"\byoung adult\b", text):
+        return "young_adult"
+    if re.search(r"\b(middle-aged|middle aged)\b", text):
+        return "middle_aged"
+    if re.search(r"\b(elderly|senior|older adult)\b", text):
+        return "elderly"
+    return "adult"
+
+
+def _voice_age_gender_prefix(gender: str, source: str) -> str:
+    gender_label = {
+        "female": "FEMALE",
+        "male": "MALE",
+        "neutral": "GENDER-NEUTRAL",
+    }.get((gender or "").lower(), "GENDER-NEUTRAL")
+    age_category = _voice_age_category(source)
+    if age_category == "child":
+        return f"{gender_label} CHILD VOICE"
+    age_label = {
+        "teenage": "TEENAGE",
+        "young_adult": "YOUNG ADULT",
+        "middle_aged": "MIDDLE-AGED",
+        "elderly": "ELDERLY",
+        "adult": "ADULT",
+    }[age_category]
+    return f"{age_label} {gender_label} VOICE"
+
+
+VOICE_DESIGN_PREFIX_PATTERN = (
+    r"\b(?:(?:female|male|gender[- ]neutral)\s+child|"
+    r"(?:teenage|young adult|middle[- ]aged|elderly|adult)\s+"
+    r"(?:female|male|gender[- ]neutral))\s+voice\b[.,;:]?"
+)
+
+
+def build_profile_voice_design_prompt(profile: Dict[str, Any]) -> str:
+    """Guarantee a compact VoiceDesign prompt without using narrative biography text."""
+    name = str(profile.get("name") or "").strip()
+    voice_type = re.sub(r"\s+", " ", str(profile.get("voice") or "").strip())
+    supplied = re.sub(r"\s+", " ", str(profile.get("voice_design_prompt") or "").strip())
+    gender_source = f"{name} {voice_type} {supplied}".lower()
+
+    if re.search(r"\bfemale\b|\bwoman\b|\bgirl\b|\bsoprano\b|\balto\b", gender_source):
+        gender = "female"
+    elif re.search(r"\bmale\b|\bman\b|\bboy\b|\bbaritone\b|\bbass\b|\btenor\b", gender_source):
+        gender = "male"
+    elif re.search(r"\bneutral\b|\bnonbinary\b|\bnon-binary\b", gender_source):
+        gender = "neutral"
+    else:
+        gender = "neutral"
+
+    gender_phrase = _voice_age_gender_prefix(gender, gender_source)
+
+    prompt = supplied or voice_type
+    prompt = re.sub(
+        r"\b(?:suitable\s+)?for\s+(?:sustained\s+)?(?:an?\s+)?audiobook(?:\s+(?:dialogue|narration))?\b",
+        " ",
+        prompt,
+        flags=re.IGNORECASE,
+    )
+    prompt = re.sub(r"\baudiobook(?:\s+(?:dialogue|narration))?\b", " ", prompt, flags=re.IGNORECASE)
+    prompt = re.sub(
+        VOICE_DESIGN_PREFIX_PATTERN,
+        " ",
+        prompt,
+        flags=re.IGNORECASE,
+    )
+    prompt = re.sub(
+        r"\bchild[- ]like\s*\((\d{1,2}(?:\s*[-–]\s*\d{1,2})?)\s*years?\)",
+        r"age \1",
+        prompt,
+        flags=re.IGNORECASE,
+    )
+    prompt = re.sub(r"\bchild[- ]like\b", " ", prompt, flags=re.IGNORECASE)
+    prompt = re.sub(r"\bemotional(?=\s*[.,;]|$)", "delivery", prompt, flags=re.IGNORECASE)
+    prompt = re.sub(
+        r"\b(?:but\s+)?(?:not|never|no)\b[^,.;]*[,.;]?",
+        "",
+        prompt,
+        flags=re.IGNORECASE,
+    )
+    prompt = re.sub(r"\s+", " ", prompt).strip(" ,;")
+    if not prompt:
+        prompt = voice_type
+    prompt = f"{gender_phrase}. {prompt}" if prompt else gender_phrase
+    if not re.search(r"\bEnglish\b|\baccent\b", prompt, re.IGNORECASE):
+        prompt = f"{prompt.rstrip('.')}. Neutral English accent."
+    prompt = re.sub(r"\s+", " ", prompt).strip()
+    if len(prompt) > 150:
+        prompt = prompt[:150].rsplit(" ", 1)[0].rstrip(" ,;") + "."
+    elif not prompt.endswith("."):
+        prompt += "."
+    return prompt
 
 
 def _is_chatterbox_engine(engine_name: str) -> bool:
@@ -4789,7 +4968,11 @@ def process_audio_job(job_data):
                         "emotion": segment.get("emotion"),
                     }
                     flat_segments.append(descriptor)
-                    pause_seconds = pause_seconds_for_text(chunk_text)
+                    pause_seconds = pause_seconds_for_text(
+                        chunk_text,
+                        config.get("pause_marker_three_seconds", 0.25),
+                        config.get("pause_marker_six_seconds", 0.5),
+                    )
                     if pause_seconds is not None:
                         descriptor["pause_seconds"] = pause_seconds
                         pause_descriptors.append(descriptor)
@@ -4850,7 +5033,11 @@ def process_audio_job(job_data):
                     silence_rate = 24000
                 write_silence_wav(
                     final_path,
-                    float(descriptor.get("pause_seconds") or 0.5),
+                    float(
+                        0.5
+                        if descriptor.get("pause_seconds") is None
+                        else descriptor.get("pause_seconds")
+                    ),
                     sample_rate=silence_rate,
                 )
                 final_files_by_order[int(descriptor["order_index"])] = str(final_path)
@@ -5364,9 +5551,9 @@ def process_audio_job(job_data):
                                 job_log.info("Merge complete: %s (exists=%s)", output_path.name, output_path.exists())
                             
                             # Update progress and cleanup
+                            update_progress()
+                            update_post_process(len(audio_files))
                             with queue_lock:
-                                update_progress()
-                                update_post_process(len(audio_files))
                                 completed_merges[0] += 1
                             
                             # Cleanup empty chunk directory
@@ -5715,6 +5902,7 @@ def process_qwen3_voice_design_preview_task(job_data: Dict[str, Any]) -> None:
     config = job_data.get("config") or load_config()
     try:
         result = _generate_voice_design_preview(payload, config)
+        result["task_id"] = job_id
         with queue_lock:
             job_entry = jobs.get(job_id)
             if job_entry:
@@ -6062,6 +6250,7 @@ def _serialize_chatterbox_voice(entry: Dict[str, Any]) -> Dict[str, Any]:
         "gender": entry.get("gender"),  # Male, Female, or None
         "language": entry.get("language"),  # Language code like en-US
         "description": entry.get("description"),
+        "voice_design": entry.get("voice_design"),
         "archived": bool(entry.get("archived", False)),
         "source": "local",  # local voices vs external
     }
@@ -6373,8 +6562,6 @@ def _apply_voice_design_cleanup(audio_data, sample_rate: int):
             str(sox_path),
             str(input_path),
             str(output_path),
-            "gain",
-            "-n",
             "fade",
             "0.01",
         ]
@@ -6393,30 +6580,168 @@ def _apply_voice_design_cleanup(audio_data, sample_rate: int):
             output_path.unlink(missing_ok=True)
 
 
-def _generate_voice_design_preview(payload: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, str]:
-    text = (payload.get("text") or "").strip()
-    instruct = (payload.get("instruct") or "").strip()
-    language = (payload.get("language") or "Auto").strip() or "Auto"
+def _clean_voice_design_instruction(value: str) -> str:
+    """Keep VoiceDesign instructions compact, positive, and synthesis-focused."""
+    text = re.sub(r"\s+", " ", (value or "").strip())
+    negative_patterns = (
+        r"\bnever\s+childlike\b",
+        r"\bno\s+feminine\s+resonance\b",
+        r"\bnot\s+theatrical\b",
+        r"\bnot\s+girlish\b",
+    )
+    for pattern in negative_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"\b(?:suitable\s+)?for\s+(?:sustained\s+)?(?:an?\s+)?audiobook(?:\s+(?:dialogue|narration))?\b",
+        " ",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"\baudiobook(?:\s+(?:dialogue|narration))?\b", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bemotional(?=\s*[.,;]|$)", "delivery", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"\b(?:but\s+)?(?:not|never|no)\b[^,.;]*[,.;]?",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"\s*[,;]\s*[,;]+", ", ", text)
+    text = re.sub(r"\s+([,.;])", r"\1", text).strip(" ,;")
+    if len(text) > 150:
+        text = text[:150].rsplit(" ", 1)[0].rstrip(" ,;")
+    return text
+
+
+def _build_qwen_voice_design_instruction(payload: Dict[str, Any]) -> tuple[str, str]:
+    """Build an instruction from voice traits, never from the narrative profile."""
+    structured = any(
+        key in payload for key in ("voice_type", "voice_design_prompt", "required_gender")
+    )
+    if not structured:
+        # Voice Manager supplies a complete manual instruction and remains supported.
+        instruct = _clean_voice_design_instruction(payload.get("instruct") or "")
+        language = (payload.get("language") or "English").strip() or "English"
+        return instruct, language
+
+    gender = (payload.get("gender") or "").strip().lower()
+    if gender in {"nonbinary", "non-binary", "gender-neutral"}:
+        gender = "neutral"
+    if gender not in {"female", "male", "neutral"}:
+        raise ValueError(
+            "VoiceDesign requires an explicit Male, Female, or Neutral speaker gender. "
+            "Add the gender to the speaker name or Voice Design Prompt."
+        )
+
+    source = payload.get("voice_design_prompt") or payload.get("voice_type") or ""
+    gender_phrase = _voice_age_gender_prefix(gender, str(source))
+    traits = _clean_voice_design_instruction(source)
+    traits = re.sub(
+        VOICE_DESIGN_PREFIX_PATTERN,
+        " ",
+        traits,
+        flags=re.IGNORECASE,
+    )
+    traits = re.sub(
+        r"\bchild[- ]like\s*\((\d{1,2}(?:\s*[-–]\s*\d{1,2})?)\s*years?\)",
+        r"age \1",
+        traits,
+        flags=re.IGNORECASE,
+    )
+    traits = re.sub(r"\bchild[- ]like\b", " ", traits, flags=re.IGNORECASE)
+    traits = re.sub(r"\s+", " ", traits).strip(" ,;.")
+    if not traits and payload.get("voice_type"):
+        traits = _clean_voice_design_instruction(str(payload.get("voice_type"))).strip(" ,;.")
+    if not traits:
+        raise ValueError("Voice Type or Voice Design Prompt is required.")
+    expected = re.compile(rf"\b{re.escape(gender_phrase)}\b", re.IGNORECASE)
+    instruct = f"{gender_phrase}. {traits}"
+    instruct = _clean_voice_design_instruction(instruct)
+    if not expected.search(instruct):
+        raise ValueError(f'Final VoiceDesign instruction must contain "{gender_phrase}".')
+    return instruct, "English"
+
+
+def _ensure_voice_design_preview_length(text: str) -> str:
+    """Pad unusually short custom previews so casting samples demonstrate the voice."""
+    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    if not cleaned:
+        return cleaned
+    padding = (
+        "The speaker continues with clear articulation and natural pacing, moving from calm reflection "
+        "through firm conviction and rising urgency to demonstrate a believable emotional range for audiobook dialogue."
+    )
+    while len(cleaned.split()) < MIN_VOICE_DESIGN_PREVIEW_WORDS:
+        cleaned = f"{cleaned.rstrip()} {padding}"
+    return cleaned
+
+
+def _generate_voice_design_preview(payload: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+    text = _ensure_voice_design_preview_length(payload.get("text") or "")
+    instruct, language = _build_qwen_voice_design_instruction(payload)
     if not text:
         raise ValueError("Text is required to generate a preview.")
 
+    generation_kwargs: Dict[str, Any] = dict(VOICE_DESIGN_CASTING_GENERATION)
+    for key in (
+        "temperature",
+        "top_p",
+        "top_k",
+        "subtalker_temperature",
+        "subtalker_top_p",
+        "subtalker_top_k",
+    ):
+        value = payload.get(key)
+        if value not in (None, ""):
+            generation_kwargs[key] = int(value) if key.endswith("top_k") else float(value)
+
+    try:
+        seed = int(payload.get("seed"))
+    except (TypeError, ValueError):
+        seed = uuid.uuid4().int & 0x7fffffff
+    seed = max(0, min(seed, 0x7fffffff))
+
     with gpu_inference_lock:
         model = _get_qwen3_voice_design_model(config)
-        wavs, sr = model.generate_voice_design(
-            text=text,
-            instruct=instruct or "",
-            language=language or "Auto",
-            non_streaming_mode=True,
-        )
+        import torch
+        cuda_devices = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else []
+        with torch.random.fork_rng(devices=cuda_devices):
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+            wavs, sr = model.generate_voice_design(
+                text=text,
+                instruct=instruct or "",
+                language=language,
+                non_streaming_mode=True,
+                **generation_kwargs,
+            )
     if not wavs:
         raise RuntimeError("No audio produced for preview.")
     audio_data = _apply_voice_design_cleanup(wavs[0], int(sr))
+    duration_seconds = float(len(audio_data)) / float(sr)
+    if duration_seconds < MIN_VOICE_DESIGN_PREVIEW_SECONDS:
+        raise RuntimeError(
+            f"VoiceDesign produced a {duration_seconds:.1f}-second preview. "
+            f"Casting samples must be at least {MIN_VOICE_DESIGN_PREVIEW_SECONDS:.0f} seconds; "
+            "try generating the candidate again."
+        )
     buffer = io.BytesIO()
     sf.write(buffer, audio_data, int(sr), format="wav")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    wav_bytes = buffer.getvalue()
+    encoded = base64.b64encode(wav_bytes).decode("ascii")
     return {
         "audio_base64": encoded,
         "mime_type": "audio/wav",
+        "engine": "qwen3_voice_design",
+        "cleanup_applied": True,
+        "instruction": instruct,
+        "preview_text": text,
+        "duration_seconds": duration_seconds,
+        "language": language,
+        "model": (config.get("qwen3_voice_design_model_id") or "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign").strip(),
+        "sampling_parameters": generation_kwargs,
+        "seed": seed,
+        "wav_sha256": hashlib.sha256(wav_bytes).hexdigest(),
     }
 
 
@@ -6424,7 +6749,7 @@ def _save_voice_design_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     name = (payload.get("name") or "").strip()
     text = (payload.get("text") or "").strip()
     gender = (payload.get("gender") or "").strip() or None
-    language = (payload.get("language") or "Auto").strip() or "Auto"
+    language = (payload.get("language") or "English").strip() or "English"
     description = (payload.get("description") or "").strip() or None
     audio_base64 = payload.get("audio_base64")
 
@@ -6449,7 +6774,8 @@ def _save_voice_design_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     audio_stream = io.BytesIO(audio_bytes)
     audio_data, sample_rate = sf.read(audio_stream, dtype='float32')
-    audio_data = _apply_voice_design_cleanup(audio_data, int(sample_rate))
+    if not payload.get("cleanup_applied"):
+        audio_data = _apply_voice_design_cleanup(audio_data, int(sample_rate))
     sf.write(str(target_path), audio_data, int(sample_rate))
 
     duration_seconds = _measure_audio_duration(target_path)
@@ -6473,6 +6799,20 @@ def _save_voice_design_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "gender": gender,
         "language": language if language and language != "Auto" else None,
         "description": description,
+        "voice_design": {
+            "instruction": (payload.get("instruction") or payload.get("instruct") or "").strip(),
+            "preview_text": text,
+            "language": language,
+            "model": payload.get("model"),
+            "sampling_parameters": payload.get("sampling_parameters") or {"mode": "Qwen defaults"},
+            "seed": payload.get("seed"),
+            "task_id": payload.get("source_task_id"),
+            "candidate_group_id": payload.get("candidate_group_id"),
+            "candidate_label": payload.get("candidate_label"),
+            "preview_wav_sha256": payload.get("wav_sha256"),
+            "wav_sha256": hashlib.sha256(target_path.read_bytes()).hexdigest(),
+            "approval_status": payload.get("approval_status") or "pending",
+        },
     }
     entries.append(entry)
     _save_chatterbox_voice_entries(entries)
@@ -8938,6 +9278,12 @@ def process_gemini_speaker_profiles():
                 "success": False,
                 "error": "The LLM returned no usable speaker profiles. Try the request again or review the Speaker Profile Prompt."
             }), 422
+
+        # Models and older custom prompts may still return the legacy three-column
+        # table. Never report success with an empty Voice Design Prompt: preserve a
+        # valid fourth column or build one from speaker gender + Voice Type only.
+        for profile in profiles.values():
+            profile["voice_design_prompt"] = build_profile_voice_design_prompt(profile)
 
         normalized_profile_names = {
             re.sub(r'[^a-z0-9]', '', str(profile.get("name") or key).lower())
@@ -11508,6 +11854,122 @@ def list_supported_formats():
     })
 
 
+def _load_saved_projects() -> List[Dict[str, Any]]:
+    if not PROJECTS_FILE.exists():
+        return []
+    try:
+        payload = json.loads(PROJECTS_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.error("Unable to read saved projects from %s: %s", PROJECTS_FILE, exc)
+        return []
+    if not isinstance(payload, list):
+        logger.error("Saved project file is not a JSON list: %s", PROJECTS_FILE)
+        return []
+    return [project for project in payload if isinstance(project, dict)]
+
+
+def _project_timestamp(project: Dict[str, Any]) -> float:
+    value = str(project.get("saved_at") or "").strip()
+    if not value:
+        return 0.0
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _normalize_saved_project(project: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = copy.deepcopy(project)
+    project_id = str(normalized.get("id") or uuid.uuid4()).strip()
+    normalized["id"] = project_id or str(uuid.uuid4())
+    normalized["name"] = str(normalized.get("name") or "Untitled Project").strip() or "Untitled Project"
+    normalized["saved_at"] = str(normalized.get("saved_at") or datetime.utcnow().isoformat())
+    return normalized
+
+
+def _merge_imported_projects(
+    existing: List[Dict[str, Any]], incoming: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    merged = [_normalize_saved_project(project) for project in existing]
+    for raw_project in incoming:
+        if not isinstance(raw_project, dict):
+            continue
+        project = _normalize_saved_project(raw_project)
+        project_id = project["id"]
+        project_name = project["name"].casefold()
+        match_index = next(
+            (
+                index
+                for index, saved in enumerate(merged)
+                if str(saved.get("id")) == project_id
+                or str(saved.get("name") or "").strip().casefold() == project_name
+            ),
+            None,
+        )
+        if match_index is None:
+            merged.append(project)
+        elif _project_timestamp(project) >= _project_timestamp(merged[match_index]):
+            # Keep the established ID when matching a legacy copy by name.
+            project["id"] = str(merged[match_index].get("id") or project_id)
+            merged[match_index] = project
+    return merged
+
+
+@app.route('/api/projects', methods=['GET'])
+def list_saved_projects():
+    """Return the shared, backend-managed project library."""
+    with PROJECTS_LOCK:
+        projects = _load_saved_projects()
+    projects.sort(key=_project_timestamp, reverse=True)
+    return jsonify({"success": True, "projects": projects})
+
+
+@app.route('/api/projects', methods=['POST'])
+def save_saved_project():
+    payload = request.get_json(silent=True) or {}
+    raw_project = payload.get("project") if isinstance(payload, dict) else None
+    if not isinstance(raw_project, dict):
+        return jsonify({"success": False, "error": "A project object is required."}), 400
+    project = _normalize_saved_project(raw_project)
+    with PROJECTS_LOCK:
+        projects = _load_saved_projects()
+        match_index = next(
+            (index for index, saved in enumerate(projects) if str(saved.get("id")) == project["id"]),
+            None,
+        )
+        if match_index is None:
+            projects.append(project)
+        else:
+            projects[match_index] = project
+        write_json_atomic(PROJECTS_FILE, projects, ensure_ascii=False)
+    return jsonify({"success": True, "project": project})
+
+
+@app.route('/api/projects/import', methods=['POST'])
+def import_saved_projects():
+    """Merge projects formerly isolated in an individual browser origin."""
+    payload = request.get_json(silent=True) or {}
+    incoming = payload.get("projects") if isinstance(payload, dict) else None
+    if not isinstance(incoming, list):
+        return jsonify({"success": False, "error": "A project list is required."}), 400
+    with PROJECTS_LOCK:
+        projects = _merge_imported_projects(_load_saved_projects(), incoming)
+        write_json_atomic(PROJECTS_FILE, projects, ensure_ascii=False)
+    projects.sort(key=_project_timestamp, reverse=True)
+    return jsonify({"success": True, "projects": projects, "imported": len(incoming)})
+
+
+@app.route('/api/projects/<project_id>', methods=['DELETE'])
+def delete_saved_project(project_id: str):
+    with PROJECTS_LOCK:
+        projects = _load_saved_projects()
+        remaining = [project for project in projects if str(project.get("id")) != str(project_id)]
+        if len(remaining) == len(projects):
+            return jsonify({"success": False, "error": "Project not found."}), 404
+        write_json_atomic(PROJECTS_FILE, remaining, ensure_ascii=False)
+    return jsonify({"success": True})
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -11535,6 +11997,7 @@ def health_check():
             CHATTERBOX_TURBO_UNAVAILABLE_REASON if not CHATTERBOX_TURBO_AVAILABLE else ""
         ),
         "qwen3_available": QWEN3_AVAILABLE,
+        "qwen3_voice_design_api_version": 2,
         "omnivoice_available": OMNIVOICE_AVAILABLE,
         "pocket_tts_available": POCKET_TTS_AVAILABLE,
         "kitten_tts_available": KITTEN_TTS_AVAILABLE,
@@ -11651,6 +12114,40 @@ def qwen3_voice_design_task_status(task_id: str):
         if job_entry.get("status") == "failed":
             payload["error"] = job_entry.get("error")
         return jsonify(payload)
+
+
+@app.route('/api/qwen3/voice-design/candidates/approve', methods=['POST'])
+def qwen3_voice_design_approve_candidate():
+    payload = request.get_json(silent=True) or {}
+    selected_id = (payload.get("selected_id") or "").strip()
+    group_id = (payload.get("candidate_group_id") or "").strip()
+    candidate_ids = {
+        str(candidate_id).strip()
+        for candidate_id in (payload.get("candidate_ids") or [])
+        if str(candidate_id).strip()
+    }
+    candidate_ids.add(selected_id)
+    if not selected_id or not group_id:
+        return jsonify({"success": False, "error": "Candidate and group IDs are required."}), 400
+    entries = _load_chatterbox_voice_entries()
+    selected = None
+    for entry in entries:
+        metadata = entry.get("voice_design") or {}
+        belongs_to_group = metadata.get("candidate_group_id") == group_id
+        belongs_to_legacy_group = entry.get("id") in candidate_ids
+        if not belongs_to_group and not belongs_to_legacy_group:
+            continue
+        approved = entry.get("id") == selected_id
+        metadata["candidate_group_id"] = group_id
+        metadata["approval_status"] = "approved" if approved else "rejected"
+        entry["voice_design"] = metadata
+        entry["archived"] = not approved
+        if approved:
+            selected = entry
+    if not selected:
+        return jsonify({"success": False, "error": "Selected candidate was not found."}), 404
+    _save_chatterbox_voice_entries(entries)
+    return jsonify({"success": True, "voice": _serialize_chatterbox_voice(selected)})
 
 
 @app.route('/api/omnivoice/voice-design/preview', methods=['POST'])

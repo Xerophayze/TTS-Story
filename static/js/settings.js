@@ -1295,6 +1295,8 @@ function applySettings(settings) {
     // Silence controls
     setElementValue('intro-silence', settings.intro_silence_ms ?? 0, 0);
     setElementValue('inter-silence', settings.inter_chunk_silence_ms ?? 0, 0);
+    setElementValue('pause-marker-three-seconds', settings.pause_marker_three_seconds ?? 0.25, 0.25);
+    setElementValue('pause-marker-six-seconds', settings.pause_marker_six_seconds ?? 0.5, 0.5);
 
     // Parallel processing
     setElementValue('parallel-chunks', settings.parallel_chunks ?? 3, 3);
@@ -1622,6 +1624,10 @@ function applySettings(settings) {
     if (omnivoicePostProcess) {
         omnivoicePostProcess.checked = settings.omnivoice_post_process !== false;
     }
+    const omnivoiceDurationSafetyMargin = document.getElementById('omnivoice-duration-safety-margin');
+    if (omnivoiceDurationSafetyMargin) {
+        omnivoiceDurationSafetyMargin.value = settings.omnivoice_duration_safety_margin ?? 0.25;
+    }
 
     // Pocket TTS settings
     const pocketVariant = document.getElementById('pocket-tts-model-variant');
@@ -1873,6 +1879,8 @@ async function saveSettings() {
         crossfade_duration: parseFloat(document.getElementById('crossfade').value),
         intro_silence_ms: parseSilenceInput('intro-silence'),
         inter_chunk_silence_ms: parseSilenceInput('inter-silence'),
+        pause_marker_three_seconds: parseClampedFloat('pause-marker-three-seconds', 0.25, 0, 30),
+        pause_marker_six_seconds: parseClampedFloat('pause-marker-six-seconds', 0.5, 0, 30),
         parallel_chunks: Math.min(8, Math.max(1, parseInt(document.getElementById('parallel-chunks')?.value, 10) || 3)),
         group_chunks_by_speaker: document.getElementById('group-chunks-by-speaker')?.checked ?? false,
         cleanup_vram_after_job: document.getElementById('cleanup-vram-after-job')?.checked ?? false,
@@ -1995,6 +2003,10 @@ async function saveSettings() {
         omnivoice_clone_default_prompt_text: document.getElementById('omnivoice-clone-prompt-text')?.value || '',
         omnivoice_design_default_instruct: document.getElementById('omnivoice-design-instruct')?.value || '',
         omnivoice_post_process: document.getElementById('omnivoice-post-process')?.checked !== false,
+        omnivoice_duration_safety_margin: (() => {
+            const value = parseFloat(document.getElementById('omnivoice-duration-safety-margin')?.value);
+            return Number.isFinite(value) ? Math.max(0, Math.min(value, 2)) : 0.25;
+        })(),
         pocket_tts_model_variant: document.getElementById('pocket-tts-model-variant')?.value || 'b6369a24',
         pocket_tts_chunk_size: parseInt(document.getElementById('pocket-tts-chunk-size')?.value, 10) || 450,
         pocket_tts_temp: parseFloat(document.getElementById('pocket-tts-temp')?.value) || 0.7,
@@ -2125,6 +2137,8 @@ async function resetSettings() {
         crossfade_duration: 0.1,
         intro_silence_ms: 0,
         inter_chunk_silence_ms: 0,
+        pause_marker_three_seconds: 0.25,
+        pause_marker_six_seconds: 0.5,
         parallel_chunks: 3,
         group_chunks_by_speaker: false,
         cleanup_vram_after_job: false,
@@ -2221,6 +2235,7 @@ async function resetSettings() {
         omnivoice_clone_default_prompt_text: '',
         omnivoice_design_default_instruct: '',
         omnivoice_post_process: true,
+        omnivoice_duration_safety_margin: 0.25,
         pocket_tts_model_variant: 'b6369a24',
         pocket_tts_temp: 0.7,
         pocket_tts_lsd_decode_steps: 1,

@@ -55,6 +55,7 @@ class OmniVoiceDesignEngine(TtsEngineBase):
         num_step: int = 32,
         default_instruct: Optional[str] = None,
         post_process: bool = True,
+        duration_safety_margin: float = 0.25,
     ):
         if not OMNIVOICE_AVAILABLE:
             raise ImportError(
@@ -69,6 +70,7 @@ class OmniVoiceDesignEngine(TtsEngineBase):
         self.num_step = num_step
         self.default_instruct = default_instruct
         self.post_process = post_process
+        self.duration_safety_margin = max(0.0, min(float(duration_safety_margin), 2.0))
         self.post_processor = AudioPostProcessor()
 
         logger.info(
@@ -102,6 +104,7 @@ class OmniVoiceDesignEngine(TtsEngineBase):
                 "num_step": self.num_step,
                 "speed": speed,
                 "post_process": self.post_process,
+                "duration_safety_margin": self.duration_safety_margin,
                 "text": text,
                 "instruct": instruct,
                 "output_path": output_path,
@@ -155,6 +158,7 @@ class OmniVoiceDesignEngine(TtsEngineBase):
                     "num_step": self.num_step,
                     "speed": spd,
                     "post_process": self.post_process,
+                    "duration_safety_margin": self.duration_safety_margin,
                     "text": chunk_text,
                     "instruct": instruct,
                     "output_path": str(output_path),

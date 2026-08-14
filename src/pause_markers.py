@@ -24,12 +24,29 @@ TAGGED_PAUSE_MARKER_PATTERN = re.compile(
 TRAILING_PAUSE_MARKER_PATTERN = re.compile(r"\s*\*{3}(?:\*{3})*\s*$")
 
 
-def pause_seconds_for_text(text: str) -> float | None:
-    """Return the pause represented by a 3-star group."""
+def pause_seconds_for_text(
+    text: str,
+    three_star_seconds: float = 0.25,
+    six_star_seconds: float = 0.5,
+) -> float | None:
+    """Return the configured pause represented by groups of three stars.
+
+    Six-star groups use their own duration. Longer controls are composed from
+    as many six-star groups as possible plus one three-star group when needed.
+    """
     candidate = str(text or "").strip()
     if not re.fullmatch(r"\*{3}(?:\*{3})*", candidate):
         return None
-    return (len(candidate) // 3) * 0.25
+    groups = len(candidate) // 3
+    try:
+        short_pause = max(0.0, min(float(three_star_seconds), 30.0))
+    except (TypeError, ValueError):
+        short_pause = 0.25
+    try:
+        long_pause = max(0.0, min(float(six_star_seconds), 30.0))
+    except (TypeError, ValueError):
+        long_pause = 0.5
+    return (groups // 2) * long_pause + (groups % 2) * short_pause
 
 
 def sanitize_display_title(value: str | None) -> str:

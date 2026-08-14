@@ -75,6 +75,8 @@ const HELP_TOPICS = {
                 <li><strong>Speaker name:</strong> Clicking Apply updates the speaker tag names in the main text.</li>
                 <li><strong>Profile:</strong> Describe the person’s background, role, and personality.</li>
                 <li><strong>Voice type:</strong> Describe the sound of their voice (baritone, tenor, deep, airy).</li>
+                <li><strong>Voice Design Prompt:</strong> A separate synthesis-only description used by Qwen, including explicit gender, age, range, timbre, pace, accent, and delivery.</li>
+                <li><strong>Qwen candidates:</strong> The default is one automatically assigned voice. Increase Candidates to audition multiple alternatives and approve one.</li>
                 <li><strong>Prep Text:</strong> When it detects speakers, profiles and voice types can auto-fill here.</li>
                 <li><strong>Voice sample:</strong> Options change by engine—Kokoro has its own voices; other engines share the voice sample list.</li>
                 <li><strong>Pitch & Speed:</strong> Fine-tune the tone and pacing for this speaker.</li>
@@ -303,104 +305,150 @@ const HELP_TOPICS = {
     }
 };
 
-async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl, engine = 'qwen3') {
-    if (!speaker) return false;
+const VOICE_DESIGN_STANDARD_PREVIEW_TEXT = 'With this line of text, you will always know exactly where I stand, and what I sound like. Whether you like it or not, though, it may not be what you think. Listen carefully as my tone moves from quiet reflection toward clear and confident resolve.';
+
+function buildCharacterPreviewText(_speaker, _profile = {}) {
+    return VOICE_DESIGN_STANDARD_PREVIEW_TEXT;
+}
+
+function buildSpeakerVoiceDesignPayload(speaker, displayName) {
     const { profile } = findSpeakerProfile(speaker);
-    const description = profile?.description || '';
-    const voice = profile?.voice || '';
-    const instruct = description || '';
-    const shortDescription = voice || '';
-    const sampleText = 'With this line of text, you will always know exactly where I stand, and what I sound like. Whether you like it or not. though, it may not be what you think.';
-    if (!shortDescription) {
-        if (statusEl) {
-            statusEl.textContent = `Skipped ${speaker}: missing voice type.`;
-        }
-        return false;
+    const voiceType = profile?.voice?.trim() || '';
+    const voiceGenderText = `${profile?.voice_design_prompt || ''} ${voiceType}`.toLowerCase();
+    const gender = parseGenderFromSpeakerName(speaker)
+        || (/\bfemale\b|\bwoman\b/.test(voiceGenderText) ? 'Female' : null)
+        || (/\bmale\b|\bman\b/.test(voiceGenderText) ? 'Male' : null)
+        || (/\bgender[- ]neutral\b|\bnonbinary\b/.test(voiceGenderText) ? 'Neutral' : null);
+    if (!voiceType && !profile?.voice_design_prompt?.trim()) {
+        throw new Error(`Add a Voice Type for ${speaker} before generating.`);
     }
-    if (!instruct) {
-        if (statusEl) {
-            statusEl.textContent = `Skipped ${speaker}: missing profile description.`;
-        }
-        return false;
+    if (!gender) {
+        throw new Error(`Add -male, -female, or -neutral to ${speaker}, or put an explicit adult gender phrase in its Voice Design Prompt.`);
     }
-    const isOmniVoiceBatch = engine === 'omnivoice';
-    const previewUrl = isOmniVoiceBatch ? '/api/omnivoice/voice-design/preview' : '/api/qwen3/voice-design/preview';
-    const saveUrl = isOmniVoiceBatch ? '/api/omnivoice/voice-design/save' : '/api/qwen3/voice-design/save';
-    const taskPollUrl = isOmniVoiceBatch
-        ? (id) => `/api/omnivoice/voice-design/tasks/${id}`
-        : (id) => `/api/qwen3/voice-design/tasks/${id}`;
-    const payload = {
+    return {
         name: displayName || speaker,
-        gender: parseGenderFromSpeakerName(speaker),
-        language: 'Auto',
-        description: shortDescription,
-        text: sampleText,
-        instruct
+        speaker,
+        gender,
+        required_gender: true,
+        language: 'English',
+        description: voiceType,
+        voice_type: voiceType,
+        voice_design_prompt: profile?.voice_design_prompt?.trim() || '',
+        text: buildCharacterPreviewText(speaker, profile || {})
     };
+}
+
+function createVoiceDesignCandidateSeed() {
+    const values = new Uint32Array(1);
+    if (globalThis.crypto?.getRandomValues) {
+        globalThis.crypto.getRandomValues(values);
+        return values[0] & 0x7fffffff;
+    }
+    return Math.floor(Math.random() * 0x7fffffff);
+}
+
+async function generateAndSaveVoiceCandidates(speaker, displayName, statusEl) {
+    await requireQwenVoiceDesignBackend();
+    const payload = buildSpeakerVoiceDesignPayload(speaker, displayName);
+    const { profile } = findSpeakerProfile(speaker);
+    const requestedCount = Number.parseInt(profile?.voice_candidate_count, 10);
+    const count = Math.max(1, Math.min(Number.isFinite(requestedCount) ? requestedCount : 1, 10));
+    const groupId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`).toString();
+    const candidates = [];
+    const candidateSeeds = new Set();
     try {
-        if (statusEl) {
-            statusEl.textContent = `Generating preview for ${displayName || speaker}...`;
+        for (let index = 0; index < count; index += 1) {
+            const label = String.fromCharCode(65 + index);
+            const previewUrl = '/api/qwen3/voice-design/preview';
+            const saveUrl = '/api/qwen3/voice-design/save';
+            const pollUrl = id => `/api/qwen3/voice-design/tasks/${id}`;
+            let candidateSeed = createVoiceDesignCandidateSeed();
+            while (candidateSeeds.has(candidateSeed)) candidateSeed = (candidateSeed + 1) & 0x7fffffff;
+            candidateSeeds.add(candidateSeed);
+            const candidatePayload = { ...payload, seed: candidateSeed };
+            if (statusEl) statusEl.textContent = `Generating Qwen candidate ${label} of ${count} for ${displayName || speaker}. This may take about a minute per candidate...`;
+            const previewResponse = await fetch(previewUrl, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(candidatePayload)
+            });
+            const previewData = await parseVoiceDesignApiResponse(previewResponse, 'enqueue Qwen voice generation');
+            if (!previewResponse.ok || !previewData.success) throw new Error(previewData.error || 'Failed to enqueue preview');
+            const result = await pollVoiceDesignTask(previewData.job_id, pollUrl, `Generating Qwen candidate ${label} of ${count}. This may take about a minute...`);
+            if (!result.audio_base64) throw new Error(`Candidate ${label} did not return audio.`);
+            const candidateName = count > 1 ? `${displayName || speaker} - Candidate ${label}` : (displayName || speaker);
+            const saveResponse = await fetch(saveUrl, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...candidatePayload,
+                    ...result,
+                    name: candidateName,
+                    text: result.preview_text || candidatePayload.text,
+                    audio_base64: result.audio_base64,
+                    instruction: result.instruction || payload.voice_design_prompt || payload.voice_type,
+                    candidate_group_id: groupId,
+                    candidate_label: label,
+                    source_task_id: result.task_id || previewData.job_id,
+                    approval_status: count > 1 ? 'pending' : 'approved'
+                })
+            });
+            const saveData = await parseVoiceDesignApiResponse(saveResponse, 'save Qwen voice candidate');
+            if (!saveResponse.ok || !saveData.success) throw new Error(saveData.error || 'Failed to enqueue save');
+            const saved = await pollVoiceDesignTask(saveData.job_id, pollUrl, `Saving candidate ${label}...`);
+            candidates.push({ ...result, ...saved, label, candidate_group_id: groupId });
         }
-        const previewBody = isOmniVoiceBatch
-            ? { text: payload.text, instruct: payload.instruct }
-            : { text: payload.text, instruct: payload.instruct, language: payload.language };
-        const previewResponse = await fetch(previewUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(previewBody)
-        });
-        const previewData = await previewResponse.json();
-        if (!previewData.success) {
-            throw new Error(previewData.error || 'Failed to enqueue preview');
-        }
-        const previewResult = await pollVoiceDesignTask(previewData.job_id, taskPollUrl, `Generating ${displayName || speaker}...`);
-        if (!previewResult.audio_base64) {
-            throw new Error('Preview audio missing from response.');
-        }
-        if (statusEl) {
-            statusEl.textContent = `Saving ${displayName || speaker}...`;
-        }
-        const saveResponse = await fetch(saveUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...payload,
-                audio_base64: previewResult.audio_base64
-            })
-        });
-        const saveData = await saveResponse.json();
-        if (!saveData.success) {
-            throw new Error(saveData.error || 'Failed to enqueue save');
-        }
-        await pollVoiceDesignTask(saveData.job_id, taskPollUrl, `Saving ${displayName || speaker}...`);
+    } catch (error) {
+        // Candidate groups are atomic. Do not leave a saved Candidate A behind
+        // when a later candidate fails, since it cannot be safely reviewed as
+        // the requested complete group.
+        await Promise.allSettled(candidates
+            .map(candidate => candidate?.id)
+            .filter(Boolean)
+            .map(id => fetch(`/api/chatterbox-voices/${encodeURIComponent(id)}`, { method: 'DELETE' })));
+        throw error;
+    }
+    return candidates;
+}
+
+async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl) {
+    if (!speaker) return { success: false, error: 'Missing speaker name' };
+    const speakerKey = normalizeSpeakerKey(speaker);
+    // Remove stale review cards before attempting this speaker. A failure must
+    // show as a failure, not as an apparently successful set of old candidates.
+    delete speakerVoiceDesignCandidates[speakerKey];
+    try {
+        const candidates = await generateAndSaveVoiceCandidates(speaker, displayName, statusEl);
         await refreshChatterboxVoices();
         populateReferenceSelects();
-        const targetName = (displayName || speaker).trim().toLowerCase();
-        const latestVoice = availableChatterboxVoices
-            .filter(entry => (entry?.name || '').trim().toLowerCase() === targetName)
-            .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0))[0];
-        const promptValue = (latestVoice?.prompt_path || latestVoice?.file_name || '').trim();
-        if (promptValue) {
-            turboSelectionState[speaker] = promptValue;
-            document.querySelectorAll('#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select')
-                .forEach(select => {
-                    if (select?.dataset?.speaker === speaker) {
-                        select.value = promptValue;
-                    }
-                });
-            updateInlineSampleButtonState(activeSpeakerRow, { stopPlayback: true });
+        if (candidates.length > 1) {
+            speakerVoiceDesignCandidates[speakerKey] = candidates;
+            if (statusEl) statusEl.textContent = `Created ${candidates.length} candidates for ${displayName || speaker}; select one in Speaker Properties.`;
+        } else {
+            delete speakerVoiceDesignCandidates[speakerKey];
+            const promptValue = (candidates[0]?.prompt_path || candidates[0]?.file_name || '').trim();
+            if (promptValue) {
+                turboSelectionState[speaker] = promptValue;
+                document.querySelectorAll('#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select')
+                    .forEach(select => {
+                        if (select?.dataset?.speaker === speaker) select.value = promptValue;
+                    });
+            }
+            updateSpeakerProfileEntry(speaker, {
+                selected_voice_id: candidates[0]?.id || '',
+                selected_voice_name: candidates[0]?.name || displayName || speaker,
+                selected_voice_path: promptValue
+            });
         }
-        return true;
+        return { success: true, error: '' };
     } catch (error) {
         console.error('Batch voice generation failed', error);
+        if (error?.code === 'VOICE_DESIGN_BACKEND_RESTART_REQUIRED') throw error;
         if (statusEl) {
             statusEl.textContent = `Failed ${speaker}: ${error.message || 'Error'}`;
         }
-        return false;
+        return { success: false, error: error.message || 'Unknown generation error' };
     }
 }
 
-async function runBatchVoiceGeneration(prefix, statusEl, engine = 'qwen3', progressEls = {}, completionEls = {}) {
+async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, completionEls = {}) {
     const speakers = Array.isArray(currentStats?.speakers) && currentStats.speakers.length
         ? currentStats.speakers
         : [];
@@ -423,6 +471,7 @@ async function runBatchVoiceGeneration(prefix, statusEl, engine = 'qwen3', progr
         completeCard.classList.add('hidden');
     }
     let successCount = 0;
+    const failures = [];
     for (let index = 0; index < speakers.length; index += 1) {
         const speaker = speakers[index];
         const displayName = buildBatchVoiceName(prefix, speaker);
@@ -435,9 +484,11 @@ async function runBatchVoiceGeneration(prefix, statusEl, engine = 'qwen3', progr
         if (fill) {
             fill.style.width = `${Math.round((index / speakers.length) * 100)}%`;
         }
-        const success = await generateSpeakerVoicePromptBatch(speaker, displayName, statusEl, engine);
-        if (success) {
+        const result = await generateSpeakerVoicePromptBatch(speaker, displayName, statusEl);
+        if (result.success) {
             successCount += 1;
+        } else {
+            failures.push(`${speaker}: ${result.error}`);
         }
         if (label) {
             label.textContent = `${index + 1} / ${speakers.length} complete`;
@@ -450,7 +501,9 @@ async function runBatchVoiceGeneration(prefix, statusEl, engine = 'qwen3', progr
         statusEl.textContent = '';
     }
     if (completeSummary) {
-        completeSummary.textContent = `Generated ${successCount} of ${speakers.length} voices.`;
+        completeSummary.textContent = failures.length
+            ? `Generated Qwen3 voices for ${successCount} of ${speakers.length} speakers. Failed: ${failures.join(' | ')}`
+            : `Generated Qwen3 voices for all ${speakers.length} speakers. Speakers configured for multiple candidates still require a final selection.`;
     }
     if (completeCard) {
         completeCard.classList.remove('hidden');
@@ -464,7 +517,12 @@ async function runBatchVoiceGeneration(prefix, statusEl, engine = 'qwen3', progr
     if (container) {
         container.style.display = 'none';
     }
-    showNotification('Batch voice generation complete.', 'success');
+    showNotification(
+        failures.length
+            ? `Voice generation completed with ${failures.length} failed speaker${failures.length === 1 ? '' : 's'}. Review the batch results for details.`
+            : 'Qwen3 voice generation complete. Select final voices for any speakers configured with multiple candidates.',
+        failures.length ? 'warning' : 'success'
+    );
 }
 
 function buildBatchVoiceName(prefix, speaker) {
@@ -862,29 +920,83 @@ async function fetchSpeakerProfiles() {
     }
 }
 
-function saveProject(project) {
-    if (!project) return;
-    const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-    const matchIndex = projects.findIndex(item => String(item.id) === String(project.id));
-    if (matchIndex >= 0) {
-        const existingId = projects[matchIndex].id;
-        projects[matchIndex] = {
-            ...projects[matchIndex],
-            ...project,
-            id: existingId
-        };
-    } else {
-        projects.push(project);
+function readLegacyBrowserProjects() {
+    try {
+        const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
+        return Array.isArray(projects) ? projects.filter(project => project && typeof project === 'object') : [];
+    } catch (error) {
+        console.warn('Unable to read legacy browser projects', error);
+        return [];
     }
-    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(projects));
-    loadProjectList();
 }
 
-function deleteProject(projectId) {
-    const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-    const updated = projects.filter(item => String(item.id) !== String(projectId));
-    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(updated));
-    loadProjectList();
+async function initializeProjectLibrary() {
+    if (projectLibraryPromise) return projectLibraryPromise;
+    projectLibraryPromise = (async () => {
+        const legacyProjects = readLegacyBrowserProjects();
+        const response = await fetch(legacyProjects.length ? '/api/projects/import' : '/api/projects', {
+            method: legacyProjects.length ? 'POST' : 'GET',
+            headers: legacyProjects.length ? { 'Content-Type': 'application/json' } : undefined,
+            body: legacyProjects.length ? JSON.stringify({ projects: legacyProjects }) : undefined
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Unable to load the shared project library.');
+        }
+        savedProjects = Array.isArray(data.projects) ? data.projects : [];
+        if (legacyProjects.length) {
+            // Only remove origin-specific storage after the backend confirms the
+            // projects were merged into the shared library.
+            localStorage.removeItem(PROJECT_STORAGE_KEY);
+        }
+        return savedProjects;
+    })().catch(error => {
+        projectLibraryPromise = null;
+        const legacyProjects = readLegacyBrowserProjects();
+        if (legacyProjects.length) savedProjects = legacyProjects;
+        throw error;
+    });
+    return projectLibraryPromise;
+}
+
+async function refreshProjectLibrary() {
+    await initializeProjectLibrary();
+    const response = await fetch('/api/projects');
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Unable to refresh the shared project library.');
+    }
+    savedProjects = Array.isArray(data.projects) ? data.projects : [];
+    return savedProjects;
+}
+
+async function saveProject(project) {
+    if (!project) return null;
+    const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Unable to save the project.');
+    }
+    const saved = data.project;
+    const matchIndex = savedProjects.findIndex(item => String(item.id) === String(saved.id));
+    if (matchIndex >= 0) savedProjects[matchIndex] = saved;
+    else savedProjects.push(saved);
+    renderProjectList();
+    return saved;
+}
+
+async function deleteProject(projectId) {
+    const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Unable to delete the project.');
+    }
+    savedProjects = savedProjects.filter(item => String(item.id) !== String(projectId));
+    renderProjectList();
 }
 
 function formatSpeakerTagName(value) {
@@ -1524,7 +1636,11 @@ function populateReferenceDropdown(selectEl, placeholderText = 'Use preset voice
     const activeFilters = filters || voiceDropdownFilters;
     
     // Filter and sort voices
-    let filteredVoices = [...availableChatterboxVoices];
+    let filteredVoices = availableChatterboxVoices.filter(entry => {
+        const promptPath = (entry?.prompt_path || entry?.file_name || '').trim();
+        return !entry?.archived || promptPath === previousValue;
+    });
+    const searchQuery = (selectEl.dataset.filterQuery || '').trim().toLowerCase();
     
     // Apply gender filter
     if (activeFilters.gender && activeFilters.gender !== 'all') {
@@ -1536,6 +1652,23 @@ function populateReferenceDropdown(selectEl, placeholderText = 'Use preset voice
     // Apply language filter
     if (activeFilters.language && activeFilters.language !== 'all') {
         filteredVoices = filteredVoices.filter(v => v.language === activeFilters.language);
+    }
+
+    // Speaker Properties and inline assignments can narrow large prompt libraries
+    // without discarding the voice that is currently selected.
+    if (searchQuery) {
+        filteredVoices = filteredVoices.filter(entry => {
+            const promptPath = (entry?.prompt_path || entry?.file_name || '').trim();
+            const searchable = [
+                entry?.name,
+                promptPath,
+                entry?.gender,
+                entry?.language,
+                entry?.description,
+                entry?.voice_design?.instruction
+            ].filter(Boolean).join(' ').toLowerCase();
+            return searchable.includes(searchQuery) || promptPath === previousValue;
+        });
     }
     
     // Sort voices alphabetically by name
@@ -1896,6 +2029,7 @@ let inlineSampleHandlersReady = false;
 const turboSelectionState = {};
 const speakerReadyState = {};
 const speakerProfiles = {};
+const speakerVoiceDesignCandidates = {};
 let activeSpeakerModal = null;
 let activeSpeakerRow = null;
 let pendingProjectLoad = null;
@@ -1913,6 +2047,8 @@ let currentFxPreviewAudio = null;
 let currentFxPreviewButton = null;
 let queuePollInFlight = false;
 const PROJECT_STORAGE_KEY = 'tts-story-projects';
+let savedProjects = [];
+let projectLibraryPromise = null;
 let activeSpeakerRowOrigin = null;
 let runtimeSettings = null;
 let availableChatterboxVoices = [];
@@ -3401,6 +3537,7 @@ function setupEventListeners() {
     const batchModalCancel = document.getElementById('speaker-batch-cancel-btn');
     const batchModalConfirm = document.getElementById('speaker-batch-confirm-btn');
     const batchPrefixInput = document.getElementById('speaker-batch-prefix');
+    const batchCandidateCountInput = document.getElementById('speaker-batch-candidate-count');
     const batchStatus = document.getElementById('speaker-batch-status');
     const batchProgress = document.getElementById('speaker-batch-progress');
     const batchProgressFill = document.getElementById('speaker-batch-progress-fill');
@@ -3409,17 +3546,6 @@ function setupEventListeners() {
     const batchCompleteSummary = document.getElementById('speaker-batch-complete-summary');
     const batchOkBtn = document.getElementById('speaker-batch-ok-btn');
     let batchGenerationInFlight = false;
-    let batchVoiceEngine = 'qwen3';
-    document.getElementById('batch-engine-qwen3-btn')?.addEventListener('click', () => {
-        batchVoiceEngine = 'qwen3';
-        document.getElementById('batch-engine-qwen3-btn')?.classList.add('active');
-        document.getElementById('batch-engine-omnivoice-btn')?.classList.remove('active');
-    });
-    document.getElementById('batch-engine-omnivoice-btn')?.addEventListener('click', () => {
-        batchVoiceEngine = 'omnivoice';
-        document.getElementById('batch-engine-omnivoice-btn')?.classList.add('active');
-        document.getElementById('batch-engine-qwen3-btn')?.classList.remove('active');
-    });
     const projectManageBtn = document.getElementById('project-manage-btn');
     const projectModalOverlay = document.getElementById('project-modal-overlay');
     const projectModalClose = document.getElementById('project-modal-close');
@@ -3638,9 +3764,6 @@ function setupEventListeners() {
         projectModalFooterClose.addEventListener('click', closeProjectModal);
     }
     function resetBatchModal() {
-        if (batchPrefixInput) {
-            batchPrefixInput.value = '';
-        }
         if (batchStatus) {
             batchStatus.textContent = '';
         }
@@ -3703,7 +3826,15 @@ function setupEventListeners() {
             batchModalConfirm.disabled = true;
             batchModalConfirm.textContent = 'Generating...';
             try {
-                await runBatchVoiceGeneration(batchPrefixInput?.value || '', batchStatus, batchVoiceEngine, {
+                const batchCandidateCount = Math.max(
+                    1,
+                    Math.min(Number.parseInt(batchCandidateCountInput?.value, 10) || 1, 10)
+                );
+                if (batchCandidateCountInput) batchCandidateCountInput.value = String(batchCandidateCount);
+                (currentStats?.speakers || []).forEach(speaker => {
+                    updateSpeakerProfileEntry(speaker, { voice_candidate_count: batchCandidateCount });
+                });
+                await runBatchVoiceGeneration(batchPrefixInput?.value || '', batchStatus, {
                     container: batchProgress,
                     fill: batchProgressFill,
                     label: batchProgressLabel
@@ -3720,6 +3851,10 @@ function setupEventListeners() {
                 if (batchModalConfirm) {
                     batchModalConfirm.classList.add('hidden');
                 }
+            } catch (error) {
+                console.error('Bulk voice generation stopped', error);
+                if (batchStatus) batchStatus.textContent = error.message || 'Voice generation stopped.';
+                showNotification(error.message || 'Voice generation stopped.', 'warning');
             } finally {
                 batchGenerationInFlight = false;
                 batchModalConfirm.disabled = false;
@@ -3910,12 +4045,17 @@ function setupEventListeners() {
     // ── End Auto Assign modal ──────────────────────────────────────────────
 
     if (projectSaveConfirm) {
-        projectSaveConfirm.addEventListener('click', () => {
+        projectSaveConfirm.addEventListener('click', async () => {
             const project = getProjectState();
             const name = projectNameInput?.value?.trim() || `Project ${new Date().toLocaleString()}`;
             project.name = name;
-            const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-            const existingByName = projects.find(item => item.name === name);
+            try {
+                await refreshProjectLibrary();
+            } catch (error) {
+                showNotification(error.message || 'Unable to open the shared project library.', 'warning');
+                return;
+            }
+            const existingByName = savedProjects.find(item => item.name === name);
             if (existingByName) {
                 const confirmed = confirm(`"${name}" already exists. Overwrite this project?`);
                 if (!confirmed) {
@@ -3923,28 +4063,35 @@ function setupEventListeners() {
                 }
                 project.id = existingByName.id;
             }
-            saveProject(project);
-            activeProjectId = project.id;
-            if (projectStatus) {
-                projectStatus.textContent = `Saved ${name}`;
+            try {
+                const saved = await saveProject(project);
+                activeProjectId = saved?.id || project.id;
+                if (projectStatus) {
+                    projectStatus.textContent = `Saved ${name}`;
+                }
+            } catch (error) {
+                showNotification(error.message || 'Unable to save the project.', 'warning');
             }
         });
     }
     if (projectList) {
-        projectList.addEventListener('click', event => {
+        projectList.addEventListener('click', async event => {
             const target = event.target instanceof HTMLElement ? event.target : null;
             const button = target?.closest('[data-project-action]');
             if (!button) return;
             const action = button.dataset.projectAction;
             const projectId = button.dataset.projectId;
-            const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
-            const project = projects.find(item => String(item.id) === String(projectId));
+            const project = savedProjects.find(item => String(item.id) === String(projectId));
             if (action === 'load' && project) {
                 closeProjectModal();
                 applyProjectState(project);
             }
             if (action === 'delete' && projectId) {
-                deleteProject(projectId);
+                try {
+                    await deleteProject(projectId);
+                } catch (error) {
+                    showNotification(error.message || 'Unable to delete the project.', 'warning');
+                }
             }
         });
     }
@@ -4016,6 +4163,9 @@ function setupEventListeners() {
             window.chatterboxPreviewController.toggleById(voiceEntry.id, event.currentTarget);
         });
     }
+    initializeProjectLibrary()
+        .then(() => renderProjectList())
+        .catch(error => console.warn('Shared project library initialization failed', error));
 }
 
 function syncFullStoryOption(chapterCheckbox, force = false) {
@@ -4163,16 +4313,93 @@ function normalizeSpeakerKey(label) {
     return normalized || (label || '').toString().trim().toLowerCase();
 }
 
+function inferVoiceAgeCategory(source) {
+    const text = (source || '').toString().toLowerCase();
+    const ageMatch = text.match(/\b(\d{1,2})(?:\s*[-–]\s*(\d{1,2}))?\s*[- ]?\s*(?:years?|yrs?)(?:\s*[- ]\s*old)?\b/);
+    if (ageMatch) {
+        const age = Math.max(Number(ageMatch[1]), Number(ageMatch[2] || ageMatch[1]));
+        if (age <= 12) return 'child';
+        if (age <= 17) return 'teenage';
+        if (age <= 29) return 'young-adult';
+        if (age >= 65) return 'elderly';
+        if (age >= 45) return 'middle-aged';
+        return 'adult';
+    }
+    if (/\b(child|child-like|kid|pre-?teen|boy|girl)\b/.test(text)) return 'child';
+    if (/\b(teen|teenage|adolescent)\b/.test(text)) return 'teenage';
+    if (/\byoung adult\b/.test(text)) return 'young-adult';
+    if (/\b(middle-aged|middle aged)\b/.test(text)) return 'middle-aged';
+    if (/\b(elderly|senior|older adult)\b/.test(text)) return 'elderly';
+    return 'adult';
+}
+
+function buildVoiceAgeGenderPrefix(gender, source) {
+    const genderLabel = gender === 'female' ? 'FEMALE' : gender === 'male' ? 'MALE' : 'GENDER-NEUTRAL';
+    const age = inferVoiceAgeCategory(source);
+    if (age === 'child') return `${genderLabel} CHILD VOICE`;
+    const ageLabel = {
+        'teenage': 'TEENAGE',
+        'young-adult': 'YOUNG ADULT',
+        'middle-aged': 'MIDDLE-AGED',
+        'elderly': 'ELDERLY',
+        'adult': 'ADULT'
+    }[age];
+    return `${ageLabel} ${genderLabel} VOICE`;
+}
+
+function buildLocalVoiceDesignPrompt(speaker, voiceType, suppliedPrompt = '') {
+    const supplied = (suppliedPrompt || '').toString().replace(/\s+/g, ' ').trim();
+    const voice = (voiceType || '').toString().replace(/\s+/g, ' ').trim();
+    if (!voice && !supplied) return '';
+    const source = `${speaker || ''} ${voice} ${supplied}`.toLowerCase();
+    let gender = 'neutral';
+    if (/\bfemale\b|\bwoman\b|\bgirl\b|\bsoprano\b|\balto\b/.test(source)) {
+        gender = 'female';
+    } else if (/\bmale\b|\bman\b|\bboy\b|\bbaritone\b|\bbass\b|\btenor\b/.test(source)) {
+        gender = 'male';
+    }
+    const genderPhrase = buildVoiceAgeGenderPrefix(gender, source);
+    let positiveVoice = (supplied || voice)
+        .replace(/\b(?:suitable\s+)?for\s+(?:sustained\s+)?(?:an?\s+)?audiobook(?:\s+(?:dialogue|narration))?\b/gi, ' ')
+        .replace(/\baudiobook(?:\s+(?:dialogue|narration))?\b/gi, ' ')
+        .replace(/\b(?:(?:female|male|gender[- ]neutral)\s+child|(?:teenage|young adult|middle[- ]aged|elderly|adult)\s+(?:female|male|gender[- ]neutral))\s+voice\b[.,;:]?/gi, ' ')
+        .replace(/\bchild[- ]like\s*\((\d{1,2}(?:\s*[-–]\s*\d{1,2})?)\s*years?\)/gi, 'age $1')
+        .replace(/\bchild[- ]like\b/gi, ' ')
+        .replace(/\bemotional(?=\s*[.,;]|$)/gi, 'delivery')
+        .replace(/\b(?:but\s+)?(?:not|never|no)\b[^,.;]*[,.;]?/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/[.;,]+$/, '');
+    if (!positiveVoice) positiveVoice = voice.replace(/\s+/g, ' ').trim().replace(/[.;,]+$/, '');
+    if (positiveVoice && !/\baccent\b|\bEnglish\b/i.test(positiveVoice)) {
+        positiveVoice = `${positiveVoice}. Neutral English accent`;
+    }
+    let prompt = `${genderPhrase}. ${positiveVoice}`.replace(/\s+/g, ' ').trim().replace(/\.+$/, '');
+    if (prompt.length > 150) {
+        const shortened = prompt.slice(0, 150);
+        prompt = shortened.slice(0, shortened.lastIndexOf(' ') > 100 ? shortened.lastIndexOf(' ') : 150);
+    }
+    return `${prompt}.`;
+}
+
 function setSpeakerProfiles(profiles) {
     Object.keys(speakerProfiles).forEach(key => delete speakerProfiles[key]);
     if (!profiles) return;
     Object.entries(profiles).forEach(([key, profile]) => {
         const normalized = normalizeSpeakerKey(key || profile?.name || '');
         if (!normalized) return;
+        const name = profile?.name || key;
+        const voice = profile?.voice || '';
         speakerProfiles[normalized] = {
-            name: profile?.name || key,
+            name,
             description: profile?.description || '',
-            voice: profile?.voice || ''
+            voice,
+            voice_design_prompt: buildLocalVoiceDesignPrompt(name, voice, profile?.voice_design_prompt),
+            voice_preview_text: profile?.voice_preview_text || '',
+            voice_candidate_count: Math.max(1, Math.min(Number.parseInt(profile?.voice_candidate_count, 10) || 1, 10)),
+            selected_voice_id: profile?.selected_voice_id || '',
+            selected_voice_name: profile?.selected_voice_name || '',
+            selected_voice_path: profile?.selected_voice_path || ''
         };
     });
 }
@@ -4203,6 +4430,12 @@ function updateSpeakerProfileEntry(speaker, updates = {}) {
         name: profile?.name || speaker,
         description: profile?.description || '',
         voice: profile?.voice || '',
+        voice_design_prompt: profile?.voice_design_prompt || '',
+        voice_preview_text: profile?.voice_preview_text || '',
+        voice_candidate_count: profile?.voice_candidate_count || 1,
+        selected_voice_id: profile?.selected_voice_id || '',
+        selected_voice_name: profile?.selected_voice_name || '',
+        selected_voice_path: profile?.selected_voice_path || '',
         ...updates
     };
     speakerProfiles[targetKey] = nextProfile;
@@ -4260,10 +4493,18 @@ async function buildSingleSpeakerProfile(speaker) {
         if (!generatedProfile) {
             throw new Error(`The LLM did not return a usable profile for ${speaker}.`);
         }
+        const existingProfile = findSpeakerProfile(speaker).profile;
+        const generatedVoice = generatedProfile.voice || '';
         updateSpeakerProfileEntry(speaker, {
             name: speaker,
             description: generatedProfile.description || '',
-            voice: generatedProfile.voice || ''
+            voice: generatedVoice,
+            voice_design_prompt: buildLocalVoiceDesignPrompt(
+                speaker,
+                generatedVoice,
+                generatedProfile.voice_design_prompt || existingProfile?.voice_design_prompt || ''
+            ),
+            voice_preview_text: generatedProfile.voice_preview_text || existingProfile?.voice_preview_text || ''
         });
         renderSpeakerProfileSummary(speaker);
         const profileName = data.llm_profile_used?.name;
@@ -4288,7 +4529,48 @@ function parseGenderFromSpeakerName(speaker) {
     const tokens = (speaker || '').toString().toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
     if (tokens.includes('female')) return 'Female';
     if (tokens.includes('male')) return 'Male';
+    if (tokens.includes('neutral') || tokens.includes('nonbinary')) return 'Neutral';
     return null;
+}
+
+async function parseVoiceDesignApiResponse(response, operation = 'complete the voice-design request') {
+    const rawBody = await response.text();
+    let data = null;
+    try {
+        data = rawBody ? JSON.parse(rawBody) : {};
+    } catch (_error) {
+        if (response.status === 404) {
+            const restartError = new Error('The updated voice-design backend is not running. Close TTS-Story completely, restart it, and try again.');
+            restartError.code = 'VOICE_DESIGN_BACKEND_RESTART_REQUIRED';
+            throw restartError;
+        }
+        throw new Error(`The server returned an invalid response while trying to ${operation}.`);
+    }
+    if (!response.ok) {
+        throw new Error(data.error || `Unable to ${operation} (HTTP ${response.status}).`);
+    }
+    return data;
+}
+
+async function requireQwenVoiceDesignBackend() {
+    let response;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+        response = await fetch('/api/health', { signal: controller.signal });
+    } catch (_error) {
+        const restartError = new Error('TTS-Story lost its connection to the backend. Restart TTS-Story before generating voices.');
+        restartError.code = 'VOICE_DESIGN_BACKEND_RESTART_REQUIRED';
+        throw restartError;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+    const data = await parseVoiceDesignApiResponse(response, 'verify the Qwen voice-design backend');
+    if (Number(data.qwen3_voice_design_api_version || 0) < 2) {
+        const restartError = new Error('The browser has newer voice-design controls than the running backend. Close TTS-Story completely, restart it, and try again.');
+        restartError.code = 'VOICE_DESIGN_BACKEND_RESTART_REQUIRED';
+        throw restartError;
+    }
 }
 
 async function pollVoiceDesignTask(taskId, urlFactory, statusLabel) {
@@ -4303,7 +4585,7 @@ async function pollVoiceDesignTask(taskId, urlFactory, statusLabel) {
     while (Date.now() - start < timeoutMs) {
         const url = typeof urlFactory === 'function' ? urlFactory(taskId) : `/api/qwen3/voice-design/tasks/${taskId}`;
         const response = await fetch(url);
-        const data = await response.json();
+        const data = await parseVoiceDesignApiResponse(response, 'check Qwen voice generation status');
         if (!data.success) {
             throw new Error(data.error || 'Failed to fetch task status');
         }
@@ -4364,21 +4646,21 @@ async function generateSpeakerVoicePrompt(speaker) {
     const { profile } = findSpeakerProfile(speaker);
     const description = profile?.description || '';
     const voice = profile?.voice || '';
-    const instruct = description || '';
+    const instruct = profile?.voice_design_prompt || voice || '';
     const shortDescription = voice || '';
-    const sampleText = 'With this line of text, you will always know exactly where I stand, and what I sound like. Whether you like it or not. though, it may not be what you think.';
+    const sampleText = buildCharacterPreviewText(speaker, profile || {});
     if (!shortDescription) {
         showNotification('Add a voice type before generating a voice.', 'warning');
         return;
     }
     if (!instruct) {
-        showNotification('Add a speaker profile description before generating a voice.', 'warning');
+        showNotification('Add a Voice Type or Voice Design Prompt before generating a voice.', 'warning');
         return;
     }
     const payload = {
         name: speaker,
         gender: parseGenderFromSpeakerName(speaker),
-        language: 'Auto',
+        language: 'English',
         description: shortDescription,
         text: sampleText,
         instruct
@@ -4456,6 +4738,100 @@ async function generateSpeakerVoicePrompt(speaker) {
     }
 }
 
+async function generateSpeakerVoiceCandidatesForSpeaker(speaker) {
+    if (!speaker) return;
+    const generateBtn = document.querySelector('#speaker-profile-summary [data-role="speaker-generate-voice"]');
+    const candidateCount = Math.max(1, Math.min(Number.parseInt(findSpeakerProfile(speaker).profile?.voice_candidate_count, 10) || 1, 10));
+    try {
+        if (generateBtn) {
+            generateBtn.disabled = true;
+            generateBtn.classList.add('is-loading');
+            generateBtn.textContent = candidateCount === 1 ? 'Generating...' : `Generating ${candidateCount}...`;
+        }
+        showNotification(
+            candidateCount === 1 ? 'Generating voice...' : `Generating ${candidateCount} voice candidates...`,
+            'info'
+        );
+        const candidates = await generateAndSaveVoiceCandidates(speaker, speaker, null);
+        await refreshChatterboxVoices();
+        populateReferenceSelects();
+        if (candidates.length > 1) {
+            speakerVoiceDesignCandidates[normalizeSpeakerKey(speaker)] = candidates;
+        } else {
+            delete speakerVoiceDesignCandidates[normalizeSpeakerKey(speaker)];
+            const promptValue = (candidates[0]?.prompt_path || candidates[0]?.file_name || '').trim();
+            if (promptValue) {
+                turboSelectionState[speaker] = promptValue;
+                document.querySelectorAll('#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select')
+                    .forEach(select => {
+                        if (select?.dataset?.speaker === speaker) select.value = promptValue;
+                    });
+            }
+            updateSpeakerProfileEntry(speaker, {
+                selected_voice_id: candidates[0]?.id || '',
+                selected_voice_name: candidates[0]?.name || speaker,
+                selected_voice_path: promptValue
+            });
+        }
+        renderSpeakerProfileSummary(speaker);
+        showNotification(
+            candidates.length === 1
+                ? 'Voice generated and assigned.'
+                : `${candidates.length} candidates are ready. Listen and select one.`,
+            'success'
+        );
+    } catch (error) {
+        console.error('Generate voice candidates failed', error);
+        showNotification(error.message || 'Failed to generate voice candidates.', 'warning');
+    } finally {
+        const currentButton = document.querySelector('#speaker-profile-summary [data-role="speaker-generate-voice"]');
+        if (currentButton) {
+            currentButton.disabled = false;
+            currentButton.classList.remove('is-loading');
+            currentButton.textContent = 'Generate Voice';
+        }
+    }
+}
+
+async function approveSpeakerVoiceCandidate(speaker, candidateId, groupId) {
+    try {
+        await requireQwenVoiceDesignBackend();
+        const groupCandidates = speakerVoiceDesignCandidates[normalizeSpeakerKey(speaker)] || [];
+        const response = await fetch('/api/qwen3/voice-design/candidates/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                selected_id: candidateId,
+                candidate_group_id: groupId,
+                candidate_ids: groupCandidates.map(candidate => candidate?.id).filter(Boolean)
+            })
+        });
+        const data = await parseVoiceDesignApiResponse(response, 'approve the selected voice candidate');
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to approve candidate.');
+        await refreshChatterboxVoices();
+        populateReferenceSelects();
+        const promptValue = (data.voice?.prompt_path || data.voice?.file_name || '').trim();
+        if (promptValue) {
+            turboSelectionState[speaker] = promptValue;
+            document.querySelectorAll('#inline-voice-assignment-list [data-role="turbo-control"] .reference-select, #speaker-edit-modal-body [data-role="turbo-control"] .reference-select')
+                .forEach(select => {
+                    if (select?.dataset?.speaker === speaker) select.value = promptValue;
+                });
+        }
+        updateSpeakerProfileEntry(speaker, {
+            selected_voice_id: data.voice?.id || candidateId,
+            selected_voice_name: data.voice?.name || '',
+            selected_voice_path: promptValue
+        });
+        delete speakerVoiceDesignCandidates[normalizeSpeakerKey(speaker)];
+        renderSpeakerProfileSummary(speaker);
+        updateInlineSampleButtonState(activeSpeakerRow, { stopPlayback: true });
+        showNotification(`${data.voice?.name || 'Voice candidate'} approved and assigned.`, 'success');
+    } catch (error) {
+        showNotification(error.message || 'Unable to approve voice candidate.', 'warning');
+    }
+}
+
 function renderSpeakerProfileSummary(speaker) {
     const summary = document.getElementById('speaker-profile-summary');
     if (!summary) return;
@@ -4468,6 +4844,12 @@ function renderSpeakerProfileSummary(speaker) {
     const hasProfiles = Object.keys(speakerProfiles).length > 0;
     const description = profile?.description || '';
     const voice = profile?.voice || '';
+    const voiceDesignPrompt = profile?.voice_design_prompt || '';
+    const previewText = profile?.voice_preview_text || buildCharacterPreviewText(speaker, profile || {});
+    const candidateCount = Math.max(1, Math.min(Number.parseInt(profile?.voice_candidate_count, 10) || 1, 10));
+    const selectedVoiceName = profile?.selected_voice_name || '';
+    const selectedVoicePath = profile?.selected_voice_path || '';
+    const candidates = speakerVoiceDesignCandidates[normalizeSpeakerKey(speaker)] || [];
     const emptyMessage = hasProfiles
         ? 'No profile matched this speaker yet.'
         : 'No speaker profile data yet. Build this profile or run Prep Text.';
@@ -4482,15 +4864,52 @@ function renderSpeakerProfileSummary(speaker) {
                     <strong>Voice Type:</strong>
                     <input class="speaker-profile-input" data-role="speaker-profile-voice" type="text" value="${escapeHtml(voice)}" placeholder="Not available yet." />
                 </label>
+                <label>
+                    <strong>Voice Design Prompt:</strong>
+                    <textarea class="speaker-profile-input" data-role="speaker-voice-design-prompt" rows="2" placeholder="ADULT FEMALE VOICE. Warm alto; measured, expressive delivery.">${escapeHtml(voiceDesignPrompt)}</textarea>
+                    <small>Qwen receives this voice-only instruction, or builds one from Voice Type. The narrative profile is kept separate.</small>
+                </label>
+                <label>
+                    <strong>Preview Text:</strong>
+                    <textarea class="speaker-profile-input" data-role="speaker-voice-preview-text" rows="2" readonly>${escapeHtml(previewText)}</textarea>
+                    <small>The same standardized inflection passage is used for every candidate.</small>
+                </label>
+                <label>
+                    <strong>Voice Candidates:</strong>
+                    <input class="speaker-profile-input speaker-candidate-count" data-role="speaker-voice-candidate-count" type="number" min="1" max="10" step="1" value="${candidateCount}" />
+                    <small>Generate one voice by default, or increase this to audition multiple alternatives.</small>
+                </label>
             </div>
             <div class="speaker-profile-actions">
                 <button type="button" class="btn btn-secondary btn-sm" data-role="speaker-build-profile">Build Profile</button>
                 <button type="button" class="btn btn-secondary btn-sm" data-role="speaker-generate-voice">Generate Voice</button>
             </div>
         </div>
+        ${candidates.length ? `
+            <div class="voice-design-candidates">
+                <strong>Select a VoiceDesign candidate:</strong>
+                <div class="voice-design-candidate-grid">
+                    ${candidates.map(candidate => `
+                        <article class="voice-design-candidate">
+                            <strong>Candidate ${escapeHtml(candidate.label)}</strong>
+                            <audio controls preload="metadata" src="${candidate.audio_base64
+                                ? `data:${escapeHtml(candidate.mime_type || 'audio/wav')};base64,${candidate.audio_base64}`
+                                : `/api/chatterbox-voices/${encodeURIComponent(candidate.id)}/preview`}"></audio>
+                            <button type="button" class="btn btn-secondary btn-sm" data-role="approve-voice-candidate" data-candidate-id="${escapeHtml(candidate.id)}" data-group-id="${escapeHtml(candidate.candidate_group_id)}">Use Candidate ${escapeHtml(candidate.label)}</button>
+                        </article>
+                    `).join('')}
+                </div>
+            </div>` : ''}
+        ${selectedVoiceName || selectedVoicePath ? `
+            <div class="voice-design-selected">
+                <strong>Selected Voice:</strong>
+                <span>${escapeHtml(selectedVoiceName || selectedVoicePath)}</span>
+            </div>` : ''}
     `;
     const descriptionInput = summary.querySelector('[data-role="speaker-profile-description"]');
     const voiceInput = summary.querySelector('[data-role="speaker-profile-voice"]');
+    const voiceDesignInput = summary.querySelector('[data-role="speaker-voice-design-prompt"]');
+    const candidateCountInput = summary.querySelector('[data-role="speaker-voice-candidate-count"]');
     const buildBtn = summary.querySelector('[data-role="speaker-build-profile"]');
     const generateBtn = summary.querySelector('[data-role="speaker-generate-voice"]');
     if (descriptionInput) {
@@ -4503,12 +4922,29 @@ function renderSpeakerProfileSummary(speaker) {
             updateSpeakerProfileEntry(speaker, { voice: event.currentTarget.value || '' });
         });
     }
+    if (voiceDesignInput) {
+        voiceDesignInput.addEventListener('input', event => {
+            updateSpeakerProfileEntry(speaker, { voice_design_prompt: event.currentTarget.value || '' });
+        });
+    }
+    if (candidateCountInput) {
+        candidateCountInput.addEventListener('change', event => {
+            const value = Math.max(1, Math.min(Number.parseInt(event.currentTarget.value, 10) || 1, 10));
+            event.currentTarget.value = String(value);
+            updateSpeakerProfileEntry(speaker, { voice_candidate_count: value });
+        });
+    }
     if (buildBtn) {
         buildBtn.addEventListener('click', () => buildSingleSpeakerProfile(speaker));
     }
     if (generateBtn) {
-        generateBtn.addEventListener('click', () => generateSpeakerVoicePrompt(speaker));
+        generateBtn.addEventListener('click', () => generateSpeakerVoiceCandidatesForSpeaker(speaker));
     }
+    summary.querySelectorAll('[data-role="approve-voice-candidate"]').forEach(button => {
+        button.addEventListener('click', () => approveSpeakerVoiceCandidate(
+            speaker, button.dataset.candidateId, button.dataset.groupId
+        ));
+    });
     summary.classList.remove('hidden');
 }
 
@@ -4758,8 +5194,47 @@ function closeSpeakerEditModal() {
     if (modal) modal.classList.add('hidden');
 }
 
+function serializeVoiceDesignCandidateGroups() {
+    const groups = {};
+    Object.entries(speakerVoiceDesignCandidates).forEach(([speakerKey, candidates]) => {
+        if (!Array.isArray(candidates) || !candidates.length) return;
+        groups[speakerKey] = candidates.map(candidate => ({
+            id: candidate.id || '',
+            name: candidate.name || '',
+            label: candidate.label || '',
+            candidate_group_id: candidate.candidate_group_id || '',
+            prompt_path: candidate.prompt_path || candidate.file_name || '',
+            file_name: candidate.file_name || '',
+            mime_type: candidate.mime_type || 'audio/wav',
+            instruction: candidate.instruction || candidate.voice_design?.instruction || '',
+            preview_text: candidate.preview_text || candidate.voice_design?.preview_text || '',
+            wav_sha256: candidate.wav_sha256 || candidate.voice_design?.wav_sha256 || ''
+        }));
+    });
+    return groups;
+}
+
+function restoreVoiceDesignCandidateGroups(groups) {
+    Object.keys(speakerVoiceDesignCandidates).forEach(key => delete speakerVoiceDesignCandidates[key]);
+    if (!groups || typeof groups !== 'object') return;
+    Object.entries(groups).forEach(([speakerKey, candidates]) => {
+        if (!Array.isArray(candidates) || !candidates.length) return;
+        speakerVoiceDesignCandidates[normalizeSpeakerKey(speakerKey)] = candidates.map(candidate => ({ ...candidate }));
+    });
+}
+
+function collectPerSpeakerControlValues(selector) {
+    return getAssignmentRows().reduce((acc, row) => {
+        const speaker = row.dataset.speaker;
+        const control = row.querySelector(selector);
+        if (speaker && control) acc[speaker] = control.value || '';
+        return acc;
+    }, {});
+}
+
 function getProjectState() {
     return {
+        project_schema_version: 2,
         id: Date.now(),
         name: '',
         saved_at: new Date().toISOString(),
@@ -4781,29 +5256,25 @@ function getProjectState() {
         acx_compliance: document.getElementById('acx-compliance-checkbox')?.checked || false,
         gemini_prompt: document.getElementById('gemini-prompt')?.value || '',
         gemini_preset: document.getElementById('gemini-preset-select')?.value || '',
+        bulk_voice_prefix: document.getElementById('speaker-batch-prefix')?.value || '',
+        bulk_voice_candidate_count: Math.max(1, Math.min(Number.parseInt(document.getElementById('speaker-batch-candidate-count')?.value, 10) || 1, 10)),
         assignments: getVoiceAssignments(),
         turbo_selections: buildTurboSelectionMap(),
-        qwen_inline_languages: Array.from(document.querySelectorAll('#inline-voice-assignment-list .qwen3-language-select')).reduce((acc, select) => {
-            const speaker = select.dataset.speaker;
-            if (speaker) acc[speaker] = select.value;
-            return acc;
-        }, {}),
-        qwen_inline_instructs: Array.from(document.querySelectorAll('#inline-voice-assignment-list .qwen3-instruct-input')).reduce((acc, input) => {
-            const speaker = input.dataset.speaker;
-            if (speaker) acc[speaker] = input.value;
-            return acc;
-        }, {}),
+        qwen_inline_languages: collectPerSpeakerControlValues('.qwen3-language-select'),
+        qwen_inline_instructs: collectPerSpeakerControlValues('.qwen3-instruct-input'),
         word_replacements: getAltWordRegistry().filter(entry => entry.original && entry.replacement),
         fx_state: JSON.parse(JSON.stringify(voiceFxState || {})),
+        azure_voice_options: JSON.parse(JSON.stringify(azureVoiceOptionState || {})),
         ready_state: JSON.parse(JSON.stringify(speakerReadyState || {})),
-        speaker_profiles: JSON.parse(JSON.stringify(speakerProfiles || {}))
+        speaker_profiles: JSON.parse(JSON.stringify(speakerProfiles || {})),
+        voice_design_candidate_groups: serializeVoiceDesignCandidateGroups()
     };
 }
 
-function loadProjectList() {
+function renderProjectList() {
     const list = document.getElementById('project-list');
     if (!list) return;
-    const projects = JSON.parse(localStorage.getItem(PROJECT_STORAGE_KEY) || '[]');
+    const projects = [...savedProjects];
     if (!projects.length) {
         list.innerHTML = '<p class="help-text">No saved projects yet.</p>';
         return;
@@ -4815,16 +5286,27 @@ function loadProjectList() {
         row.className = 'project-row';
         row.innerHTML = `
             <div class="project-row-info">
-                <strong>${project.name || 'Untitled Project'}</strong>
+                <strong>${escapeHtml(project.name || 'Untitled Project')}</strong>
                 <span>${new Date(project.saved_at).toLocaleString()}</span>
             </div>
             <div class="project-row-actions">
-                <button class="btn btn-sm btn-secondary" data-project-action="load" data-project-id="${project.id}">Load</button>
-                <button class="btn btn-sm btn-ghost" data-project-action="delete" data-project-id="${project.id}">Delete</button>
+                <button class="btn btn-sm btn-secondary" data-project-action="load" data-project-id="${escapeHtml(String(project.id))}">Load</button>
+                <button class="btn btn-sm btn-ghost" data-project-action="delete" data-project-id="${escapeHtml(String(project.id))}">Delete</button>
             </div>
         `;
         list.appendChild(row);
     });
+}
+
+async function loadProjectList() {
+    const list = document.getElementById('project-list');
+    if (list) list.innerHTML = '<p class="help-text">Loading saved projects...</p>';
+    try {
+        await refreshProjectLibrary();
+        renderProjectList();
+    } catch (error) {
+        if (list) list.innerHTML = `<p class="help-text">${escapeHtml(error.message || 'Unable to load saved projects.')}</p>`;
+    }
 }
 
 function openProjectModal() {
@@ -4906,14 +5388,23 @@ async function applyProjectState(project) {
     if (geminiPrompt) geminiPrompt.value = project.gemini_prompt || '';
     const geminiPreset = document.getElementById('gemini-preset-select');
     if (geminiPreset) geminiPreset.value = project.gemini_preset || '';
+    const batchCandidateCount = document.getElementById('speaker-batch-candidate-count');
+    if (batchCandidateCount) {
+        batchCandidateCount.value = String(Math.max(1, Math.min(Number.parseInt(project.bulk_voice_candidate_count, 10) || 1, 10)));
+    }
+    const batchPrefix = document.getElementById('speaker-batch-prefix');
+    if (batchPrefix) batchPrefix.value = project.bulk_voice_prefix || '';
     latestGeminiBookTitle = project.book_title || '';
     setAltWordRegistry(project.word_replacements || project.alt_word_registry || []);
 
     Object.keys(voiceFxState).forEach(key => delete voiceFxState[key]);
     Object.assign(voiceFxState, project.fx_state || {});
+    Object.keys(azureVoiceOptionState).forEach(key => delete azureVoiceOptionState[key]);
+    Object.assign(azureVoiceOptionState, project.azure_voice_options || {});
     Object.keys(speakerReadyState).forEach(key => delete speakerReadyState[key]);
     Object.assign(speakerReadyState, project.ready_state || {});
     setSpeakerProfiles(project.speaker_profiles || {});
+    restoreVoiceDesignCandidateGroups(project.voice_design_candidate_groups || {});
 
     await analyzeText({ auto: true });
     pendingProjectLoad = project;
@@ -4933,6 +5424,13 @@ function applyProjectAssignments(project) {
         const reference = selection?.reference || '';
         if (reference) {
             turboSelectionState[speakerKey] = reference;
+        }
+    });
+    Object.values(speakerProfiles).forEach(profile => {
+        const speaker = profile?.name;
+        const selectedPath = profile?.selected_voice_path;
+        if (speaker && selectedPath && !turboSelectionState[speaker]) {
+            turboSelectionState[speaker] = selectedPath;
         }
     });
 
@@ -5126,6 +5624,7 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
                     </div>
                     <div class="assignment-select turbo-inline-control" data-role="turbo-control">
                         <label>Voice Sample</label>
+                        <input type="search" class="voice-sample-filter" data-speaker="${speaker}" placeholder="Filter voice samples..." autocomplete="off" />
                         <div class="voice-sample-row">
                             <select class="reference-select" data-speaker="${speaker}">
                                 <option value="">Inherit from global selection</option>
@@ -5308,6 +5807,19 @@ function initInlineSampleHandlers() {
                 return;
             }
             window.chatterboxPreviewController.toggleById(voiceEntry.id, button);
+        });
+        container.addEventListener('input', event => {
+            if (!(event.target instanceof HTMLElement)) return;
+            if (!event.target.classList.contains('voice-sample-filter')) return;
+            const row = event.target.closest('.voice-assignment-row');
+            const select = row?.querySelector('.reference-select');
+            if (!select) return;
+            select.dataset.filterQuery = event.target.value || '';
+            populateReferenceDropdown(select, 'Inherit from global selection');
+            const speaker = row?.dataset?.speaker;
+            const selected = speaker ? turboSelectionState[speaker] : '';
+            if (selected) select.value = selected;
+            updateInlineSampleButtonState(row);
         });
         container.dataset.handlersReady = 'true';
     });

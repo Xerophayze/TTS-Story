@@ -92,12 +92,20 @@ def test_pause_marker_between_speaker_tags_is_not_discarded():
     ]
 
 
-def test_pause_marker_duration_scales_by_quarter_second_per_three_stars():
+def test_pause_marker_duration_uses_default_values():
     assert pause_seconds_for_text("***") == 0.25
     assert pause_seconds_for_text("******") == 0.5
     assert pause_seconds_for_text("*********") == 0.75
     assert pause_seconds_for_text("**") is None
     assert pause_seconds_for_text("This is *** emphasis.") is None
+
+
+def test_pause_marker_duration_uses_independent_configured_values():
+    assert pause_seconds_for_text("***", 0.4, 1.25) == pytest.approx(0.4)
+    assert pause_seconds_for_text("******", 0.4, 1.25) == pytest.approx(1.25)
+    assert pause_seconds_for_text("*********", 0.4, 1.25) == pytest.approx(1.65)
+    assert pause_seconds_for_text("************", 0.4, 1.25) == pytest.approx(2.5)
+    assert pause_seconds_for_text("***", 0, 0) == 0
 
 
 def test_markdown_style_closing_asterisks_are_not_pause_markers():
@@ -128,7 +136,9 @@ def test_audio_job_filters_pause_markers_before_calling_any_tts_engine():
     end = source.index("def _prebuild_subprocess_engine_all_chapters", start)
     generation = source[start:end]
 
-    assert "pause_seconds_for_text(chunk_text)" in generation
+    assert "pause_seconds_for_text(" in generation
+    assert 'config.get("pause_marker_three_seconds", 0.25)' in generation
+    assert 'config.get("pause_marker_six_seconds", 0.5)' in generation
     assert '"segments": render_segments if has_pause_markers else segments' in generation
     assert "write_silence_wav(" in generation
     assert "commit_pauses_before" in generation
@@ -179,6 +189,32 @@ def test_pause_only_chunk_regeneration_does_not_call_tts(monkeypatch, tmp_path):
     with wave.open(str(target), "rb") as wav_file:
         duration = wav_file.getnframes() / wav_file.getframerate()
     assert duration == pytest.approx(0.25, abs=0.01)
+
+
+def test_pause_only_chunk_regeneration_uses_saved_marker_duration(monkeypatch, tmp_path):
+    job_id = "configured-pause-only-regen"
+    target = _install_review_chunk_job(monkeypatch, tmp_path, job_id, "******")
+    with app_module.queue_lock:
+        app_module.jobs[job_id]["config_snapshot"].update({
+            "pause_marker_three_seconds": 0.4,
+            "pause_marker_six_seconds": 1.2,
+        })
+    monkeypatch.setattr(
+        app_module,
+        "get_tts_engine",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("TTS must not render silence")),
+    )
+    monkeypatch.setattr(app_module, "_persist_chunks_metadata", lambda *args, **kwargs: True)
+
+    try:
+        app_module._perform_chunk_regeneration(job_id, "chunk-1", "******")
+    finally:
+        with app_module.queue_lock:
+            app_module.jobs.pop(job_id, None)
+
+    with wave.open(str(target), "rb") as wav_file:
+        duration = wav_file.getnframes() / wav_file.getframerate()
+    assert duration == pytest.approx(1.2, abs=0.01)
 
 
 def test_attached_pause_regeneration_separates_speech_and_silence(monkeypatch, tmp_path):

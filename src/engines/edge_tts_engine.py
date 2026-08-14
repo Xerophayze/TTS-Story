@@ -63,6 +63,8 @@ class EdgeTTSEngine(TtsEngineBase):
         max_parallel: int = 2,
         max_retries: int = 2,
         default_volume: int = 0,
+        pause_marker_three_seconds: float = 0.25,
+        pause_marker_six_seconds: float = 0.5,
         communicate_factory: Optional[Callable[..., Any]] = None,
         list_voices_func: Optional[Callable[..., Any]] = None,
         sleep_func: Callable[[float], None] = time.sleep,
@@ -78,6 +80,8 @@ class EdgeTTSEngine(TtsEngineBase):
         self.max_parallel = max(1, min(int(max_parallel or 1), 8))
         self.max_retries = max(0, min(int(max_retries or 0), 6))
         self.default_volume = max(-100, min(int(default_volume or 0), 100))
+        self.pause_marker_three_seconds = max(0.0, min(float(pause_marker_three_seconds), 30.0))
+        self.pause_marker_six_seconds = max(0.0, min(float(pause_marker_six_seconds), 30.0))
         self._communicate = communicate_factory or edge_tts.Communicate
         self._list_voices = list_voices_func or edge_tts.list_voices
         self._sleep = sleep_func
@@ -219,7 +223,11 @@ class EdgeTTSEngine(TtsEngineBase):
         if not clean_text:
             raise EdgeTTSError("Edge TTS cannot synthesize empty text.")
         if not any(character.isalnum() for character in clean_text):
-            pause_seconds = pause_seconds_for_text(clean_text)
+            pause_seconds = pause_seconds_for_text(
+                clean_text,
+                self.pause_marker_three_seconds,
+                self.pause_marker_six_seconds,
+            )
             logger.info(
                 "Edge TTS converted a symbol-only separator (%d chars) to silence.",
                 len(clean_text),

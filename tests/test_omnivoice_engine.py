@@ -53,6 +53,7 @@ def test_omnivoice_prepares_shared_reference_only_once(tmp_path):
     engine.dtype = "float32"
     engine.num_step = 1
     engine.post_process = False
+    engine.duration_safety_margin = 0.4
     engine.post_processor = Mock()
     engine.post_processor.apply_post_pipeline.side_effect = lambda audio, *_args: audio
     engine._resolve_ref_text = Mock(return_value="reference transcript")
@@ -102,4 +103,5 @@ def test_omnivoice_prepares_shared_reference_only_once(tmp_path):
     assert {chunk["ref_audio"] for chunk in captured_job["chunks"]} == {
         str(prepared_prompt)
     }
+    assert captured_job["duration_safety_margin"] == 0.4
     assert not prepared_prompt.exists()

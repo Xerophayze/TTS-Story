@@ -8,18 +8,19 @@ If you appreciate what we do and would like to support ongoing development:
 
 ---
 
-# Current Updates and Notes - updated 08-07-2026
+# Current Updates and Notes - updated 08-14-2026
 
-- **Smarter LLM failover and speaker profiling** - Prep Text now retries temporary high-demand errors on the same profile before advancing, switches immediately on explicit quota exhaustion, and supports a daily request cap for each backup profile. Speaker Properties can also build an AI profile for one selected tagged speaker.
-- **Production-ready audiobook exports** - corrected ACX-oriented MP3 encoding, improved chapter title handling, preserved saved rebuild settings, and added clearer M4B cover-art validation and confirmation.
-- **More reliable online generation** - configurable parallel cloud jobs, stronger timeout and retry handling, resumable progress, and safer finalization help long audiobook projects complete without restarting finished work.
+- **More reliable OmniVoice narration** - corrected OmniVoice post-processing controls, protected final words from being faded out, and added a configurable ending-duration buffer for sentences that end with acronyms, numbers, or other tightly timed speech.
+- **Improved voice casting and speaker workflows** - strengthened Qwen3 voice-design prompts, added configurable candidates per speaker, improved bulk candidate generation, and made approved voice selections easier to review, filter, save, and reuse.
+- **More consistent projects and audiobook timing** - saved projects now use shared server-side storage across localhost, IP-address, and alternate browser URLs, while configurable pause-marker timing and improved section detection provide better control over narration structure.
 
 ### Previous Updates
 
-- Improved progress feedback for generation, bulk speaker regeneration, and audio recompilation.
-- Added OpenAI-compatible TTS with configurable models, voices, instructions, concurrency, and custom compatible endpoints.
+- Smarter LLM failover, configurable backup profiles, and individual speaker-profile generation.
+- Production-ready MP3/M4B exports with improved chapter metadata and rebuild handling.
+- More reliable cloud generation with configurable concurrency, retries, pause/resume, and recovery checkpoints.
 - Improved cross-platform installation and updates for Windows, Linux, macOS, Apple Silicon, and Pinokio.
-- Added Edge TTS, ElevenLabs, and Microsoft Azure Speech cloud engines, plus the illustrated in-app Help Center.
+- Added Edge TTS, ElevenLabs, Microsoft Azure Speech, and OpenAI-compatible TTS, plus the illustrated in-app Help Center.
 
 # TTS-Story
 
