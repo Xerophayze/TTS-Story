@@ -2825,12 +2825,14 @@ async function getLibraryCloudCatalog(engineName) {
     const provider = normalized.includes('edgetts')
         ? 'edge_tts'
         : (normalized.includes('elevenlabs') ? 'elevenlabs'
-            : (normalized.includes('openaitts') ? 'openai_tts' : ''));
+            : (normalized.includes('openaitts') ? 'openai_tts'
+                : (normalized.includes('localaitts') ? 'localai_tts' : '')));
     if (!provider) return { success: false, voices: [] };
     if (libraryCloudCatalogCache.has(provider)) return libraryCloudCatalogCache.get(provider);
     if (!libraryCloudCatalogRequests.has(provider)) {
         const endpoint = provider === 'edge_tts' ? '/api/edge-tts/voices'
-            : (provider === 'elevenlabs' ? '/api/elevenlabs/catalog' : '/api/openai-tts/catalog');
+            : (provider === 'elevenlabs' ? '/api/elevenlabs/catalog'
+                : (provider === 'localai_tts' ? '/api/localai-tts/catalog' : '/api/openai-tts/catalog'));
         const request = fetch(endpoint)
             .then(response => response.json())
             .then(data => {
@@ -2857,6 +2859,9 @@ function mapLibraryCloudVoices(data, provider) {
         isEdgeTts: provider === 'edge_tts',
         isElevenLabs: provider === 'elevenlabs',
         isOpenAITts: provider === 'openai_tts',
+        isLocalAITts: provider === 'localai_tts',
+        disabled: Boolean(voice.disabled),
+        disabledReason: voice.disabled_reason || '',
         isPrompt: false,
     }));
 }
@@ -2878,6 +2883,7 @@ async function populateLibraryVoiceSelects(engine) {
     const isEdgeTts = normalizedEngine.includes('edgetts');
     const isElevenLabs = normalizedEngine.includes('elevenlabs');
     const isOpenAITts = normalizedEngine.includes('openaitts');
+    const isLocalAITts = normalizedEngine.includes('localaitts');
     const isPocketPreset = normalizedEngine.includes('pocketttspreset');
     const isPocket = normalizedEngine.includes('pockettts') && !isPocketPreset;
     const usesVoicePrompts = isChatterbox || isVoxCPM || isQwenClone || isOmniClone || isDotsTts || isPocket;
@@ -2943,10 +2949,11 @@ async function populateLibraryVoiceSelects(engine) {
                     isAzureSpeech: true,
                 }));
             }
-        } else if (isEdgeTts || isElevenLabs || isOpenAITts) {
+        } else if (isEdgeTts || isElevenLabs || isOpenAITts || isLocalAITts) {
             const data = await getLibraryCloudCatalog(engine);
             if (data.success) {
-                voices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts' : (isElevenLabs ? 'elevenlabs' : 'openai_tts'));
+                voices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts'
+                    : (isElevenLabs ? 'elevenlabs' : (isLocalAITts ? 'localai_tts' : 'openai_tts')));
             }
         } else {
             // Kokoro and others use /api/voices - returns nested structure by language
@@ -3165,6 +3172,7 @@ async function populateLibraryVoiceSelects(engine) {
         const isEdgeTts = engineName.includes('edgetts');
         const isElevenLabs = engineName.includes('elevenlabs');
         const isOpenAITts = engineName.includes('openaitts');
+        const isLocalAITts = engineName.includes('localaitts');
         const minDuration = getMinDuration(engineName);
         const activeFilters = filters || libraryVoiceFilters;
         let chunkVoices = [];
@@ -3215,10 +3223,11 @@ async function populateLibraryVoiceSelects(engine) {
                         isAzureSpeech: true,
                     }));
                 }
-            } else if (isEdgeTts || isElevenLabs || isOpenAITts) {
+            } else if (isEdgeTts || isElevenLabs || isOpenAITts || isLocalAITts) {
                 const data = await getLibraryCloudCatalog(engineName);
                 if (data.success) {
-                    chunkVoices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts' : (isElevenLabs ? 'elevenlabs' : 'openai_tts'));
+                    chunkVoices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts'
+                        : (isElevenLabs ? 'elevenlabs' : (isLocalAITts ? 'localai_tts' : 'openai_tts')));
                 }
             } else {
                 const data = await getVoicesCached();
@@ -3280,6 +3289,10 @@ async function populateLibraryVoiceSelects(engine) {
             opt.textContent = `${displayName}${durationLabel}`;
             opt.dataset.gender = v.gender || '';
             opt.dataset.language = v.language || '';
+            if (v.disabled) {
+                opt.disabled = true;
+                opt.title = v.disabledReason || '';
+            }
             
             // Disable if duration is too short for this engine
             if (minDuration > 0 && v.duration != null && v.duration < minDuration) {
@@ -3316,6 +3329,7 @@ async function populateLibraryVoiceSelects(engine) {
         const isEdgeTts = engineName.includes('edgetts');
         const isElevenLabs = engineName.includes('elevenlabs');
         const isOpenAITts = engineName.includes('openaitts');
+        const isLocalAITts = engineName.includes('localaitts');
         const minDuration = getMinDuration(engineName);
         const activeFilters = filters || libraryVoiceFilters;
         let bulkVoices = [];
@@ -3366,10 +3380,11 @@ async function populateLibraryVoiceSelects(engine) {
                         isAzureSpeech: true,
                     }));
                 }
-            } else if (isEdgeTts || isElevenLabs || isOpenAITts) {
+            } else if (isEdgeTts || isElevenLabs || isOpenAITts || isLocalAITts) {
                 const data = await getLibraryCloudCatalog(engineName);
                 if (data.success) {
-                    bulkVoices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts' : (isElevenLabs ? 'elevenlabs' : 'openai_tts'));
+                    bulkVoices = mapLibraryCloudVoices(data, isEdgeTts ? 'edge_tts'
+                        : (isElevenLabs ? 'elevenlabs' : (isLocalAITts ? 'localai_tts' : 'openai_tts')));
                 }
             } else {
                 const data = await getVoicesCached();
@@ -3430,6 +3445,10 @@ async function populateLibraryVoiceSelects(engine) {
             opt.textContent = `${displayName}${durationLabel}`;
             opt.dataset.gender = v.gender || '';
             opt.dataset.language = v.language || '';
+            if (v.disabled) {
+                opt.disabled = true;
+                opt.title = v.disabledReason || '';
+            }
             
             // Disable if duration is too short for this engine
             if (minDuration > 0 && v.duration != null && v.duration < minDuration) {
@@ -3473,6 +3492,7 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
             <option value="elevenlabs">ElevenLabs</option>
             <option value="openai_tts">OpenAI-compatible TTS</option>
+            <option value="localai_tts">LocalAI TTS</option>
         `;
         if (normalizedCurrentEngine) {
             Array.from(select.options).forEach(option => {
@@ -3617,6 +3637,7 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
             <option value="elevenlabs">ElevenLabs</option>
             <option value="openai_tts">OpenAI-compatible TTS</option>
+            <option value="localai_tts">LocalAI TTS</option>
         `;
         
         // When engine changes, repopulate the voice dropdown for this speaker and show/hide Qwen3 options
@@ -4994,6 +5015,7 @@ function _ensureLibraryAwrEntryModal() {
                                     <option value="edge_tts">Microsoft Edge TTS</option>
                                     <option value="elevenlabs">ElevenLabs</option>
                                     <option value="openai_tts">OpenAI-compatible TTS</option>
+                                    <option value="localai_tts">LocalAI TTS</option>
                                 </select>
                             </div>
                             <div class="awr-preview-field awr-preview-field-voice">
@@ -5092,6 +5114,7 @@ async function _libAwrPopulateVoices(engineName) {
     const isEdgeTts = norm.includes('edgetts');
     const isElevenLabs = norm.includes('elevenlabs');
     const isOpenAITts = norm.includes('openaitts');
+    const isLocalAITts = norm.includes('localaitts');
 
     try {
         if (usesPrompts) {
@@ -5145,13 +5168,15 @@ async function _libAwrPopulateVoices(engineName) {
                     select.appendChild(opt);
                 });
             }
-        } else if (isEdgeTts || isElevenLabs || isOpenAITts) {
+        } else if (isEdgeTts || isElevenLabs || isOpenAITts || isLocalAITts) {
             const data = await getLibraryCloudCatalog(engineName);
             if (data.success && data.voices) {
                 data.voices.forEach(voice => {
                     const opt = document.createElement('option');
                     opt.value = voice.short_name || voice.voice_id;
                     opt.textContent = `${voice.display_name || opt.value}${voice.locale ? ` (${voice.locale})` : ''}`;
+                    opt.disabled = Boolean(voice.disabled);
+                    if (voice.disabled_reason) opt.title = voice.disabled_reason;
                     select.appendChild(opt);
                 });
             }

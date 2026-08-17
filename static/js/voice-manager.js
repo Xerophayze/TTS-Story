@@ -92,11 +92,22 @@ function updateBatchToolbar(scope) {
         countLabel.textContent = `${count} selected`;
     }
     const exportBtn = document.getElementById(isArchive ? 'voice-archive-export-btn' : 'voice-batch-export-btn');
+    const transcribeBtn = isArchive ? null : document.getElementById('voice-batch-transcribe-btn');
     const archiveBtn = document.getElementById(isArchive ? 'voice-archive-restore-btn' : 'voice-batch-archive-btn');
     const deleteBtn = document.getElementById(isArchive ? 'voice-archive-delete-btn' : 'voice-batch-delete-btn');
     [exportBtn, archiveBtn, deleteBtn].forEach(btn => {
         if (btn) btn.disabled = count === 0;
     });
+    if (transcribeBtn) {
+        const missingCount = Array.from(getSelectionSet(scope)).filter(id => {
+            const voice = chatterboxVoices.find(entry => entry.id === id);
+            return voice && !voice.transcript_available && !voice.missing_file;
+        }).length;
+        transcribeBtn.disabled = missingCount === 0;
+        transcribeBtn.textContent = missingCount
+            ? `Generate Transcripts (${missingCount})`
+            : 'Generate Transcripts';
+    }
     const selectAll = document.getElementById(isArchive ? 'voice-archive-select-all' : 'voice-select-all');
     if (selectAll) {
         const totalRows = getVoiceRowCheckboxes(scope).length;
@@ -457,6 +468,7 @@ function setupChatterboxVoiceSection() {
             event.preventDefault();
             const nameInput = document.getElementById('chatterbox-voice-name');
             const fileInput = document.getElementById('chatterbox-voice-file');
+            const transcriptInput = document.getElementById('chatterbox-voice-transcript');
             const name = nameInput?.value.trim();
             const file = fileInput?.files?.[0];
             if (!name) {
@@ -470,6 +482,7 @@ function setupChatterboxVoiceSection() {
             const formData = new FormData();
             formData.append('name', name);
             formData.append('file', file);
+            formData.append('transcript', transcriptInput?.value?.trim() || '');
             try {
                 const response = await fetch('/api/chatterbox-voices', {
                     method: 'POST',
@@ -989,6 +1002,9 @@ function renderVoiceRows(container, rows, { archived }) {
         const sourceBadge = isExternal
             ? (isDownloaded ? '<span class="badge badge-downloaded">Downloaded</span>' : '<span class="badge badge-external">External</span>')
             : '<span class="badge badge-local">Local</span>';
+        const transcriptBadge = isExternal ? '' : (entry.transcript_available
+            ? '<span class="badge badge-downloaded">Transcript ready</span>'
+            : '<span class="badge badge-danger">Transcript required for LocalAI</span>');
         const durationText = entry.duration_seconds ? `${entry.duration_seconds.toFixed(1)}s` : '—';
         const languageText = getLanguageDisplayName(entry.language);
         const selectionSet = archived ? selectedArchivedVoiceIds : selectedVoiceIds;
@@ -1003,6 +1019,7 @@ function renderVoiceRows(container, rows, { archived }) {
             <td class="voice-name-cell">
                 ${escapeHtml(entry.name || 'Untitled Voice')}
                 ${entry.missing_file ? '<span class="badge badge-danger">Missing</span>' : ''}
+                ${transcriptBadge}
             </td>
             <td>${genderBadge}</td>
             <td>${escapeHtml(languageText)}</td>
@@ -1022,6 +1039,9 @@ function renderVoiceRows(container, rows, { archived }) {
                 <button type="button" class="btn-ghost" data-action="export" ${!isDownloaded ? 'disabled' : ''}>Export</button>
                 <button type="button" class="btn-ghost" data-action="${archiveAction}">${archiveLabel}</button>
                 ${!isExternal ? `
+                    ${!entry.transcript_available && !entry.missing_file ? `
+                        <button type="button" class="btn-ghost" data-action="transcribe">Generate Transcript</button>
+                    ` : ''}
                     <button type="button" class="btn-ghost" data-action="edit-meta">Edit</button>
                 ` : ''}
                 <button type="button" class="btn-danger" data-action="delete">Delete</button>
@@ -1222,6 +1242,10 @@ function setupVoiceListControls() {
     if (batchArchiveBtn) {
         batchArchiveBtn.addEventListener('click', () => handleBatchArchive('active'));
     }
+    const batchTranscribeBtn = document.getElementById('voice-batch-transcribe-btn');
+    if (batchTranscribeBtn) {
+        batchTranscribeBtn.addEventListener('click', () => handleBatchTranscription(batchTranscribeBtn));
+    }
     const batchDeleteBtn = document.getElementById('voice-batch-delete-btn');
     if (batchDeleteBtn) {
         batchDeleteBtn.addEventListener('click', () => handleBatchDelete('active'));
@@ -1320,7 +1344,103 @@ async function handleVoiceTableAction(event) {
         await handleRowDelete(voiceId);
     } else if (action === 'edit-meta') {
         await editVoiceMetadata(voiceId);
+    } else if (action === 'transcribe') {
+        await generateVoiceTranscript(voiceId, btn);
     }
+}
+
+async function requestVoiceTranscript(voiceId) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000);
+    let response;
+    try {
+        response = await fetch(`/api/chatterbox-voices/${encodeURIComponent(voiceId)}/transcribe`, {
+            method: 'POST',
+            signal: controller.signal,
+        });
+    } catch (error) {
+        const wrapped = new Error(
+            error?.name === 'AbortError'
+                ? 'Transcription timed out after three minutes.'
+                : 'The transcription service could not be reached.'
+        );
+        wrapped.fatal = true;
+        throw wrapped;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+        const error = new Error(
+            (response.status === 404 || response.status === 405)
+                ? 'The transcription service is not loaded. Restart the TTS-Story backend and refresh this page.'
+                : (data.error || 'Unable to generate the transcript.')
+        );
+        error.fatal = response.status === 404 || response.status === 405 || response.status >= 500;
+        throw error;
+    }
+    return data;
+}
+
+async function generateVoiceTranscript(voiceId, button) {
+    if (!voiceId) return;
+    const originalLabel = button?.textContent || 'Generate Transcript';
+    if (button) {
+        button.disabled = true;
+        button.textContent = 'Transcribing…';
+    }
+    try {
+        const data = await requestVoiceTranscript(voiceId);
+        await loadChatterboxVoices();
+        showToast(`Transcript generated: ${data.transcript}`, 'success');
+    } catch (error) {
+        console.error('Voice transcription failed', error);
+        showToast(error.message || 'Voice transcription failed', 'error');
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalLabel;
+        }
+    }
+}
+
+async function handleBatchTranscription(button) {
+    const voiceIds = Array.from(selectedVoiceIds).filter(id => {
+        const voice = chatterboxVoices.find(entry => entry.id === id);
+        return voice && !voice.transcript_available && !voice.missing_file;
+    });
+    if (!voiceIds.length) return;
+    const originalLabel = button?.textContent || 'Generate Transcripts';
+    if (button) button.disabled = true;
+    let completed = 0;
+    const failures = [];
+    let fatalError = null;
+    for (const voiceId of voiceIds) {
+        if (button) button.textContent = `Transcribing ${completed + 1} of ${voiceIds.length}…`;
+        try {
+            await requestVoiceTranscript(voiceId);
+            completed += 1;
+        } catch (error) {
+            const voice = chatterboxVoices.find(entry => entry.id === voiceId);
+            failures.push(`${voice?.name || voiceId}: ${error.message}`);
+            if (error.fatal) {
+                fatalError = error;
+                break;
+            }
+        }
+    }
+    await loadChatterboxVoices();
+    if (fatalError) {
+        console.error('Voice transcript batch stopped', failures);
+        showToast(fatalError.message, 'error');
+    } else if (failures.length) {
+        console.error('Some voice transcripts failed', failures);
+        showToast(`Generated ${completed} transcript(s); ${failures.length} failed.`, 'warning');
+    } else {
+        showToast(`Generated ${completed} transcript${completed === 1 ? '' : 's'}.`, 'success');
+    }
+    if (button && !document.body.contains(button)) return;
+    if (button) button.textContent = originalLabel;
+    updateBatchToolbar('active');
 }
 
 async function handleBatchExport(scope) {
@@ -1487,6 +1607,7 @@ function openEditVoiceModal(entry) {
     const nameInput = document.getElementById('edit-voice-name');
     const genderSelect = document.getElementById('edit-voice-gender');
     const languageSelect = document.getElementById('edit-voice-language');
+    const transcriptInput = document.getElementById('edit-voice-transcript');
     
     if (!overlay || !modal) return;
     
@@ -1504,6 +1625,7 @@ function openEditVoiceModal(entry) {
     nameInput.value = entry.name || '';
     genderSelect.value = entry.gender || '';
     languageSelect.value = entry.language || '';
+    if (transcriptInput) transcriptInput.value = entry.transcript || '';
     
     // Show modal
     overlay.classList.remove('hidden');
@@ -1523,11 +1645,13 @@ async function saveEditVoiceModal() {
     const nameInput = document.getElementById('edit-voice-name');
     const genderSelect = document.getElementById('edit-voice-gender');
     const languageSelect = document.getElementById('edit-voice-language');
+    const transcriptInput = document.getElementById('edit-voice-transcript');
     
     const voiceId = idInput.value;
     const name = nameInput.value.trim();
     const gender = genderSelect.value || null;
     const language = languageSelect.value || null;
+    const transcript = transcriptInput?.value?.trim() || '';
     
     if (!voiceId) return;
     
@@ -1535,7 +1659,7 @@ async function saveEditVoiceModal() {
         const response = await fetch(`/api/chatterbox-voices/${voiceId}/update`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, gender, language })
+            body: JSON.stringify({ name, gender, language, transcript })
         });
         const data = await response.json();
         if (data.success) {

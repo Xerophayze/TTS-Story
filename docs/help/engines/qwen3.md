@@ -29,12 +29,16 @@ Open [Settings → Engine Settings](app:settings/qwen3), leave Device at `auto`,
 Both job modes share a 500-character chunk target and expose **Device**, **DType**, **Attention**, and **Default Language**.
 
 - **bfloat16** is the initial dtype and is appropriate on supported recent GPUs. Try float16 if the GPU lacks good bfloat16 support. Float32 uses substantially more memory.
-- **Flash Attention 2** can reduce memory use and improve speed, but it requires a compatible GPU, half-precision dtype, and a successful optional installation. If initialization reports a FlashAttention error, select **eager** rather than repeatedly retrying the job.
+- **Flash Attention 2** can reduce memory use and improve speed. Setup now detects and validates it with a real CUDA kernel test, and installs it automatically when a compatible NVIDIA GPU and compiler toolchain are present. When it is unavailable, TTS-Story automatically uses PyTorch **SDPA** acceleration before falling back to eager attention.
 - **Auto language** lets the model infer or use its normal behavior. An explicit language can improve consistency when the manuscript is known to be monolingual.
 - **Default Instruction** applies to CustomVoice. Per-speaker instructions can describe pace, emotion, or delivery.
 - **Default Prompt** and **Prompt Transcript** apply to Clone. A per-speaker prompt takes priority.
 
 The speaker and language choices shown by TTS-Story are built-in compatibility lists. The metadata endpoint deliberately does not load the large model, so a custom replacement model may support a different set of choices than the interface displays.
+
+To inspect attention support without rerunning the full installer, activate the project environment and run `python scripts/flash_attention_setup.py diagnose`. On native Windows, first-time setup and `setup.bat --repair` offer to install the matching CUDA 12.4 Toolkit and Visual Studio 2022 C++ Build Tools with WinGet, open the official instruction pages, or continue with SDPA. Automated prerequisite installation is optional, requires administrator approval, and can consume 10 GB or more. Pinokio and normal update runs never pause for this choice.
+
+Linux normally needs the CUDA Toolkit compiler and standard C++ build tools. Upstream Windows support remains experimental and a source build requires both the CUDA Toolkit (`nvcc`) and Visual Studio Build Tools with **Desktop development with C++**. FlashAttention is not available for Apple MPS or CPU-only systems; those systems continue with SDPA/eager normally. Set `INSTALL_FLASH_ATTN=0` before setup to skip the optional build attempt, or `FLASH_ATTN_PREREQ_PROMPT=0` to retain automatic detection without showing the Windows prerequisite menu.
 
 ## Effective-use tips
 

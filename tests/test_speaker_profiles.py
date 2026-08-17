@@ -259,7 +259,18 @@ def test_speaker_properties_offers_single_profile_generation():
 def test_main_bundle_cache_key_includes_profile_migration_release():
     template = (PROJECT_ROOT / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert '/static/js/main.js?v=57' in template
+    assert '/static/js/main.js?v=59' in template
+
+
+def test_voice_sample_assignments_survive_compatible_engine_switches():
+    javascript = (PROJECT_ROOT / "static" / "js" / "main.js").read_text(encoding="utf-8")
+
+    assert "TTS_STORY_VOICE_REFERENCE_PREFIX = 'tts-story://voice-prompts/'" in javascript
+    assert "function captureCompatibleVoiceSamples()" in javascript
+    assert "captureCompatibleVoiceSamples();" in javascript
+    assert "function restoreCompatibleLocalAIVoiceSample(selectElement)" in javascript
+    assert "restoreCompatibleLocalAIVoiceSample(select);" in javascript
+    assert "Object.entries(turboSelectionState).forEach(([speaker, reference])" in javascript
 
 
 def test_voice_candidate_count_defaults_to_one_and_is_configurable():
@@ -436,8 +447,8 @@ def test_batch_voice_generation_clears_stale_candidates_and_reports_failures():
     javascript = (PROJECT_ROOT / "static" / "js" / "main.js").read_text(encoding="utf-8")
 
     assert "delete speakerVoiceDesignCandidates[speakerKey]" in javascript
-    assert "const failures = []" in javascript
-    assert "failures.push(`${speaker}: ${result.error}`)" in javascript
+    assert "const failures = resume && Array.isArray(bulkVoiceGenerationState.failures)" in javascript
+    assert "failures.push({ speaker, error: result.error })" in javascript
     assert "Promise.allSettled(candidates" in javascript
 
 
@@ -470,6 +481,73 @@ def test_voice_design_casting_uses_conservative_sampling(monkeypatch):
     assert captured["subtalker_top_p"] == 0.9
     assert captured["subtalker_top_k"] == 40
     assert result["sampling_parameters"] == app_module.VOICE_DESIGN_CASTING_GENERATION
+
+
+def test_voice_design_casting_caps_runaway_codec_generation():
+    assert app_module.MAX_VOICE_DESIGN_PREVIEW_TOKENS == 768
+    assert app_module.VOICE_DESIGN_CASTING_GENERATION["max_new_tokens"] == 768
+    assert app_module.MAX_VOICE_DESIGN_PREVIEW_SECONDS == 45.0
+
+
+def test_voice_design_preview_retries_with_a_new_seed(monkeypatch):
+    calls = []
+    cleanup_calls = []
+    task_id = "voice-retry-test"
+
+    def fake_generate(payload, _config):
+        calls.append(payload["seed"])
+        if len(calls) == 1:
+            raise RuntimeError("missed ending token")
+        return {"audio_base64": "d2F2", "seed": payload["seed"]}
+
+    monkeypatch.setattr(app_module, "_generate_voice_design_preview", fake_generate)
+    monkeypatch.setattr(
+        app_module,
+        "_cleanup_qwen_voice_design_generation",
+        lambda **kwargs: cleanup_calls.append(kwargs),
+    )
+    monkeypatch.setattr(app_module, "_persist_job_state", lambda *args, **kwargs: None)
+    app_module.jobs[task_id] = {
+        "status": "processing",
+        "job_type": "qwen3_voice_design_preview",
+    }
+    try:
+        app_module.process_qwen3_voice_design_preview_task({
+            "job_id": task_id,
+            "payload": {"seed": 100},
+            "config": {},
+        })
+        assert calls == [100, 101]
+        assert app_module.jobs[task_id]["status"] == "completed"
+        assert app_module.jobs[task_id]["result"]["attempts"] == 2
+        assert any(call.get("force_cuda") for call in cleanup_calls)
+    finally:
+        app_module.jobs.pop(task_id, None)
+
+
+def test_voice_design_cleanup_collects_python_objects_without_unloading_model(monkeypatch):
+    collected = []
+    original_model = app_module.qwen3_voice_design_model
+    sentinel_model = object()
+    app_module.qwen3_voice_design_model = sentinel_model
+    monkeypatch.setattr(app_module.gc, "collect", lambda: collected.append(True))
+    try:
+        app_module._cleanup_qwen_voice_design_generation()
+        assert collected == [True]
+        assert app_module.qwen3_voice_design_model is sentinel_model
+    finally:
+        app_module.qwen3_voice_design_model = original_model
+
+
+def test_bulk_voice_generation_persists_resumable_project_checkpoint():
+    javascript = (PROJECT_ROOT / "static" / "js" / "main.js").read_text(encoding="utf-8")
+    template = (PROJECT_ROOT / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "bulk_voice_generation_state:" in javascript
+    assert "hasResumableBulkVoiceGeneration" in javascript
+    assert "persistBulkVoiceGenerationState" in javascript
+    assert "Pause requested. The current speaker will finish" in javascript
+    assert 'id="speaker-batch-start-over-btn"' in template
 
 
 def test_single_profile_request_sends_only_the_selected_speakers_excerpt(monkeypatch):

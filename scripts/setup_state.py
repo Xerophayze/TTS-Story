@@ -19,7 +19,12 @@ STATE_SCHEMA = 1
 
 def dependency_files(platform_id: str) -> tuple[str, ...]:
     platform_key = platform_id.lower()
-    common = ("requirements.txt", "scripts/setup_state.py")
+    common = (
+        "requirements.txt",
+        "scripts/setup_state.py",
+        "scripts/flash_attention_setup.py",
+        "src/attention_backend.py",
+    )
     if platform_key.startswith("windows"):
         return common + ("setup.bat",)
     return common + ("setup.sh", "scripts/unix_torch.sh")

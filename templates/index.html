@@ -235,6 +235,7 @@
                                                 <option value="edge_tts">Microsoft Edge TTS · Experimental Cloud</option>
                                                 <option value="elevenlabs">ElevenLabs · Cloud</option>
                                                 <option value="openai_tts">OpenAI-compatible TTS · Cloud</option>
+                                                <option value="localai_tts">LocalAI TTS · Self-hosted</option>
                                             </select>
                                         </div>
                                     </div>
@@ -600,7 +601,7 @@
                                 <h2>Voice Prompts</h2>
                                 <button type="button" class="help-icon" data-help-id="voice-prompts" aria-label="Help: Voice Prompts">?</button>
                             </div>
-                            <p class="help-text">Manage prompt libraries for Chatterbox, VoxCPM, and Qwen3.</p>
+                            <p class="help-text">Manage reference voice libraries for Chatterbox, VoxCPM, Qwen3, and cloning-capable LocalAI models.</p>
                         </div>
                         <span class="voices-section-toggle">▶</span>
                     </div>
@@ -613,6 +614,11 @@
                             <div class="form-group">
                                 <label for="chatterbox-voice-file">Audio File</label>
                                 <input type="file" id="chatterbox-voice-file" accept=".wav,.mp3,.m4a,.flac,.ogg">
+                            </div>
+                            <div class="form-group">
+                                <label for="chatterbox-voice-transcript">Exact Transcript (recommended)</label>
+                                <textarea id="chatterbox-voice-transcript" rows="3" placeholder="Enter exactly what is spoken in this sample."></textarea>
+                                <small>Required when this sample is sent to a LocalAI voice-cloning model.</small>
                             </div>
                             <div class="form-actions">
                                 <button type="submit" class="btn btn-primary">Save Voice</button>
@@ -660,6 +666,7 @@
                             </div>
                             <div class="voice-batch-actions">
                                 <button type="button" class="btn btn-secondary btn-sm" id="voice-batch-export-btn" disabled>Export</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="voice-batch-transcribe-btn" disabled>Generate Transcripts</button>
                                 <button type="button" class="btn btn-secondary btn-sm" id="voice-batch-archive-btn" disabled>Archive</button>
                                 <button type="button" class="btn btn-danger btn-sm" id="voice-batch-delete-btn" disabled>Delete</button>
                             </div>
@@ -767,6 +774,7 @@
                                     <option value="edge_tts">Microsoft Edge TTS · Experimental Cloud</option>
                                     <option value="elevenlabs">ElevenLabs · Cloud</option>
                                     <option value="openai_tts">OpenAI-compatible TTS · Cloud</option>
+                                    <option value="localai_tts">LocalAI TTS · Self-hosted</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -812,6 +820,7 @@
                             <button type="button" class="engine-tab-btn" data-engine-tab="edge-tts">Edge TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="elevenlabs">ElevenLabs</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="openai-tts">OpenAI TTS</button>
+                            <button type="button" class="engine-tab-btn" data-engine-tab="localai-tts">LocalAI TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="voxcpm">VoxCPM 1.5</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="pocket-tts">Pocket TTS</button>
                             <button type="button" class="engine-tab-btn" data-engine-tab="qwen3">Qwen3-TTS</button>
@@ -1095,6 +1104,66 @@
                                 </div>
                             </div>
                             <p class="help-text">Instruction-capable models use the prompt above; legacy TTS-1 models ignore it. Provider charges and limits apply.</p>
+                        </div>
+
+                        <div class="engine-panel" id="engine-panel-localai-tts">
+                            <div class="section-title-inline settings-panel-title">
+                                <h4>LocalAI TTS</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-localai-tts" aria-label="Help: LocalAI TTS">?</button>
+                            </div>
+                            <p class="help-text" style="margin-top:0;">Connect to a self-hosted LocalAI server. TTS-Story discovers TTS-capable models and saved voice profiles without installing duplicate model runtimes.</p>
+                            <div class="settings-form-grid">
+                                <div class="form-group">
+                                    <label for="localai-tts-base-url">LocalAI Base URL</label>
+                                    <input type="url" id="localai-tts-base-url" value="http://localhost:8080/v1">
+                                    <small>Use the LocalAI server address, with or without <code>/v1</code>.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-api-key">API Key (optional)</label>
+                                    <input type="password" id="localai-tts-api-key" autocomplete="off" placeholder="Only if LocalAI authentication is enabled">
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-model">TTS Model</label>
+                                    <select id="localai-tts-model"><option value="">Load the LocalAI catalog first</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-default-voice">Default Voice Profile</label>
+                                    <select id="localai-tts-default-voice"><option value="">Model default voice</option></select>
+                                    <small>LocalAI profiles and transcript-ready TTS-Story samples appear here for cloning-capable models.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label class="checkbox-label" for="localai-tts-voice-profile-consent-confirmed">
+                                        <input type="checkbox" id="localai-tts-voice-profile-consent-confirmed">
+                                        I confirm I have the rights or permission to use selected samples for voice cloning
+                                    </label>
+                                    <small>Required before TTS-Story uploads a selected sample to LocalAI. Samples are synchronized only when used, then the saved LocalAI profile is reused.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-instructions">Default Voice Instructions (optional)</label>
+                                    <textarea id="localai-tts-instructions" rows="3" placeholder="Only used by models that support instructions."></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-chunk-size">Chunk Size (chars)</label>
+                                    <input type="number" id="localai-tts-chunk-size" min="100" max="4000" step="100" value="1000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-timeout">Request Timeout (seconds)</label>
+                                    <input type="number" id="localai-tts-timeout" min="10" max="600" step="10" value="180">
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-max-parallel">Maximum Parallel Requests</label>
+                                    <input type="number" id="localai-tts-max-parallel" min="1" max="8" step="1" value="1">
+                                    <small>Start at 1 for a single local GPU. Increase only if the LocalAI backend can safely run concurrent inference.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-max-retries">Retries Per Chunk</label>
+                                    <input type="number" id="localai-tts-max-retries" min="0" max="8" step="1" value="4">
+                                </div>
+                            </div>
+                            <div class="settings-inline-actions" style="margin-top:12px;">
+                                <button type="button" class="btn btn-secondary" id="fetch-localai-tts-catalog">Test Connection &amp; Load Catalog</button>
+                                <span id="localai-tts-catalog-status" class="help-text" aria-live="polite"></span>
+                            </div>
                         </div>
 
                         <!-- Chatterbox Local Panel -->
@@ -2050,6 +2119,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="speaker-batch-cancel-btn">Cancel</button>
+                <button class="btn btn-secondary hidden" id="speaker-batch-start-over-btn">Start Over</button>
                 <button class="btn btn-primary" id="speaker-batch-confirm-btn">Generate</button>
                 <button class="btn btn-primary hidden" id="speaker-batch-ok-btn">OK</button>
             </div>
@@ -2404,6 +2474,11 @@
                     </select>
                     <small>The language/accent of this voice sample.</small>
                 </div>
+                <div class="form-group">
+                    <label for="edit-voice-transcript">Exact Transcript</label>
+                    <textarea id="edit-voice-transcript" rows="4" placeholder="Enter exactly what is spoken in the audio sample."></textarea>
+                    <small>Required to use this sample with LocalAI voice cloning. Generated samples are filled automatically when their preview text is known.</small>
+                </div>
             </form>
         </div>
         <div class="modal-footer">
@@ -2495,6 +2570,7 @@
                                     <option value="edge_tts">Microsoft Edge TTS</option>
                                     <option value="elevenlabs">ElevenLabs</option>
                                     <option value="openai_tts">OpenAI-compatible TTS</option>
+                                    <option value="localai_tts">LocalAI TTS</option>
                                 </select>
                             </div>
                             <div class="awr-preview-field awr-preview-field-voice">
@@ -2520,10 +2596,10 @@
     </div>
 
     <script src="/static/js/help.js?v=3"></script>
-<script src="/static/js/main.js?v=57"></script>
+<script src="/static/js/main.js?v=59"></script>
     <script src="/static/js/queue.js?v=4"></script>
 <script src="/static/js/library.js?v=45"></script>
-    <script src="/static/js/voice-manager.js?v=14"></script>
-    <script src="/static/js/settings.js?v=16"></script>
+    <script src="/static/js/voice-manager.js?v=15"></script>
+    <script src="/static/js/settings.js?v=17"></script>
 </body>
 </html>

@@ -152,6 +152,33 @@ def test_setup_scripts_have_fast_update_and_explicit_repair_paths():
         assert "No setup work is required for this update." in setup
 
 
+def test_setup_scripts_manage_optional_flash_attention_without_making_it_required():
+    windows_setup = read("setup.bat")
+    unix_setup = read("setup.sh")
+    helper = read("scripts/flash_attention_setup.py")
+
+    assert "scripts\\flash_attention_setup.py install" in windows_setup
+    assert "scripts/flash_attention_setup.py install" in unix_setup
+    assert "INSTALL_FLASH_ATTN" in windows_setup
+    assert "INSTALL_FLASH_ATTN" in unix_setup
+    assert "--no-build-isolation" in helper
+    assert "TTS-Story will use PyTorch SDPA acceleration instead." in helper
+    assert "offer-prerequisites" in windows_setup
+    assert "Nvidia.CUDA" in helper
+    assert "Microsoft.VisualStudio.2022.BuildTools" in helper
+    assert "Microsoft.VisualStudio.Workload.VCTools" in helper
+
+
+def test_pinokio_disables_interactive_system_prerequisite_prompts():
+    install = load_json("install.json")
+    update = load_json("update.json")
+
+    for launcher in (install, update):
+        non_linux = [step for step in launcher["run"] if step.get("when") == "{{platform !== 'linux'}}"]
+        assert len(non_linux) == 1
+        assert non_linux[0]["params"]["env"]["TTS_STORY_PINOKIO"] == "1"
+
+
 def test_setup_fingerprint_ignores_docs_but_tracks_dependency_definitions(tmp_path):
     (tmp_path / "scripts").mkdir()
     (tmp_path / "requirements.txt").write_text("flask==1\n", encoding="utf-8")

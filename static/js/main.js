@@ -356,6 +356,7 @@ async function generateAndSaveVoiceCandidates(speaker, displayName, statusEl) {
     const groupId = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`).toString();
     const candidates = [];
     const candidateSeeds = new Set();
+    const taskIds = new Set();
     try {
         for (let index = 0; index < count; index += 1) {
             const label = String.fromCharCode(65 + index);
@@ -372,6 +373,7 @@ async function generateAndSaveVoiceCandidates(speaker, displayName, statusEl) {
             });
             const previewData = await parseVoiceDesignApiResponse(previewResponse, 'enqueue Qwen voice generation');
             if (!previewResponse.ok || !previewData.success) throw new Error(previewData.error || 'Failed to enqueue preview');
+            taskIds.add(previewData.job_id);
             const result = await pollVoiceDesignTask(previewData.job_id, pollUrl, `Generating Qwen candidate ${label} of ${count}. This may take about a minute...`);
             if (!result.audio_base64) throw new Error(`Candidate ${label} did not return audio.`);
             const candidateName = count > 1 ? `${displayName || speaker} - Candidate ${label}` : (displayName || speaker);
@@ -392,8 +394,16 @@ async function generateAndSaveVoiceCandidates(speaker, displayName, statusEl) {
             });
             const saveData = await parseVoiceDesignApiResponse(saveResponse, 'save Qwen voice candidate');
             if (!saveResponse.ok || !saveData.success) throw new Error(saveData.error || 'Failed to enqueue save');
+            taskIds.add(saveData.job_id);
             const saved = await pollVoiceDesignTask(saveData.job_id, pollUrl, `Saving candidate ${label}...`);
-            candidates.push({ ...result, ...saved, label, candidate_group_id: groupId });
+            const candidate = { ...result, ...saved, label, candidate_group_id: groupId };
+            delete candidate.audio_base64;
+            candidates.push(candidate);
+            await Promise.allSettled([previewData.job_id, saveData.job_id].map(id =>
+                fetch(`/api/qwen3/voice-design/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' })
+            ));
+            taskIds.delete(previewData.job_id);
+            taskIds.delete(saveData.job_id);
         }
     } catch (error) {
         // Candidate groups are atomic. Do not leave a saved Candidate A behind
@@ -404,6 +414,10 @@ async function generateAndSaveVoiceCandidates(speaker, displayName, statusEl) {
             .filter(Boolean)
             .map(id => fetch(`/api/chatterbox-voices/${encodeURIComponent(id)}`, { method: 'DELETE' })));
         throw error;
+    } finally {
+        await Promise.allSettled([...taskIds].map(id =>
+            fetch(`/api/qwen3/voice-design/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' })
+        ));
     }
     return candidates;
 }
@@ -416,8 +430,6 @@ async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl) {
     delete speakerVoiceDesignCandidates[speakerKey];
     try {
         const candidates = await generateAndSaveVoiceCandidates(speaker, displayName, statusEl);
-        await refreshChatterboxVoices();
-        populateReferenceSelects();
         if (candidates.length > 1) {
             speakerVoiceDesignCandidates[speakerKey] = candidates;
             if (statusEl) statusEl.textContent = `Created ${candidates.length} candidates for ${displayName || speaker}; select one in Speaker Properties.`;
@@ -448,7 +460,32 @@ async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl) {
     }
 }
 
-async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, completionEls = {}) {
+function bulkVoiceSpeakerSignature(speakers) {
+    return (speakers || []).map(speaker => normalizeSpeakerKey(speaker)).join('|');
+}
+
+function hasResumableBulkVoiceGeneration(speakers) {
+    const state = bulkVoiceGenerationState;
+    return !!state
+        && ['running', 'paused', 'interrupted'].includes(state.status)
+        && state.speaker_signature === bulkVoiceSpeakerSignature(speakers)
+        && Number(state.next_index || 0) < speakers.length;
+}
+
+async function persistBulkVoiceGenerationState() {
+    if (!activeProjectId) return false;
+    const existing = savedProjects.find(item => String(item.id) === String(activeProjectId));
+    if (!existing) return false;
+    const project = getProjectState();
+    project.id = existing.id;
+    project.name = existing.name;
+    project.saved_at = new Date().toISOString();
+    project.bulk_voice_generation_state = JSON.parse(JSON.stringify(bulkVoiceGenerationState));
+    await saveProject(project, { render: false });
+    return true;
+}
+
+async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, completionEls = {}, options = {}) {
     const speakers = Array.isArray(currentStats?.speakers) && currentStats.speakers.length
         ? currentStats.speakers
         : [];
@@ -470,9 +507,29 @@ async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, compl
     if (completeCard) {
         completeCard.classList.add('hidden');
     }
-    let successCount = 0;
-    const failures = [];
-    for (let index = 0; index < speakers.length; index += 1) {
+    const resume = options.resume === true && hasResumableBulkVoiceGeneration(speakers);
+    const startIndex = resume ? Math.max(0, Number(bulkVoiceGenerationState.next_index || 0)) : 0;
+    const failures = resume && Array.isArray(bulkVoiceGenerationState.failures)
+        ? bulkVoiceGenerationState.failures.map(item => typeof item === 'string'
+            ? { speaker: '', error: item }
+            : { speaker: item.speaker || '', error: item.error || 'Unknown generation error' })
+        : [];
+    let successCount = resume ? Math.max(0, Number(bulkVoiceGenerationState.success_count || 0)) : 0;
+    bulkVoiceGenerationState = {
+        version: 1,
+        status: 'running',
+        speaker_signature: bulkVoiceSpeakerSignature(speakers),
+        total_speakers: speakers.length,
+        next_index: startIndex,
+        success_count: successCount,
+        failures,
+        prefix,
+        candidate_count: Math.max(1, Math.min(Number.parseInt(document.getElementById('speaker-batch-candidate-count')?.value, 10) || 1, 10)),
+        started_at: resume ? bulkVoiceGenerationState.started_at : new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    };
+    await persistBulkVoiceGenerationState();
+    for (let index = startIndex; index < speakers.length; index += 1) {
         const speaker = speakers[index];
         const displayName = buildBatchVoiceName(prefix, speaker);
         if (statusEl) {
@@ -488,21 +545,41 @@ async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, compl
         if (result.success) {
             successCount += 1;
         } else {
-            failures.push(`${speaker}: ${result.error}`);
+            failures.push({ speaker, error: result.error });
         }
+        bulkVoiceGenerationState.next_index = index + 1;
+        bulkVoiceGenerationState.success_count = successCount;
+        bulkVoiceGenerationState.failures = failures;
+        bulkVoiceGenerationState.updated_at = new Date().toISOString();
+        if (options.shouldPause?.()) {
+            bulkVoiceGenerationState.status = 'paused';
+        }
+        await persistBulkVoiceGenerationState();
         if (label) {
             label.textContent = `${index + 1} / ${speakers.length} complete`;
         }
         if (fill) {
             fill.style.width = `${Math.round(((index + 1) / speakers.length) * 100)}%`;
         }
+        if (bulkVoiceGenerationState.status === 'paused') {
+            await refreshChatterboxVoices();
+            populateReferenceSelects();
+            if (statusEl) statusEl.textContent = `Paused after ${index + 1} of ${speakers.length}. Reopen this window to resume.`;
+            return { paused: true, successCount, failures };
+        }
     }
+    await refreshChatterboxVoices();
+    populateReferenceSelects();
+    bulkVoiceGenerationState.status = 'completed';
+    bulkVoiceGenerationState.completed_at = new Date().toISOString();
+    bulkVoiceGenerationState.updated_at = bulkVoiceGenerationState.completed_at;
+    await persistBulkVoiceGenerationState();
     if (statusEl) {
         statusEl.textContent = '';
     }
     if (completeSummary) {
         completeSummary.textContent = failures.length
-            ? `Generated Qwen3 voices for ${successCount} of ${speakers.length} speakers. Failed: ${failures.join(' | ')}`
+            ? `Generated Qwen3 voices for ${successCount} of ${speakers.length} speakers. Failed: ${failures.map(item => `${item.speaker}: ${item.error}`).join(' | ')}`
             : `Generated Qwen3 voices for all ${speakers.length} speakers. Speakers configured for multiple candidates still require a final selection.`;
     }
     if (completeCard) {
@@ -523,6 +600,7 @@ async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, compl
             : 'Qwen3 voice generation complete. Select final voices for any speakers configured with multiple candidates.',
         failures.length ? 'warning' : 'success'
     );
+    return { paused: false, successCount, failures };
 }
 
 function buildBatchVoiceName(prefix, speaker) {
@@ -970,7 +1048,7 @@ async function refreshProjectLibrary() {
     return savedProjects;
 }
 
-async function saveProject(project) {
+async function saveProject(project, { render = true } = {}) {
     if (!project) return null;
     const response = await fetch('/api/projects', {
         method: 'POST',
@@ -985,7 +1063,7 @@ async function saveProject(project) {
     const matchIndex = savedProjects.findIndex(item => String(item.id) === String(saved.id));
     if (matchIndex >= 0) savedProjects[matchIndex] = saved;
     else savedProjects.push(saved);
-    renderProjectList();
+    if (render) renderProjectList();
     return saved;
 }
 
@@ -1320,6 +1398,33 @@ async function loadOpenAITtsCatalog(force = false) {
     }
 }
 
+async function loadLocalAITtsCatalog(force = false) {
+    if (localAITtsVoices.length && !force) return { voices: localAITtsVoices, models: localAITtsModels };
+    if (localAITtsCatalogPromise && !force) return localAITtsCatalogPromise;
+    localAITtsCatalogPromise = (async () => {
+        const response = await fetch('/api/localai-tts/catalog');
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load LocalAI TTS voices.');
+        localAITtsVoices = Array.isArray(data.voices) ? data.voices : [];
+        localAITtsModels = Array.isArray(data.models) ? data.models : [];
+        window.availableLocalAITtsVoices = localAITtsVoices;
+        populateDefaultVoiceSelect();
+        populateVoiceSelects();
+        return data;
+    })();
+    try {
+        return await localAITtsCatalogPromise;
+    } catch (error) {
+        showNotification(error.message || 'Unable to load LocalAI TTS voices.', 'warning');
+        if (isLocalAITtsEngine(getSelectedJobEngine() || runtimeSettings?.tts_engine)) {
+            setCatalogVoicePlaceholder('Configure LocalAI TTS in Settings');
+        }
+        return { voices: [], models: [] };
+    } finally {
+        localAITtsCatalogPromise = null;
+    }
+}
+
 function getAzureVoice(voiceName) {
     return azureSpeechVoices.find(voice => voice.short_name === voiceName) || null;
 }
@@ -1465,8 +1570,12 @@ function isOpenAITtsEngine(engineName) {
     return (engineName || '').toLowerCase() === 'openai_tts';
 }
 
+function isLocalAITtsEngine(engineName) {
+    return (engineName || '').toLowerCase() === 'localai_tts';
+}
+
 function isCatalogCloudEngine(engineName) {
-    return isAzureSpeechEngine(engineName) || isEdgeTtsEngine(engineName) || isElevenLabsEngine(engineName) || isOpenAITtsEngine(engineName);
+    return isAzureSpeechEngine(engineName) || isEdgeTtsEngine(engineName) || isElevenLabsEngine(engineName) || isOpenAITtsEngine(engineName) || isLocalAITtsEngine(engineName);
 }
 
 function isQwenCloneEngine(engineName) {
@@ -1492,6 +1601,7 @@ function updateEngineUI(engineName) {
     const isEdgeTts = isEdgeTtsEngine(engineName);
     const isElevenLabs = isElevenLabsEngine(engineName);
     const isOpenAITts = isOpenAITtsEngine(engineName);
+    const isLocalAITts = isLocalAITtsEngine(engineName);
     const isCloneStyle = isQwenClone || isOmniClone;
     if (kokoroCard) {
         kokoroCard.style.display = isPrompt || isQwen || isCloneStyle ? 'none' : 'block';
@@ -1529,6 +1639,9 @@ function updateEngineUI(engineName) {
     if (isOpenAITts) {
         loadOpenAITtsCatalog();
     }
+    if (isLocalAITts) {
+        loadLocalAITtsCatalog();
+    }
     // Repopulate voice selects when engine changes
     populateVoiceSelects();
 }
@@ -1549,6 +1662,7 @@ function updateAssignmentModes(engineName) {
     const isEdgeTts = isEdgeTtsEngine(engineName);
     const isElevenLabs = isElevenLabsEngine(engineName);
     const isOpenAITts = isOpenAITtsEngine(engineName);
+    const isLocalAITts = isLocalAITtsEngine(engineName);
     getAssignmentRows().forEach(row => {
         const kokoroControl = row.querySelector('[data-role="kokoro-control"]');
         const turboControl = row.querySelector('[data-role="turbo-control"]');
@@ -1564,7 +1678,8 @@ function updateAssignmentModes(engineName) {
                     : (isAzureSpeech ? 'Azure Voice'
                         : (isEdgeTts ? 'Edge Voice'
                             : (isElevenLabs ? 'ElevenLabs Voice'
-                                : (isOpenAITts ? 'OpenAI TTS Voice' : row.dataset.speaker || 'Voice'))));
+                                : (isOpenAITts ? 'OpenAI TTS Voice'
+                                    : (isLocalAITts ? 'LocalAI Voice Profile' : row.dataset.speaker || 'Voice')))));
             }
         }
         if (turboControl) {
@@ -2027,6 +2142,7 @@ let sectionReviewLastFetchedHeadingKey = null;
 let sectionEditTarget = null;
 let inlineSampleHandlersReady = false;
 const turboSelectionState = {};
+const TTS_STORY_VOICE_REFERENCE_PREFIX = 'tts-story://voice-prompts/';
 const speakerReadyState = {};
 const speakerProfiles = {};
 const speakerVoiceDesignCandidates = {};
@@ -2034,6 +2150,7 @@ let activeSpeakerModal = null;
 let activeSpeakerRow = null;
 let pendingProjectLoad = null;
 let activeProjectId = null;
+let bulkVoiceGenerationState = null;
 let latestGeminiBookTitle = '';
 const ANALYZE_DEBOUNCE_MS = 800;
 const VOICES_EVENT_NAME = window.VOICES_UPDATED_EVENT || 'voices:updated';
@@ -2062,6 +2179,9 @@ let elevenLabsModels = [];
 let elevenLabsCatalogPromise = null;
 let openAITtsVoices = [];
 let openAITtsCatalogPromise = null;
+let localAITtsVoices = [];
+let localAITtsModels = [];
+let localAITtsCatalogPromise = null;
 let qwen3Metadata = null;
 let availableGeminiPromptPresets = [];
 
@@ -2070,6 +2190,68 @@ window.addEventListener(VOICES_EVENT_NAME, handleVoicesUpdated);
 const CHATTERBOX_VOICES_EVENT_NAME = window.CHATTERBOX_VOICES_EVENT || 'chatterboxVoices:updated';
 window.CHATTERBOX_VOICES_EVENT = CHATTERBOX_VOICES_EVENT_NAME;
 window.addEventListener(CHATTERBOX_VOICES_EVENT_NAME, handleChatterboxVoicesUpdated);
+
+function localAIVoiceReferenceToPromptPath(value) {
+    const reference = (value || '').trim();
+    if (!reference.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)) return '';
+    try {
+        const decoded = decodeURIComponent(reference.slice(TTS_STORY_VOICE_REFERENCE_PREFIX.length));
+        return decoded.split(/[\\/]/).pop()?.trim() || '';
+    } catch (error) {
+        console.warn('Unable to decode TTS-Story voice reference', error);
+        return '';
+    }
+}
+
+function promptPathToLocalAIVoiceReference(value) {
+    const promptPath = (value || '').trim();
+    if (!promptPath) return '';
+    const fileName = promptPath.split(/[\\/]/).pop()?.trim() || '';
+    return fileName
+        ? `${TTS_STORY_VOICE_REFERENCE_PREFIX}${encodeURIComponent(fileName)}`
+        : '';
+}
+
+function rememberCompatibleVoiceSample(speaker, value) {
+    if (!speaker) return false;
+    const selection = (value || '').trim();
+    if (!selection) return false;
+    const promptPath = selection.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)
+        ? localAIVoiceReferenceToPromptPath(selection)
+        : selection;
+    if (!promptPath) return false;
+    turboSelectionState[speaker] = promptPath;
+    return true;
+}
+
+function captureCompatibleVoiceSamples() {
+    getAssignmentRows().forEach(row => {
+        const speaker = row.dataset.speaker;
+        if (!speaker) return;
+        const providerValue = row.querySelector('.voice-select')?.value?.trim() || '';
+        if (providerValue.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)) {
+            rememberCompatibleVoiceSample(speaker, providerValue);
+            return;
+        }
+        const referenceValue = row.querySelector('.reference-select')?.value?.trim() || '';
+        if (referenceValue) {
+            rememberCompatibleVoiceSample(speaker, referenceValue);
+        }
+    });
+}
+
+function restoreCompatibleLocalAIVoiceSample(selectElement) {
+    const speaker = selectElement?.dataset?.speaker;
+    const promptPath = speaker ? turboSelectionState[speaker] : '';
+    const reference = promptPathToLocalAIVoiceReference(promptPath);
+    if (!reference) return false;
+    const match = Array.from(selectElement.options).find(option => (
+        option.value === reference && !option.disabled
+    ));
+    if (!match) return false;
+    selectElement.value = reference;
+    return true;
+}
 window.addEventListener('geminiPresets:changed', event => {
     setAvailableGeminiPresets(event?.detail?.presets || []);
 });
@@ -3535,6 +3717,7 @@ function setupEventListeners() {
     const batchModalOverlay = document.getElementById('speaker-batch-modal-overlay');
     const batchModalClose = document.getElementById('speaker-batch-modal-close');
     const batchModalCancel = document.getElementById('speaker-batch-cancel-btn');
+    const batchStartOver = document.getElementById('speaker-batch-start-over-btn');
     const batchModalConfirm = document.getElementById('speaker-batch-confirm-btn');
     const batchPrefixInput = document.getElementById('speaker-batch-prefix');
     const batchCandidateCountInput = document.getElementById('speaker-batch-candidate-count');
@@ -3546,6 +3729,7 @@ function setupEventListeners() {
     const batchCompleteSummary = document.getElementById('speaker-batch-complete-summary');
     const batchOkBtn = document.getElementById('speaker-batch-ok-btn');
     let batchGenerationInFlight = false;
+    let batchPauseRequested = false;
     const projectManageBtn = document.getElementById('project-manage-btn');
     const projectModalOverlay = document.getElementById('project-modal-overlay');
     const projectModalClose = document.getElementById('project-modal-close');
@@ -3764,6 +3948,7 @@ function setupEventListeners() {
         projectModalFooterClose.addEventListener('click', closeProjectModal);
     }
     function resetBatchModal() {
+        batchPauseRequested = false;
         if (batchStatus) {
             batchStatus.textContent = '';
         }
@@ -3778,6 +3963,11 @@ function setupEventListeners() {
         }
         if (batchModalCancel) {
             batchModalCancel.classList.remove('hidden');
+            batchModalCancel.textContent = 'Cancel';
+            batchModalCancel.disabled = false;
+        }
+        if (batchStartOver) {
+            batchStartOver.classList.add('hidden');
         }
         if (batchModalConfirm) {
             batchModalConfirm.classList.remove('hidden');
@@ -3798,10 +3988,31 @@ function setupEventListeners() {
             }
             document.getElementById('speaker-batch-modal')?.classList.remove('hidden');
             resetBatchModal();
+            const speakers = currentStats?.speakers || [];
+            if (hasResumableBulkVoiceGeneration(speakers)) {
+                const next = Math.max(0, Number(bulkVoiceGenerationState.next_index || 0));
+                batchModalConfirm.dataset.resume = 'true';
+                batchModalConfirm.textContent = `Resume at ${next + 1} of ${speakers.length}`;
+                if (batchStatus) batchStatus.textContent = `A saved casting batch is ready to resume. ${next} of ${speakers.length} speakers are already complete.`;
+                if (batchPrefixInput) batchPrefixInput.value = bulkVoiceGenerationState.prefix || '';
+                if (batchCandidateCountInput) batchCandidateCountInput.value = String(bulkVoiceGenerationState.candidate_count || 1);
+                batchStartOver?.classList.remove('hidden');
+            } else {
+                delete batchModalConfirm.dataset.resume;
+            }
             batchPrefixInput?.focus();
         });
     }
     function closeBatchModal() {
+        if (batchGenerationInFlight) {
+            batchPauseRequested = true;
+            if (batchModalCancel) {
+                batchModalCancel.disabled = true;
+                batchModalCancel.textContent = 'Pausing...';
+            }
+            if (batchStatus) batchStatus.textContent = 'Pause requested. The current speaker will finish before this batch stops.';
+            return;
+        }
         batchModalOverlay?.classList.add('hidden');
         document.getElementById('speaker-batch-modal')?.classList.add('hidden');
         resetBatchModal();
@@ -3817,12 +4028,33 @@ function setupEventListeners() {
         batchModalClose.addEventListener('click', closeBatchModal);
     }
     if (batchModalCancel) {
-        batchModalCancel.addEventListener('click', closeBatchModal);
+        batchModalCancel.addEventListener('click', () => {
+            if (!batchGenerationInFlight) {
+                closeBatchModal();
+                return;
+            }
+            batchPauseRequested = true;
+            batchModalCancel.disabled = true;
+            batchModalCancel.textContent = 'Pausing...';
+            if (batchStatus) batchStatus.textContent = 'Pause requested. The current speaker will finish, then the checkpoint will be saved.';
+        });
+    }
+    if (batchStartOver) {
+        batchStartOver.addEventListener('click', async () => {
+            bulkVoiceGenerationState = null;
+            delete batchModalConfirm.dataset.resume;
+            batchModalConfirm.textContent = 'Generate';
+            batchStartOver.classList.add('hidden');
+            if (batchStatus) batchStatus.textContent = 'The previous checkpoint was cleared. A new batch will start from the first speaker.';
+            await persistBulkVoiceGenerationState();
+        });
     }
     if (batchModalConfirm) {
         batchModalConfirm.addEventListener('click', async () => {
             if (batchGenerationInFlight) return;
             batchGenerationInFlight = true;
+            batchPauseRequested = false;
+            const resumeRequested = batchModalConfirm.dataset.resume === 'true';
             batchModalConfirm.disabled = true;
             batchModalConfirm.textContent = 'Generating...';
             try {
@@ -3834,14 +4066,27 @@ function setupEventListeners() {
                 (currentStats?.speakers || []).forEach(speaker => {
                     updateSpeakerProfileEntry(speaker, { voice_candidate_count: batchCandidateCount });
                 });
-                await runBatchVoiceGeneration(batchPrefixInput?.value || '', batchStatus, {
+                const batchResult = await runBatchVoiceGeneration(batchPrefixInput?.value || '', batchStatus, {
                     container: batchProgress,
                     fill: batchProgressFill,
                     label: batchProgressLabel
                 }, {
                     completeCard: batchComplete,
                     completeSummary: batchCompleteSummary
+                }, {
+                    resume: resumeRequested,
+                    shouldPause: () => batchPauseRequested
                 });
+                if (batchResult?.paused) {
+                    batchModalConfirm.classList.remove('hidden');
+                    batchModalConfirm.dataset.resume = 'true';
+                    batchModalConfirm.textContent = `Resume at ${bulkVoiceGenerationState.next_index + 1} of ${bulkVoiceGenerationState.total_speakers}`;
+                    batchStartOver?.classList.remove('hidden');
+                    batchModalCancel.classList.remove('hidden');
+                    batchModalCancel.textContent = 'Close';
+                    batchModalCancel.disabled = false;
+                    return;
+                }
                 if (batchOkBtn) {
                     batchOkBtn.classList.remove('hidden');
                 }
@@ -3853,12 +4098,20 @@ function setupEventListeners() {
                 }
             } catch (error) {
                 console.error('Bulk voice generation stopped', error);
+                if (bulkVoiceGenerationState) {
+                    bulkVoiceGenerationState.status = 'interrupted';
+                    bulkVoiceGenerationState.updated_at = new Date().toISOString();
+                    await persistBulkVoiceGenerationState().catch(() => false);
+                    batchModalConfirm.dataset.resume = 'true';
+                    batchModalConfirm.textContent = `Resume at ${bulkVoiceGenerationState.next_index + 1} of ${bulkVoiceGenerationState.total_speakers}`;
+                    batchStartOver?.classList.remove('hidden');
+                }
                 if (batchStatus) batchStatus.textContent = error.message || 'Voice generation stopped.';
                 showNotification(error.message || 'Voice generation stopped.', 'warning');
             } finally {
                 batchGenerationInFlight = false;
                 batchModalConfirm.disabled = false;
-                batchModalConfirm.textContent = 'Generate';
+                if (batchModalConfirm.dataset.resume !== 'true') batchModalConfirm.textContent = 'Generate';
             }
         });
     }
@@ -4121,6 +4374,9 @@ function setupEventListeners() {
     const jobEngineSelect = document.getElementById('job-tts-engine');
     if (jobEngineSelect) {
         jobEngineSelect.addEventListener('change', event => {
+            // Preserve any assigned cloning sample before engine-specific controls
+            // are repopulated or Analyze Text rebuilds the speaker rows.
+            captureCompatibleVoiceSamples();
             const engineName = (event.target.value || '').toLowerCase();
             updateEngineUI(engineName);
             updateModeIndicator(engineName);
@@ -4204,7 +4460,8 @@ const engineDisplayNames = {
     'azure_speech': 'Microsoft Azure Speech · Cloud',
     'edge_tts': 'Microsoft Edge TTS · Experimental Cloud',
     'elevenlabs': 'ElevenLabs · Cloud',
-    'openai_tts': 'OpenAI-compatible TTS · Cloud'
+    'openai_tts': 'OpenAI-compatible TTS · Cloud',
+    'localai_tts': 'LocalAI TTS · Self-hosted'
 };
 
 // Update mode indicator based on engine name (called when dropdown changes)
@@ -4213,7 +4470,7 @@ function updateModeIndicator(engineName) {
     if (!modeEl) return;
 
     const normalizedEngine = (engineName || 'kokoro').toLowerCase();
-    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone', 'pocket_tts', 'pocket_tts_preset', 'kitten_tts', 'index_tts', 'dots_tts']
+    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone', 'pocket_tts', 'pocket_tts_preset', 'kitten_tts', 'index_tts', 'dots_tts', 'localai_tts']
         .includes(normalizedEngine);
 
     modeEl.textContent = engineDisplayNames[normalizedEngine] || normalizedEngine;
@@ -4581,7 +4838,7 @@ async function pollVoiceDesignTask(taskId, urlFactory, statusLabel) {
         showNotification(statusLabel, 'info');
     }
     const start = Date.now();
-    const timeoutMs = 10 * 60 * 1000;
+    const timeoutMs = 30 * 60 * 1000;
     while (Date.now() - start < timeoutMs) {
         const url = typeof urlFactory === 'function' ? urlFactory(taskId) : `/api/qwen3/voice-design/tasks/${taskId}`;
         const response = await fetch(url);
@@ -4608,7 +4865,7 @@ async function pollQwenVoiceTask(taskId, statusLabel) {
         showNotification(statusLabel, 'info');
     }
     const start = Date.now();
-    const timeoutMs = 10 * 60 * 1000;
+    const timeoutMs = 30 * 60 * 1000;
     while (Date.now() - start < timeoutMs) {
         const response = await fetch(`/api/qwen3/voice-design/tasks/${taskId}`);
         const data = await response.json();
@@ -5267,7 +5524,10 @@ function getProjectState() {
         azure_voice_options: JSON.parse(JSON.stringify(azureVoiceOptionState || {})),
         ready_state: JSON.parse(JSON.stringify(speakerReadyState || {})),
         speaker_profiles: JSON.parse(JSON.stringify(speakerProfiles || {})),
-        voice_design_candidate_groups: serializeVoiceDesignCandidateGroups()
+        voice_design_candidate_groups: serializeVoiceDesignCandidateGroups(),
+        bulk_voice_generation_state: bulkVoiceGenerationState
+            ? JSON.parse(JSON.stringify(bulkVoiceGenerationState))
+            : null
     };
 }
 
@@ -5350,6 +5610,9 @@ async function applyProjectState(project) {
         if (isOpenAITtsEngine(project.engine)) {
             await loadOpenAITtsCatalog();
         }
+        if (isLocalAITtsEngine(project.engine)) {
+            await loadLocalAITtsCatalog();
+        }
     }
     const defaultVoice = document.getElementById('default-voice-select');
     if (defaultVoice && project.default_voice) defaultVoice.value = project.default_voice;
@@ -5405,6 +5668,9 @@ async function applyProjectState(project) {
     Object.assign(speakerReadyState, project.ready_state || {});
     setSpeakerProfiles(project.speaker_profiles || {});
     restoreVoiceDesignCandidateGroups(project.voice_design_candidate_groups || {});
+    bulkVoiceGenerationState = project.bulk_voice_generation_state
+        ? JSON.parse(JSON.stringify(project.bulk_voice_generation_state))
+        : null;
 
     await analyzeText({ auto: true });
     pendingProjectLoad = project;
@@ -5423,7 +5689,13 @@ function applyProjectAssignments(project) {
     Object.entries(turboSelections).forEach(([speakerKey, selection]) => {
         const reference = selection?.reference || '';
         if (reference) {
-            turboSelectionState[speakerKey] = reference;
+            rememberCompatibleVoiceSample(speakerKey, reference);
+        }
+    });
+    Object.entries(assignments).forEach(([speakerKey, assignment]) => {
+        const localAIReference = assignment?.voice || '';
+        if (localAIReference.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)) {
+            rememberCompatibleVoiceSample(speakerKey, localAIReference);
         }
     });
     Object.values(speakerProfiles).forEach(profile => {
@@ -5594,8 +5866,10 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
         const vs = row.querySelector('.voice-select');
         if (vs && vs.value) voiceSelectSnapshot[spk] = vs.value;
         const rs = row.querySelector('.reference-select');
-        if (rs && rs.value) {
-            turboSelectionState[spk] = rs.value;
+        if (vs?.value?.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)) {
+            rememberCompatibleVoiceSample(spk, vs.value);
+        } else if (rs && rs.value) {
+            rememberCompatibleVoiceSample(spk, rs.value);
         }
         rememberAzureVoiceOptions(row);
     });
@@ -5699,7 +5973,11 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
                 useSharedPreview: true
             });
         }
-        row.querySelector('.voice-select')?.addEventListener('change', () => {
+        row.querySelector('.voice-select')?.addEventListener('change', event => {
+            const selectedVoice = event.currentTarget?.value?.trim() || '';
+            if (selectedVoice.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)) {
+                rememberCompatibleVoiceSample(speaker, selectedVoice);
+            }
             if (isAzureSpeechEngine(getSelectedJobEngine() || runtimeSettings?.tts_engine)) {
                 updateAzureVoiceControls(row, {});
             }
@@ -5716,7 +5994,7 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
             if (!spk) return;
             const vs = row.querySelector('.voice-select');
             if (vs && voiceSelectSnapshot[spk]) {
-                vs.value = voiceSelectSnapshot[spk];
+                restoreSelectValue(vs, voiceSelectSnapshot[spk]);
             }
             if (isAzureSpeechEngine(getSelectedJobEngine() || runtimeSettings?.tts_engine)) {
                 updateAzureVoiceControls(row, azureVoiceOptionState[spk] || {});
@@ -5780,7 +6058,7 @@ function initInlineSampleHandlers() {
             if (speaker) {
                 const selection = event.target.value?.trim() || '';
                 if (selection) {
-                    turboSelectionState[speaker] = selection;
+                    rememberCompatibleVoiceSample(speaker, selection);
                 } else {
                     delete turboSelectionState[speaker];
                 }
@@ -5844,6 +6122,7 @@ function populateVoiceSelects() {
     const isEdgeTts = isEdgeTtsEngine(engineName);
     const isElevenLabs = isElevenLabsEngine(engineName);
     const isOpenAITts = isOpenAITtsEngine(engineName);
+    const isLocalAITts = isLocalAITtsEngine(engineName);
     if (isAzureSpeech && !azureSpeechVoices.length) {
         setCatalogVoicePlaceholder('Loading Azure voices...');
         if (!azureSpeechVoicesPromise) loadAzureSpeechVoices();
@@ -5862,6 +6141,11 @@ function populateVoiceSelects() {
     if (isOpenAITts && !openAITtsVoices.length) {
         setCatalogVoicePlaceholder('Loading OpenAI TTS voices...');
         if (!openAITtsCatalogPromise) loadOpenAITtsCatalog();
+        return;
+    }
+    if (isLocalAITts && !localAITtsVoices.length) {
+        setCatalogVoicePlaceholder('Loading LocalAI voice profiles...');
+        if (!localAITtsCatalogPromise) loadLocalAITtsCatalog();
         return;
     }
     if (!window.availableVoices && !window.availablePocketTtsVoices && !isKittenEngine(engineName) && !isIndexTTSEngine(engineName) && !isDotsTTSEngine(engineName) && !isCatalogCloudEngine(engineName)) return;
@@ -5886,10 +6170,19 @@ function populateVoiceSelects() {
             appendProviderVoiceOptions(select, elevenLabsVoices, 'ElevenLabs voices');
         } else if (isOpenAITts) {
             appendProviderVoiceOptions(select, openAITtsVoices, 'OpenAI TTS voices');
+        } else if (isLocalAITts) {
+            appendProviderVoiceOptions(select, localAITtsVoices, 'LocalAI voice profiles');
         } else {
             appendVoiceOptions(select);
         }
         restoreSelectValue(select, previousValue);
+        if (isLocalAITts) {
+            if (select.value.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)) {
+                rememberCompatibleVoiceSample(select.dataset.speaker, select.value);
+            } else if (!select.value) {
+                restoreCompatibleLocalAIVoiceSample(select);
+            }
+        }
         if (isAzureSpeech) updateAzureVoiceControls(select.closest('.voice-assignment-row'));
     });
 }
@@ -6529,7 +6822,8 @@ function populateDefaultVoiceSelect() {
         : (isEdgeTtsEngine(engineName)
             ? runtimeSettings?.edge_tts_default_voice
             : (isElevenLabsEngine(engineName) ? runtimeSettings?.elevenlabs_default_voice
-                : (isOpenAITtsEngine(engineName) ? runtimeSettings?.openai_tts_default_voice : '')));
+                : (isOpenAITtsEngine(engineName) ? runtimeSettings?.openai_tts_default_voice
+                    : (isLocalAITtsEngine(engineName) ? runtimeSettings?.localai_tts_default_voice : ''))));
     const previousValue = select.value;
     select.innerHTML = '<option value="">Select Default Voice...</option>';
     if (isPocketPreset) {
@@ -6542,6 +6836,8 @@ function populateDefaultVoiceSelect() {
         appendProviderVoiceOptions(select, elevenLabsVoices, 'ElevenLabs voices');
     } else if (isOpenAITtsEngine(engineName)) {
         appendProviderVoiceOptions(select, openAITtsVoices, 'OpenAI TTS voices');
+    } else if (isLocalAITtsEngine(engineName)) {
+        appendProviderVoiceOptions(select, localAITtsVoices, 'LocalAI voice profiles');
     } else {
         appendVoiceOptions(select);
     }
@@ -6588,6 +6884,8 @@ function appendProviderVoiceOptions(selectElement, voices, fallbackLabel) {
             const details = [voice.gender, voice.category].filter(Boolean).join(' · ');
             option.textContent = `${voice.display_name || option.value}${details ? ` · ${details}` : ''}`;
             option.dataset.locale = voice.locale || '';
+            option.disabled = Boolean(voice.disabled);
+            if (voice.disabled_reason) option.title = voice.disabled_reason;
             group.appendChild(option);
         });
         selectElement.appendChild(group);
@@ -6654,7 +6952,7 @@ function getLangCodeForVoice(voiceName) {
     const azureVoice = getAzureVoice(voiceName);
     if (azureVoice) return azureVoice.locale || 'en-US';
 
-    const providerVoice = [...edgeTtsVoices, ...elevenLabsVoices, ...openAITtsVoices]
+    const providerVoice = [...edgeTtsVoices, ...elevenLabsVoices, ...openAITtsVoices, ...localAITtsVoices]
         .find(voice => (voice.short_name || voice.voice_id) === voiceName);
     if (providerVoice) return providerVoice.locale || '';
 
@@ -6671,9 +6969,21 @@ function getLangCodeForVoice(voiceName) {
 // Get voice assignments from UI (from inline assignments in Generate tab)
 function buildTurboSelectionMap() {
     const map = {};
+    captureCompatibleVoiceSamples();
+    Object.entries(turboSelectionState).forEach(([speaker, reference]) => {
+        if (speaker && reference) {
+            map[speaker] = { reference };
+        }
+    });
     getAssignmentRows().forEach(row => {
         const speaker = row.dataset.speaker;
         if (!speaker) return;
+        const providerValue = row.querySelector('.voice-select')?.value?.trim() || '';
+        if (providerValue.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)) {
+            const reference = localAIVoiceReferenceToPromptPath(providerValue);
+            if (reference) map[speaker] = { reference };
+            return;
+        }
         const reference = row.querySelector('.reference-select')?.value.trim();
         if (reference) {
             map[speaker] = { reference };
@@ -7302,6 +7612,7 @@ async function awrPopulateVoiceSelect(engineName) {
     const isEdgeTts = norm.includes('edgetts');
     const isElevenLabs = norm.includes('elevenlabs');
     const isOpenAITts = norm.includes('openaitts');
+    const isLocalAITts = norm.includes('localaitts');
 
     try {
         if (usesPrompts) {
@@ -7355,9 +7666,10 @@ async function awrPopulateVoiceSelect(engineName) {
                     select.appendChild(opt);
                 });
             }
-        } else if (isEdgeTts || isElevenLabs || isOpenAITts) {
+        } else if (isEdgeTts || isElevenLabs || isOpenAITts || isLocalAITts) {
             const endpoint = isEdgeTts ? '/api/edge-tts/voices'
-                : (isElevenLabs ? '/api/elevenlabs/catalog' : '/api/openai-tts/catalog');
+                : (isElevenLabs ? '/api/elevenlabs/catalog'
+                    : (isLocalAITts ? '/api/localai-tts/catalog' : '/api/openai-tts/catalog'));
             const resp = await fetch(endpoint);
             const data = await resp.json();
             if (data.success && data.voices) {

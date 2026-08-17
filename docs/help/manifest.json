@@ -50,7 +50,8 @@
         "engine-azure-speech",
         "engine-edge-tts",
         "engine-elevenlabs",
-        "engine-openai-tts"
+        "engine-openai-tts",
+        "engine-localai-tts"
       ]
     },
     {
@@ -380,6 +381,15 @@
       "keywords": ["OpenAI", "TTS", "speech", "custom endpoint", "voice ID", "API key"],
       "related": ["online-services", "cloud-errors", "generation-times"],
       "engine_ids": ["openai_tts"]
+    },
+    {
+      "id": "engine-localai-tts",
+      "file": "engines/localai-tts.md",
+      "title": "LocalAI TTS",
+      "summary": "Use TTS models and saved voice profiles from a self-hosted LocalAI server without duplicate model installs.",
+      "keywords": ["LocalAI", "TTS", "self-hosted", "Docker", "voice profile", "OpenAI compatible"],
+      "related": ["engine-openai-tts", "cloud-errors", "generation-times"],
+      "engine_ids": ["localai_tts"]
     },
 
     {

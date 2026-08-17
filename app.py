@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import concurrent.futures
+import gc
 import logging
 import math
 import mimetypes
@@ -151,6 +152,13 @@ from src.engines.openai_tts_engine import (
     DEFAULT_OPENAI_TTS_VOICE,
     OPENAI_TTS_VOICES,
 )
+from src.engines.localai_tts_engine import DEFAULT_LOCALAI_TTS_BASE_URL, LocalAITTSEngine
+from src.localai_tts_client import LocalAITTSDiscoveryError, discover_localai_tts_catalog
+from src.localai_voice_profiles import (
+    LocalAIVoiceProfileManager,
+    build_tts_story_voice_reference,
+)
+from src.voice_transcription import VoiceTranscriptionError, VoiceTranscriptGenerator
 from src.tts_engine import (
     TTSEngine,
     KOKORO_AVAILABLE,
@@ -209,6 +217,15 @@ LIBRARY_CACHE_TTL = 5  # seconds
 MIN_CHATTERBOX_PROMPT_SECONDS = 5.0
 MIN_VOICE_DESIGN_PREVIEW_SECONDS = 10.0
 MIN_VOICE_DESIGN_PREVIEW_WORDS = 40
+MAX_VOICE_DESIGN_PREVIEW_SECONDS = 45.0
+# Qwen's bundled generation config permits 8,192 codec frames. At 12 Hz that
+# can represent more than eleven minutes of audio when a sampled generation
+# misses its normal end token. Casting previews are only 12-20 seconds, so a
+# generous 768-frame ceiling prevents one bad seed from occupying the GPU for
+# an hour without truncating a valid preview.
+MAX_VOICE_DESIGN_PREVIEW_TOKENS = 768
+VOICE_DESIGN_MAX_ATTEMPTS = 2
+VOICE_DESIGN_CUDA_CLEANUP_INTERVAL = 8
 # Qwen's stock 0.9 temperatures are intentionally creative, but VoiceDesign
 # casting needs prompt adherence more than maximum variety.  These conservative
 # defaults still let separate candidate seeds produce alternatives while greatly
@@ -220,6 +237,7 @@ VOICE_DESIGN_CASTING_GENERATION = {
     "subtalker_temperature": 0.6,
     "subtalker_top_p": 0.9,
     "subtalker_top_k": 40,
+    "max_new_tokens": MAX_VOICE_DESIGN_PREVIEW_TOKENS,
 }
 DEFAULT_CONFIG = {
     "replicate_api_key": "",
@@ -291,6 +309,16 @@ DEFAULT_CONFIG = {
     "openai_tts_timeout": 120,
     "openai_tts_max_parallel": 2,
     "openai_tts_chunk_size": 4000,
+    "localai_tts_api_key": "",
+    "localai_tts_base_url": DEFAULT_LOCALAI_TTS_BASE_URL,
+    "localai_tts_model": "",
+    "localai_tts_default_voice": "",
+    "localai_tts_instructions": "",
+    "localai_tts_timeout": 180,
+    "localai_tts_max_parallel": 1,
+    "localai_tts_max_retries": 4,
+    "localai_tts_chunk_size": 1000,
+    "localai_tts_voice_profile_consent_confirmed": False,
     "cloud_tts_concurrent_jobs": 2,
     "llm_local_provider": LLM_PROVIDER_LMSTUDIO,
     "llm_local_base_url": DEFAULT_LOCAL_LLM_BASE_URLS[LLM_PROVIDER_LMSTUDIO],
@@ -406,6 +434,7 @@ SECRET_CONFIG_KEYS = {
     "azure_speech_key",
     "elevenlabs_api_key",
     "openai_tts_api_key",
+    "localai_tts_api_key",
 }
 
 POCKET_TTS_PRESET_VOICES = [
@@ -1044,6 +1073,7 @@ BOOK_HEADING_PATTERN = re.compile(
 )
 
 SECTION_HEADING_KEYWORDS = [
+    "book",
     "chapter",
     "section",
     "letter",
@@ -1214,11 +1244,13 @@ elevenlabs_catalog_cache_lock = threading.Lock()
 # Lock to prevent concurrent GPU inference across all TTS operations
 # This prevents GPU contention and "badcase" retry loops with VoxCPM
 gpu_inference_lock = threading.Lock()
+voice_transcript_generator = VoiceTranscriptGenerator(device="cpu")
 # Use max_workers=1 to prevent parallel GPU inference which causes contention
 # and "badcase" retry loops with VoxCPM and other GPU-based engines
 chunk_regen_executor = ThreadPoolExecutor(max_workers=1)
 qwen3_voice_design_model = None
 qwen3_voice_design_signature = None
+qwen3_voice_design_generation_count = 0
 library_cache = {
     "items": None,
     "timestamp": 0.0,
@@ -1435,6 +1467,11 @@ def _validate_voice_assignments_for_engine(
             default_voice = (config.get("openai_tts_default_voice") or "").strip()
             if not voice and not default_voice:
                 missing_voices.append(speaker)
+
+        if engine_name == "localai_tts":
+            # A LocalAI model may provide its own default voice. Voice-profile
+            # selection remains optional for compatibility with those models.
+            pass
 
         if engine_name == "chatterbox_turbo_replicate":
             default_voice = (config.get("chatterbox_turbo_replicate_voice") or "").strip()
@@ -1896,7 +1933,7 @@ def _serialize_job_payload(job_entry: Dict[str, Any]) -> Dict[str, Any]:
     payload = dict(job_entry.get("job_payload") or {})
     if not isinstance(payload, dict):
         payload = {}
-    for key in ("timing_metrics", "started_at", "completed_at"):
+    for key in ("timing_metrics", "started_at", "completed_at", "job_type"):
         value = job_entry.get(key)
         if value is not None:
             payload[key] = value
@@ -2064,7 +2101,7 @@ def _load_jobs_from_db() -> Dict[str, Dict[str, Any]]:
             "regen_tasks": {},
         }
         _extra = loaded[job_id]["job_payload"]
-        for key in ("timing_metrics", "started_at", "completed_at", "word_replacements"):
+        for key in ("timing_metrics", "started_at", "completed_at", "word_replacements", "job_type"):
             if key in _extra:
                 loaded[job_id][key] = _extra[key]
     return loaded
@@ -2234,17 +2271,9 @@ def _resolve_qwen_dtype(dtype_value: str):
 
 
 def _resolve_qwen_attn(attn_value: Optional[str]) -> Optional[str]:
-    normalized = (attn_value or "").strip().lower().replace("-", "_")
-    if normalized in {"", "auto"}:
-        return None
-    if normalized in {"flash_attention_2", "flash_attention2", "flash"}:
-        try:
-            import flash_attn  # type: ignore  # noqa: F401
-        except Exception:
-            logger.warning("flash-attn not installed; falling back to eager attention for Qwen3")
-            return "eager"
-        return "flash_attention_2"
-    return normalized
+    from src.attention_backend import resolve_qwen_attention_backend
+
+    return resolve_qwen_attention_backend(attn_value, logger=logger)
 
 
 def _ensure_qwen3_model(model_id: str) -> Path:
@@ -2476,6 +2505,19 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             (config.get("openai_tts_instructions") or "").strip(),
             str(config.get("openai_tts_timeout") or 120),
             str(config.get("openai_tts_max_parallel") or 2),
+        )
+        return f"{engine_name}::{'|'.join(parts)}"
+    if engine_name == "localai_tts":
+        parts = (
+            (config.get("localai_tts_api_key") or "").strip(),
+            (config.get("localai_tts_base_url") or DEFAULT_LOCALAI_TTS_BASE_URL).strip(),
+            (config.get("localai_tts_model") or "").strip(),
+            (config.get("localai_tts_default_voice") or "").strip(),
+            (config.get("localai_tts_instructions") or "").strip(),
+            str(config.get("localai_tts_timeout") or 180),
+            str(config.get("localai_tts_max_parallel") or 1),
+            str(config.get("localai_tts_max_retries") if config.get("localai_tts_max_retries") is not None else 4),
+            str(bool(config.get("localai_tts_voice_profile_consent_confirmed", False))),
         )
         return f"{engine_name}::{'|'.join(parts)}"
     return engine_name
@@ -2788,6 +2830,33 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             max_parallel=int(config.get("openai_tts_max_parallel") or 2),
         )
 
+    if engine_name == "localai_tts":
+        model_id = (config.get("localai_tts_model") or "").strip()
+        if not model_id:
+            raise ValueError("Select a LocalAI TTS model in Settings and save before generating audio.")
+        api_key = (config.get("localai_tts_api_key") or "").strip()
+        base_url = (config.get("localai_tts_base_url") or DEFAULT_LOCALAI_TTS_BASE_URL).strip()
+        profile_manager = LocalAIVoiceProfileManager(
+            base_url,
+            api_key,
+            consent_confirmed=bool(
+                config.get("localai_tts_voice_profile_consent_confirmed", False)
+            ),
+            timeout=int(config.get("localai_tts_timeout") or 180),
+        )
+        return get_engine(
+            "localai_tts",
+            api_key=api_key,
+            base_url=base_url,
+            model_id=model_id,
+            default_voice=(config.get("localai_tts_default_voice") or "").strip(),
+            instructions=(config.get("localai_tts_instructions") or "").strip(),
+            timeout=int(config.get("localai_tts_timeout") or 180),
+            max_parallel=int(config.get("localai_tts_max_parallel") or 1),
+            max_retries=int(config.get("localai_tts_max_retries") if config.get("localai_tts_max_retries") is not None else 4),
+            voice_resolver=profile_manager.resolve,
+        )
+
     if engine_name == "kokoro_replicate":
         api_key = (config.get("replicate_api_key") or "").strip()
         if not api_key:
@@ -3086,14 +3155,13 @@ def _build_sections_from_matches(
 def split_text_into_sections(text: str, section_headings: Optional[Any] = None) -> List[Dict[str, str]]:
     """
     Split text into logical sections (book/chapter/section/letter/part).
-    If book headings exist, split by book and include all chapters beneath each book.
-    Otherwise, split by chapter/section/letter/part headings.
-    """
-    book_matches = _find_book_heading_matches(text, section_headings)
-    if book_matches:
-        return _build_sections_from_matches(text, book_matches, "Book")
 
-    section_pattern = _build_section_heading_pattern(_without_book_heading(section_headings))
+    ``Book`` is a section-heading label, not a separate hierarchy.  Treating
+    headings such as "Book 1" as top-level collections caused ordinary works
+    divided into books (for example, The Odyssey) to be exported as many
+    unrelated books containing generic "Full Book" chapters.
+    """
+    section_pattern = _build_section_heading_pattern(section_headings)
     section_matches = list(section_pattern.finditer(text))
     if section_matches:
         return _build_sections_from_matches(text, section_matches, "Section")
@@ -3103,31 +3171,8 @@ def split_text_into_sections(text: str, section_headings: Optional[Any] = None) 
 
 
 def split_text_into_book_sections(text: str, section_headings: Optional[Any] = None) -> Dict[str, Any]:
-    """Return structured book->chapter hierarchy with fallbacks."""
-    book_matches = _find_book_heading_matches(text, section_headings)
-    section_pattern = _build_section_heading_pattern(_without_book_heading(section_headings))
-
-    if book_matches:
-        books = _build_sections_from_matches(text, book_matches, "Book")
-        for idx, book in enumerate(books, start=1):
-            book_content = book.get("content") or ""
-            section_matches = list(section_pattern.finditer(book_content))
-            if section_matches:
-                chapters = _build_sections_from_matches(
-                    book_content,
-                    section_matches,
-                    "Chapter",
-                    base_offset=book.get("heading_start") or 0
-                )
-            else:
-                clean_content = book_content.strip()
-                chapters = []
-                if clean_content:
-                    chapters.append({"title": "Full Book", "content": clean_content})
-            book["chapters"] = chapters
-            book["index"] = idx - 1
-        return {"kind": "book", "books": books, "sections": []}
-
+    """Return a flat section structure with legacy-compatible result keys."""
+    section_pattern = _build_section_heading_pattern(section_headings)
     section_matches = list(section_pattern.finditer(text))
     if section_matches:
         sections = _build_sections_from_matches(text, section_matches, "Section")
@@ -4132,6 +4177,15 @@ def _create_text_processor_for_engine(engine_name: str, chunk_size: int, config:
             chunk_strategy="characters",
             char_soft_limit=openai_chunk_size,
             char_hard_limit=min(openai_chunk_size + 96, 4096),
+        )
+    if _normalize_engine_name(engine_name) == "localai_tts":
+        localai_chunk_size = 1000
+        if config:
+            localai_chunk_size = config.get("localai_tts_chunk_size", localai_chunk_size)
+        return TextProcessor(
+            chunk_strategy="characters",
+            char_soft_limit=localai_chunk_size,
+            char_hard_limit=localai_chunk_size + 100,
         )
     if _normalize_engine_name(engine_name) in {"pocket_tts", "pocket_tts_preset"}:
         pocket_chunk_size = 450
@@ -5872,7 +5926,35 @@ def process_audio_job(job_data):
                 pass
 
 
+def _prune_qwen3_voice_design_tasks(max_age_seconds: int = 3600) -> None:
+    """Bound abandoned preview results without touching active generations."""
+    cutoff = datetime.now() - timedelta(seconds=max_age_seconds)
+    removed = []
+    with queue_lock:
+        for task_id, entry in list(jobs.items()):
+            if entry.get("job_type") not in {"qwen3_voice_design_preview", "qwen3_voice_design_save"}:
+                continue
+            if entry.get("status") not in {"completed", "failed", "cancelled", "interrupted"}:
+                continue
+            timestamp = entry.get("completed_at") or entry.get("created_at") or ""
+            try:
+                expired = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00")).replace(tzinfo=None) < cutoff
+            except (TypeError, ValueError):
+                expired = False
+            if expired:
+                jobs.pop(task_id, None)
+                removed.append(task_id)
+    if removed:
+        try:
+            with _get_jobs_db_connection() as conn:
+                conn.executemany("DELETE FROM jobs WHERE job_id=?", [(task_id,) for task_id in removed])
+                conn.commit()
+        except Exception as exc:
+            logger.warning("Unable to prune acknowledged voice-design task rows: %s", exc)
+
+
 def _enqueue_qwen3_voice_design_task(task_type: str, payload: Dict[str, Any]) -> str:
+    _prune_qwen3_voice_design_tasks()
     start_worker_thread()
     job_id = str(uuid.uuid4())
     job_entry = {
@@ -5901,7 +5983,32 @@ def process_qwen3_voice_design_preview_task(job_data: Dict[str, Any]) -> None:
     payload = job_data.get("payload") or {}
     config = job_data.get("config") or load_config()
     try:
-        result = _generate_voice_design_preview(payload, config)
+        result = None
+        last_error = None
+        original_seed = payload.get("seed")
+        for attempt in range(VOICE_DESIGN_MAX_ATTEMPTS):
+            attempt_payload = dict(payload)
+            if attempt:
+                try:
+                    retry_seed = (int(original_seed) + attempt) & 0x7fffffff
+                except (TypeError, ValueError):
+                    retry_seed = uuid.uuid4().int & 0x7fffffff
+                attempt_payload["seed"] = retry_seed
+                logger.warning(
+                    "Retrying Qwen3 VoiceDesign task %s with seed %s after: %s",
+                    job_id,
+                    retry_seed,
+                    last_error,
+                )
+            try:
+                result = _generate_voice_design_preview(attempt_payload, config)
+                result["attempts"] = attempt + 1
+                break
+            except Exception as exc:
+                last_error = exc
+                _cleanup_qwen_voice_design_generation(force_cuda=True)
+        if result is None:
+            raise last_error or RuntimeError("Qwen3 VoiceDesign generation failed.")
         result["task_id"] = job_id
         with queue_lock:
             job_entry = jobs.get(job_id)
@@ -5910,13 +6017,17 @@ def process_qwen3_voice_design_preview_task(job_data: Dict[str, Any]) -> None:
                 job_entry["progress"] = 100
                 job_entry["completed_at"] = datetime.now().isoformat()
                 job_entry["result"] = result
+        _persist_job_state(job_id, force=True)
     except Exception as exc:
         with queue_lock:
             job_entry = jobs.get(job_id)
             if job_entry:
                 job_entry["status"] = "failed"
                 job_entry["error"] = str(exc)
+        _persist_job_state(job_id, force=True)
         raise
+    finally:
+        _cleanup_qwen_voice_design_generation()
 
 
 def process_qwen3_voice_design_save_task(job_data: Dict[str, Any]) -> None:
@@ -5932,12 +6043,14 @@ def process_qwen3_voice_design_save_task(job_data: Dict[str, Any]) -> None:
                 job_entry["progress"] = 100
                 job_entry["completed_at"] = datetime.now().isoformat()
                 job_entry["result"] = result
+        _persist_job_state(job_id, force=True)
     except Exception as exc:
         with queue_lock:
             job_entry = jobs.get(job_id)
             if job_entry:
                 job_entry["status"] = "failed"
                 job_entry["error"] = str(exc)
+        _persist_job_state(job_id, force=True)
         raise
 
 
@@ -6237,6 +6350,7 @@ def _serialize_chatterbox_voice(entry: Dict[str, Any]) -> Dict[str, Any]:
         except OSError:
             size_bytes = None
             duration_seconds = None
+    transcript = _get_voice_prompt_transcript(file_path) if exists and file_path else ""
     return {
         "id": entry.get("id"),
         "name": entry.get("name"),
@@ -6251,6 +6365,8 @@ def _serialize_chatterbox_voice(entry: Dict[str, Any]) -> Dict[str, Any]:
         "language": entry.get("language"),  # Language code like en-US
         "description": entry.get("description"),
         "voice_design": entry.get("voice_design"),
+        "transcript": transcript,
+        "transcript_available": bool(transcript),
         "archived": bool(entry.get("archived", False)),
         "source": "local",  # local voices vs external
     }
@@ -6486,6 +6602,90 @@ def get_openai_tts_catalog():
         "configured_model": config.get("openai_tts_model") or DEFAULT_OPENAI_TTS_MODEL,
     })
 
+
+@app.route('/api/localai-tts/catalog', methods=['GET', 'POST'])
+def get_localai_tts_catalog():
+    """Discover TTS-capable models and saved voice profiles from LocalAI."""
+    config = load_config()
+    payload = request.get_json(silent=True) or {}
+    base_url = str(
+        payload.get("base_url")
+        or config.get("localai_tts_base_url")
+        or DEFAULT_LOCALAI_TTS_BASE_URL
+    ).strip()
+    api_key = str(
+        payload.get("api_key")
+        if "api_key" in payload else config.get("localai_tts_api_key") or ""
+    ).strip()
+    timeout = payload.get("timeout") or config.get("localai_tts_timeout") or 180
+    configured_model = str(
+        payload.get("model") or config.get("localai_tts_model") or ""
+    ).strip()
+    consent_confirmed = bool(
+        payload.get("consent_confirmed")
+        if "consent_confirmed" in payload
+        else config.get("localai_tts_voice_profile_consent_confirmed", False)
+    )
+    try:
+        catalog = discover_localai_tts_catalog(
+            base_url,
+            api_key,
+            timeout=min(int(timeout), 120),
+        )
+    except (LocalAITTSDiscoveryError, TypeError, ValueError) as exc:
+        return jsonify({"success": False, "error": str(exc)}), 502
+    selected_model = next(
+        (model for model in catalog.get("models", []) if model.get("model_id") == configured_model),
+        None,
+    )
+    model_supports_cloning = (
+        selected_model.get("voice_cloning") if selected_model else None
+    )
+    tts_story_voices: List[Dict[str, Any]] = []
+    if catalog.get("voice_profiles_supported") and model_supports_cloning is True:
+        _auto_register_voice_prompt_files()
+        entries = _load_chatterbox_voice_entries()
+        _backfill_generated_voice_transcripts(entries)
+        for entry in entries:
+            if entry.get("archived"):
+                continue
+            serialized = _serialize_chatterbox_voice(entry)
+            file_name = serialized.get("file_name")
+            if not file_name or serialized.get("missing_file"):
+                continue
+            has_transcript = bool(serialized.get("transcript"))
+            if not has_transcript:
+                continue
+            enabled = has_transcript and consent_confirmed
+            suffix = ""
+            if not consent_confirmed:
+                suffix = " (rights/consent confirmation required)"
+            tts_story_voices.append({
+                "short_name": build_tts_story_voice_reference(file_name),
+                "voice_id": build_tts_story_voice_reference(file_name),
+                "display_name": f"{serialized.get('name') or Path(file_name).stem}{suffix}",
+                "locale": serialized.get("language") or "",
+                "gender": serialized.get("gender") or "",
+                "category": "TTS-Story sample",
+                "source": "tts_story",
+                "transcript_available": has_transcript,
+                "disabled": not enabled,
+                "disabled_reason": (
+                    "Confirm voice-cloning rights/consent in LocalAI TTS Settings."
+                    if not consent_confirmed else ""
+                ),
+            })
+    catalog["voices"] = [*(catalog.get("voices") or []), *tts_story_voices]
+    return jsonify({
+        "success": True,
+        **catalog,
+        "configured_model": configured_model,
+        "configured_voice": config.get("localai_tts_default_voice") or "",
+        "selected_model_voice_cloning": model_supports_cloning,
+        "tts_story_voice_count": len(tts_story_voices),
+        "tts_story_voice_ready_count": sum(not voice["disabled"] for voice in tts_story_voices),
+    })
+
 def _get_audio_duration(file_path: Path) -> Optional[float]:
     """Get audio duration in seconds using pydub."""
     try:
@@ -6536,6 +6736,45 @@ def _set_voice_prompt_transcript(file_path: Path, transcript: str) -> None:
     transcripts = _load_voice_prompt_transcripts()
     transcripts[key] = transcript
     _save_voice_prompt_transcripts(transcripts)
+
+
+def _get_voice_prompt_transcript(file_path: Path) -> str:
+    key = _voice_prompt_transcript_key(file_path)
+    if not key:
+        return ""
+    return str(_load_voice_prompt_transcripts().get(key) or "").strip()
+
+
+def _update_voice_prompt_transcript(file_path: Path, transcript: str) -> None:
+    key = _voice_prompt_transcript_key(file_path)
+    if not key:
+        return
+    transcripts = _load_voice_prompt_transcripts()
+    cleaned = str(transcript or "").strip()
+    if cleaned:
+        transcripts[key] = cleaned
+    else:
+        transcripts.pop(key, None)
+    _save_voice_prompt_transcripts(transcripts)
+
+
+def _backfill_generated_voice_transcripts(entries: List[Dict[str, Any]]) -> int:
+    """Recover exact preview text already stored with generated voice samples."""
+    transcripts = _load_voice_prompt_transcripts()
+    updated = 0
+    for entry in entries:
+        file_name = entry.get("file_name")
+        preview_text = str((entry.get("voice_design") or {}).get("preview_text") or "").strip()
+        if not file_name or not preview_text:
+            continue
+        file_path = VOICE_PROMPT_DIR / Path(file_name).name
+        key = _voice_prompt_transcript_key(file_path)
+        if key and not str(transcripts.get(key) or "").strip():
+            transcripts[key] = preview_text
+            updated += 1
+    if updated:
+        _save_voice_prompt_transcripts(transcripts)
+    return updated
 
 
 def _apply_voice_design_cleanup(audio_data, sample_rate: int):
@@ -6675,6 +6914,22 @@ def _ensure_voice_design_preview_length(text: str) -> str:
     return cleaned
 
 
+def _cleanup_qwen_voice_design_generation(*, force_cuda: bool = False) -> None:
+    """Release per-preview objects while retaining the loaded Qwen model."""
+    global qwen3_voice_design_generation_count
+    qwen3_voice_design_generation_count += 1
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available() and (
+            force_cuda
+            or qwen3_voice_design_generation_count % VOICE_DESIGN_CUDA_CLEANUP_INTERVAL == 0
+        ):
+            torch.cuda.empty_cache()
+    except Exception as exc:  # pragma: no cover - defensive cleanup
+        logger.debug("Qwen3 VoiceDesign cleanup skipped: %s", exc)
+
+
 def _generate_voice_design_preview(payload: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     text = _ensure_voice_design_preview_length(payload.get("text") or "")
     instruct, language = _build_qwen_voice_design_instruction(payload)
@@ -6700,9 +6955,12 @@ def _generate_voice_design_preview(payload: Dict[str, Any], config: Dict[str, An
         seed = uuid.uuid4().int & 0x7fffffff
     seed = max(0, min(seed, 0x7fffffff))
 
+    started_at = time.perf_counter()
     with gpu_inference_lock:
         model = _get_qwen3_voice_design_model(config)
         import torch
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
         cuda_devices = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else []
         with torch.random.fork_rng(devices=cuda_devices):
             torch.manual_seed(seed)
@@ -6725,10 +6983,32 @@ def _generate_voice_design_preview(payload: Dict[str, Any], config: Dict[str, An
             f"Casting samples must be at least {MIN_VOICE_DESIGN_PREVIEW_SECONDS:.0f} seconds; "
             "try generating the candidate again."
         )
+    if duration_seconds > MAX_VOICE_DESIGN_PREVIEW_SECONDS:
+        raise RuntimeError(
+            f"VoiceDesign produced an abnormal {duration_seconds:.1f}-second preview. "
+            "The generation likely missed its ending token and will be retried with a new seed."
+        )
     buffer = io.BytesIO()
     sf.write(buffer, audio_data, int(sr), format="wav")
     wav_bytes = buffer.getvalue()
     encoded = base64.b64encode(wav_bytes).decode("ascii")
+    elapsed_seconds = time.perf_counter() - started_at
+    cuda_metrics = {}
+    if torch.cuda.is_available():
+        cuda_metrics = {
+            "cuda_allocated_mb": round(torch.cuda.memory_allocated() / 1024**2, 1),
+            "cuda_reserved_mb": round(torch.cuda.memory_reserved() / 1024**2, 1),
+            "cuda_peak_allocated_mb": round(torch.cuda.max_memory_allocated() / 1024**2, 1),
+        }
+    logger.info(
+        "Qwen3 VoiceDesign completed seed=%s duration=%.1fs elapsed=%.1fs allocated=%sMB reserved=%sMB peak=%sMB",
+        seed,
+        duration_seconds,
+        elapsed_seconds,
+        cuda_metrics.get("cuda_allocated_mb", "n/a"),
+        cuda_metrics.get("cuda_reserved_mb", "n/a"),
+        cuda_metrics.get("cuda_peak_allocated_mb", "n/a"),
+    )
     return {
         "audio_base64": encoded,
         "mime_type": "audio/wav",
@@ -6737,11 +7017,13 @@ def _generate_voice_design_preview(payload: Dict[str, Any], config: Dict[str, An
         "instruction": instruct,
         "preview_text": text,
         "duration_seconds": duration_seconds,
+        "elapsed_seconds": elapsed_seconds,
         "language": language,
         "model": (config.get("qwen3_voice_design_model_id") or "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign").strip(),
         "sampling_parameters": generation_kwargs,
         "seed": seed,
         "wav_sha256": hashlib.sha256(wav_bytes).hexdigest(),
+        **cuda_metrics,
     }
 
 
@@ -7039,6 +7321,7 @@ def preview_voice_prompt_fx():
 def list_chatterbox_voices():
     _auto_register_voice_prompt_files()
     entries = _load_chatterbox_voice_entries()
+    _backfill_generated_voice_transcripts(entries)
     serialized = [_serialize_chatterbox_voice(entry) for entry in entries]
     return jsonify({"success": True, "voices": serialized})
 
@@ -7046,6 +7329,7 @@ def list_chatterbox_voices():
 @app.route('/api/chatterbox-voices', methods=['POST'])
 def create_chatterbox_voice():
     name = (request.form.get("name") or "").strip()
+    transcript = (request.form.get("transcript") or "").strip()
     file = request.files.get("file")
     if not name:
         return jsonify({"success": False, "error": "Voice name is required."}), 400
@@ -7101,6 +7385,8 @@ def create_chatterbox_voice():
     }
     entries.append(entry)
     _save_chatterbox_voice_entries(entries)
+    if transcript:
+        _set_voice_prompt_transcript(target_path, transcript)
 
     serialized = _serialize_chatterbox_voice(entry)
     return jsonify({"success": True, "voice": serialized}), 201
@@ -7575,9 +7861,44 @@ def update_chatterbox_voice_metadata(voice_id: str):
         entry["language"] = data["language"]
     if "name" in data and data["name"]:
         entry["name"] = data["name"].strip()
+    if "transcript" in data:
+        file_name = entry.get("file_name")
+        if file_name:
+            _update_voice_prompt_transcript(
+                VOICE_PROMPT_DIR / Path(file_name).name,
+                str(data.get("transcript") or ""),
+            )
     
     _save_chatterbox_voice_entries(entries)
     return jsonify({"success": True, "voice": _serialize_chatterbox_voice(entry)})
+
+
+@app.route('/api/chatterbox-voices/<voice_id>/transcribe', methods=['POST'])
+def transcribe_chatterbox_voice(voice_id: str):
+    """Generate and persist an exact-reference transcript with local SenseVoice ASR."""
+    entries = _load_chatterbox_voice_entries()
+    entry = _resolve_chatterbox_voice(voice_id, entries)
+    if not entry:
+        return jsonify({"success": False, "error": "Voice not found."}), 404
+    file_name = Path(str(entry.get("file_name") or "")).name
+    if not file_name:
+        return jsonify({"success": False, "error": "Voice sample file is missing."}), 404
+    audio_path = VOICE_PROMPT_DIR / file_name
+    if not audio_path.is_file():
+        return jsonify({"success": False, "error": "Voice sample file is missing."}), 404
+    try:
+        transcript = voice_transcript_generator.transcribe(audio_path)
+        _update_voice_prompt_transcript(audio_path, transcript)
+    except VoiceTranscriptionError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 422
+    except Exception as exc:  # pragma: no cover - defensive model/runtime failure
+        logger.error("Voice sample transcription failed: %s", exc, exc_info=True)
+        return jsonify({"success": False, "error": "Voice sample transcription failed."}), 500
+    return jsonify({
+        "success": True,
+        "transcript": transcript,
+        "voice": _serialize_chatterbox_voice(entry),
+    })
 
 
 @app.route('/api/voices/samples', methods=['POST'])
@@ -11754,6 +12075,13 @@ def get_queue():
             with queue_lock:
                 all_jobs = []
                 for job_id, job_info in jobs.items():
+                    if job_info.get("job_type") in {
+                        "qwen3_voice_design_preview",
+                        "qwen3_voice_design_save",
+                        "omnivoice_design_preview",
+                        "omnivoice_design_save",
+                    }:
+                        continue
                     all_jobs.append({
                         "job_id": job_id,
                         "status": job_info.get("status", "unknown"),
@@ -12021,6 +12349,8 @@ def health_check():
             (config.get("openai_tts_api_key") or "").strip()
             or "api.openai.com" not in (config.get("openai_tts_base_url") or DEFAULT_OPENAI_TTS_BASE_URL).lower()
         ),
+        "localai_tts_available": True,
+        "localai_tts_configured": bool((config.get("localai_tts_model") or "").strip()),
         "cuda_available": False if not KOKORO_AVAILABLE else __import__('torch').cuda.is_available(),
         "vram": vram_info,
         "loaded_engines": list(tts_engine_instances.keys()),
@@ -12114,6 +12444,27 @@ def qwen3_voice_design_task_status(task_id: str):
         if job_entry.get("status") == "failed":
             payload["error"] = job_entry.get("error")
         return jsonify(payload)
+
+
+@app.route('/api/qwen3/voice-design/tasks/<task_id>', methods=['DELETE'])
+def qwen3_voice_design_task_delete(task_id: str):
+    """Acknowledge a terminal casting task and release its in-memory audio."""
+    with queue_lock:
+        job_entry = jobs.get(task_id)
+        if not job_entry:
+            return jsonify({"success": True, "removed": False})
+        if job_entry.get("job_type") not in {"qwen3_voice_design_preview", "qwen3_voice_design_save"}:
+            return jsonify({"success": False, "error": "Task type mismatch."}), 400
+        if job_entry.get("status") not in {"completed", "failed", "cancelled", "interrupted"}:
+            return jsonify({"success": False, "error": "Task is still active."}), 409
+        jobs.pop(task_id, None)
+    try:
+        with _get_jobs_db_connection() as conn:
+            conn.execute("DELETE FROM jobs WHERE job_id=?", (task_id,))
+            conn.commit()
+    except Exception as exc:
+        logger.warning("Unable to remove acknowledged voice-design task %s: %s", task_id, exc)
+    return jsonify({"success": True, "removed": True})
 
 
 @app.route('/api/qwen3/voice-design/candidates/approve', methods=['POST'])

@@ -22,6 +22,7 @@ _LAZY_EXPORTS = {
     "EdgeTTSEngine": (".edge_tts_engine", "EdgeTTSEngine"),
     "ElevenLabsEngine": (".elevenlabs_engine", "ElevenLabsEngine"),
     "OpenAITTSEngine": (".openai_tts_engine", "OpenAITTSEngine"),
+    "LocalAITTSEngine": (".localai_tts_engine", "LocalAITTSEngine"),
 }
 
 
@@ -49,4 +50,5 @@ __all__ = [
     "EdgeTTSEngine",
     "ElevenLabsEngine",
     "OpenAITTSEngine",
+    "LocalAITTSEngine",
 ]

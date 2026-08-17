@@ -43,6 +43,7 @@ class OpenAITTSEngine(TtsEngineBase):
         timeout: int = 120,
         max_parallel: int = 2,
         max_retries: int = 4,
+        voice_required: bool = True,
         request_func: Optional[Callable[..., Any]] = None,
         sleep_func: Callable[[float], None] = time.sleep,
         audio_converter: Callable[..., bytes] = audio_bytes_to_wav,
@@ -59,7 +60,11 @@ class OpenAITTSEngine(TtsEngineBase):
             self.root_url = raw_url
             self.speech_url = f"{raw_url}/audio/speech"
         self.model_id = self._required(model_id, "model")
-        self.default_voice = self._required(default_voice, "voice")
+        self.voice_required = bool(voice_required)
+        self.default_voice = (
+            self._required(default_voice, "voice")
+            if self.voice_required else str(default_voice or "").strip()
+        )
         self.instructions = str(instructions or "").strip()
         self.timeout = max(10, min(int(timeout or 120), 600))
         self.max_parallel = max(1, min(int(max_parallel or 1), 8))
@@ -128,7 +133,7 @@ class OpenAITTSEngine(TtsEngineBase):
 
         def render(item: Dict[str, Any]) -> tuple[int, str]:
             wav = self._synthesize(item["text"], item["assignment"], fallback_speed=speed)
-            path = destination / f"openai_tts_chunk_{start_index + item['order_index']:06d}.wav"
+            path = destination / f"{self.name}_chunk_{start_index + item['order_index']:06d}.wav"
             path.write_bytes(wav)
             return item["order_index"], str(path)
 
@@ -178,7 +183,9 @@ class OpenAITTSEngine(TtsEngineBase):
         if not clean_text:
             raise OpenAITTSError("The OpenAI-compatible endpoint cannot synthesize empty text.")
         extra = assignment.extra or {}
-        voice = self._required(assignment.voice or self.default_voice, "voice")
+        voice = str(assignment.voice or self.default_voice or "").strip()
+        if self.voice_required:
+            voice = self._required(voice, "voice")
         model = self._required(extra.get("model_id") or self.model_id, "model")
         speed = self._clamp(
             assignment.speed_override if assignment.speed_override is not None else fallback_speed,
@@ -187,10 +194,11 @@ class OpenAITTSEngine(TtsEngineBase):
         payload: Dict[str, Any] = {
             "model": model,
             "input": clean_text,
-            "voice": {"id": voice} if voice.startswith("voice_") else voice,
             "response_format": "wav",
             "speed": speed,
         }
+        if voice:
+            payload["voice"] = {"id": voice} if voice.startswith("voice_") else voice
         instructions = str(extra.get("instructions") or self.instructions).strip()
         if instructions:
             payload["instructions"] = instructions

@@ -14,6 +14,7 @@ const ATLAS_CLOUD_BASE_URL = 'https://api.atlascloud.ai/v1';
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 const ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io';
 const OPENAI_TTS_BASE_URL = 'https://api.openai.com/v1';
+const LOCALAI_TTS_BASE_URL = 'http://localhost:8080/v1';
 const OPENAI_TTS_MODELS = [
     ['gpt-4o-mini-tts', 'GPT-4o mini TTS'],
     ['gpt-4o-mini-tts-2025-12-15', 'GPT-4o mini TTS (2025-12-15 snapshot)'],
@@ -28,6 +29,8 @@ let settingsAzureSpeechVoices = [];
 let settingsEdgeTtsVoices = [];
 let settingsElevenLabsVoices = [];
 let settingsElevenLabsModels = [];
+let settingsLocalAITtsVoices = [];
+let settingsLocalAITtsModels = [];
 let llmBackupProfiles = [];
 const MAX_LLM_BACKUP_PROFILES = 100;
 
@@ -701,6 +704,7 @@ function toggleEngineSettingsSections(engineName) {
         'edge_tts': 'edge-tts',
         'elevenlabs': 'elevenlabs',
         'openai_tts': 'openai-tts',
+        'localai_tts': 'localai-tts',
         'api_keys': 'api-keys'
     };
     
@@ -755,6 +759,18 @@ function setupSettingsListeners() {
     const fetchElevenLabsCatalogBtn = document.getElementById('fetch-elevenlabs-catalog');
     if (fetchElevenLabsCatalogBtn) {
         fetchElevenLabsCatalogBtn.addEventListener('click', () => fetchElevenLabsCatalog(fetchElevenLabsCatalogBtn));
+    }
+    const fetchLocalAITtsCatalogBtn = document.getElementById('fetch-localai-tts-catalog');
+    if (fetchLocalAITtsCatalogBtn) {
+        fetchLocalAITtsCatalogBtn.addEventListener('click', () => fetchLocalAITtsCatalog(fetchLocalAITtsCatalogBtn));
+    }
+    const localAITtsModel = document.getElementById('localai-tts-model');
+    if (localAITtsModel) {
+        localAITtsModel.addEventListener('change', () => fetchLocalAITtsCatalog());
+    }
+    const localAIConsent = document.getElementById('localai-tts-voice-profile-consent-confirmed');
+    if (localAIConsent) {
+        localAIConsent.addEventListener('change', () => fetchLocalAITtsCatalog());
     }
     const openAITtsCustomVoices = document.getElementById('openai-tts-custom-voices');
     if (openAITtsCustomVoices) {
@@ -1189,6 +1205,90 @@ async function fetchElevenLabsCatalog(buttonEl, { force = true } = {}) {
     }
 }
 
+function populateLocalAITtsCatalog(settings = {}) {
+    const modelSelect = document.getElementById('localai-tts-model');
+    const voiceSelect = document.getElementById('localai-tts-default-voice');
+    const selectedModel = settings.localai_tts_model ?? modelSelect?.value ?? '';
+    const selectedVoice = settings.localai_tts_default_voice ?? voiceSelect?.value ?? '';
+    if (modelSelect) {
+        const entries = [...settingsLocalAITtsModels];
+        if (selectedModel && !entries.some(model => (model.model_id || model.id) === selectedModel)) {
+            entries.unshift({ model_id: selectedModel, name: `${selectedModel} (saved)` });
+        }
+        modelSelect.innerHTML = '';
+        if (!entries.length) modelSelect.add(new Option('Load the LocalAI catalog first', ''));
+        entries.forEach(model => modelSelect.add(new Option(
+            model.name || model.model_id || model.id,
+            model.model_id || model.id
+        )));
+        modelSelect.value = selectedModel || entries[0]?.model_id || entries[0]?.id || '';
+    }
+    if (voiceSelect) {
+        const entries = [...settingsLocalAITtsVoices];
+        if (selectedVoice && !entries.some(voice => (voice.voice_id || voice.short_name) === selectedVoice)) {
+            entries.unshift({ voice_id: selectedVoice, display_name: `${selectedVoice} (saved)` });
+        }
+        voiceSelect.innerHTML = '';
+        voiceSelect.add(new Option('Model default voice', ''));
+        entries.forEach(voice => {
+            const id = voice.voice_id || voice.short_name;
+            const locale = voice.locale ? ` · ${voice.locale}` : '';
+            const option = new Option(`${voice.display_name || id}${locale}`, id);
+            option.disabled = Boolean(voice.disabled);
+            if (voice.disabled_reason) option.title = voice.disabled_reason;
+            voiceSelect.add(option);
+        });
+        voiceSelect.value = selectedVoice;
+        if (voiceSelect.selectedOptions[0]?.disabled) voiceSelect.value = '';
+    }
+}
+
+async function fetchLocalAITtsCatalog(buttonEl) {
+    const status = document.getElementById('localai-tts-catalog-status');
+    const originalLabel = buttonEl?.textContent;
+    if (buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Loading LocalAI catalog…';
+    }
+    if (status) status.textContent = 'Connecting to LocalAI…';
+    try {
+        const response = await fetch('/api/localai-tts/catalog', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                base_url: document.getElementById('localai-tts-base-url')?.value?.trim() || LOCALAI_TTS_BASE_URL,
+                api_key: document.getElementById('localai-tts-api-key')?.value || '',
+                timeout: parseInt(document.getElementById('localai-tts-timeout')?.value, 10) || 180,
+                model: document.getElementById('localai-tts-model')?.value || '',
+                consent_confirmed: Boolean(document.getElementById('localai-tts-voice-profile-consent-confirmed')?.checked),
+            })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load LocalAI.');
+        settingsLocalAITtsModels = Array.isArray(data.models) ? data.models : [];
+        settingsLocalAITtsVoices = Array.isArray(data.voices) ? data.voices : [];
+        populateLocalAITtsCatalog({
+            localai_tts_model: document.getElementById('localai-tts-model')?.value || data.configured_model || settingsLocalAITtsModels[0]?.model_id || '',
+            localai_tts_default_voice: document.getElementById('localai-tts-default-voice')?.value || data.configured_voice || settingsLocalAITtsVoices[0]?.voice_id || '',
+        });
+        if (status) {
+            const cloning = data.selected_model_voice_cloning === true
+                ? ` ${data.tts_story_voice_ready_count || 0} TTS-Story sample(s) ready for cloning.`
+                : (data.selected_model_voice_cloning === false ? ' The selected model does not advertise voice cloning.' : ' Select a model and reload to check voice cloning.');
+            status.textContent = `Connected${data.version ? ` (${data.version})` : ''}. Loaded ${settingsLocalAITtsModels.length} TTS model(s) and ${settingsLocalAITtsVoices.length} voice option(s).${cloning}`;
+        }
+        return data;
+    } catch (error) {
+        if (status) status.textContent = error.message || 'Unable to load LocalAI.';
+        return null;
+    } finally {
+        if (buttonEl) {
+            buttonEl.disabled = false;
+            buttonEl.textContent = originalLabel || 'Test Connection & Load Catalog';
+        }
+    }
+}
+
 // Load settings from API
 async function loadSettings() {
     try {
@@ -1417,6 +1517,16 @@ function applySettings(settings) {
     setElementValue('openai-tts-timeout', settings.openai_tts_timeout ?? 120, 120);
     setElementValue('openai-tts-max-parallel', settings.openai_tts_max_parallel ?? 2, 2);
     setElementValue('openai-tts-chunk-size', settings.openai_tts_chunk_size ?? 4000, 4000);
+    setElementValue('localai-tts-api-key', settings.localai_tts_api_key || '');
+    setElementValue('localai-tts-base-url', settings.localai_tts_base_url || LOCALAI_TTS_BASE_URL, LOCALAI_TTS_BASE_URL);
+    populateLocalAITtsCatalog(settings);
+    setElementValue('localai-tts-instructions', settings.localai_tts_instructions || '');
+    setElementValue('localai-tts-timeout', settings.localai_tts_timeout ?? 180, 180);
+    setElementValue('localai-tts-max-parallel', settings.localai_tts_max_parallel ?? 1, 1);
+    setElementValue('localai-tts-max-retries', settings.localai_tts_max_retries ?? 4, 4);
+    setElementValue('localai-tts-chunk-size', settings.localai_tts_chunk_size ?? 1000, 1000);
+    const localAIConsent = document.getElementById('localai-tts-voice-profile-consent-confirmed');
+    if (localAIConsent) localAIConsent.checked = Boolean(settings.localai_tts_voice_profile_consent_confirmed);
     setElementValue('cloud-tts-concurrent-jobs', settings.cloud_tts_concurrent_jobs ?? 2, 2);
     setElementValue('llm-local-provider', settings.llm_local_provider || 'lmstudio', 'lmstudio');
     setElementValue('llm-local-base-url', settings.llm_local_base_url || LOCAL_LLM_BASE_URLS.lmstudio, LOCAL_LLM_BASE_URLS.lmstudio);
@@ -1939,6 +2049,16 @@ async function saveSettings() {
         openai_tts_timeout: Math.max(10, Math.min(600, parseInt(document.getElementById('openai-tts-timeout')?.value, 10) || 120)),
         openai_tts_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('openai-tts-max-parallel')?.value, 10) || 2)),
         openai_tts_chunk_size: Math.max(100, Math.min(4000, parseInt(document.getElementById('openai-tts-chunk-size')?.value, 10) || 4000)),
+        localai_tts_api_key: document.getElementById('localai-tts-api-key')?.value || '',
+        localai_tts_base_url: document.getElementById('localai-tts-base-url')?.value?.trim() || LOCALAI_TTS_BASE_URL,
+        localai_tts_model: document.getElementById('localai-tts-model')?.value?.trim() || '',
+        localai_tts_default_voice: document.getElementById('localai-tts-default-voice')?.value?.trim() || '',
+        localai_tts_instructions: document.getElementById('localai-tts-instructions')?.value?.trim() || '',
+        localai_tts_timeout: Math.max(10, Math.min(600, parseInt(document.getElementById('localai-tts-timeout')?.value, 10) || 180)),
+        localai_tts_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('localai-tts-max-parallel')?.value, 10) || 1)),
+        localai_tts_max_retries: Math.max(0, Math.min(8, parseInt(document.getElementById('localai-tts-max-retries')?.value, 10) || 0)),
+        localai_tts_chunk_size: Math.max(100, Math.min(4000, parseInt(document.getElementById('localai-tts-chunk-size')?.value, 10) || 1000)),
+        localai_tts_voice_profile_consent_confirmed: Boolean(document.getElementById('localai-tts-voice-profile-consent-confirmed')?.checked),
         cloud_tts_concurrent_jobs: Math.max(1, Math.min(4, parseInt(document.getElementById('cloud-tts-concurrent-jobs')?.value, 10) || 2)),
         llm_local_provider: document.getElementById('llm-local-provider')?.value || 'lmstudio',
         llm_local_base_url: document.getElementById('llm-local-base-url')?.value || LOCAL_LLM_BASE_URLS.lmstudio,
@@ -2102,6 +2222,12 @@ async function saveSettings() {
         
         if (data.success) {
             alert('Settings saved successfully!');
+            // LocalAI voice availability depends on the selected model and the
+            // explicit voice-cloning rights confirmation. Refresh the shared
+            // catalog so already-open Speaker Properties selectors update now.
+            if (typeof loadLocalAITtsCatalog === 'function') {
+                await loadLocalAITtsCatalog(true);
+            }
             // Refresh status bar - loadHealthStatus is defined in main.js
             if (typeof loadHealthStatus === 'function') {
                 loadHealthStatus();
@@ -2194,6 +2320,16 @@ async function resetSettings() {
         openai_tts_timeout: 120,
         openai_tts_max_parallel: 2,
         openai_tts_chunk_size: 4000,
+        localai_tts_api_key: '',
+        localai_tts_base_url: LOCALAI_TTS_BASE_URL,
+        localai_tts_model: '',
+        localai_tts_default_voice: '',
+        localai_tts_instructions: '',
+        localai_tts_timeout: 180,
+        localai_tts_max_parallel: 1,
+        localai_tts_max_retries: 4,
+        localai_tts_chunk_size: 1000,
+        localai_tts_voice_profile_consent_confirmed: false,
         cloud_tts_concurrent_jobs: 2,
         llm_local_provider: 'lmstudio',
         llm_local_base_url: LOCAL_LLM_BASE_URLS.lmstudio,

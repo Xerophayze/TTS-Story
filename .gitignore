@@ -68,6 +68,7 @@ jobs.db
 data/jobs/
 data/prep/
 data/chatterbox_voices.json
+data/localai_voice_profiles.json
 data/custom_voices.json
 data/external_voice_archives.json
 data/llm_profile_usage.json

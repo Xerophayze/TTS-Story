@@ -17,6 +17,7 @@ MAIN_ENV_PACKAGES = {
     "Pocket TTS": "pocket-tts",
     "VoxCPM": "voxcpm",
     "Qwen3 TTS": "qwen-tts",
+    "FlashAttention (optional)": "flash-attn",
     "KittenTTS": "kittentts",
     "Replicate client": "replicate",
     "Edge TTS client": "edge-tts",

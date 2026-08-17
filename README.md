@@ -8,15 +8,16 @@ If you appreciate what we do and would like to support ongoing development:
 
 ---
 
-# Current Updates and Notes - updated 08-14-2026
+# Current Updates and Notes - updated 08-17-2026
 
-- **More reliable OmniVoice narration** - corrected OmniVoice post-processing controls, protected final words from being faded out, and added a configurable ending-duration buffer for sentences that end with acronyms, numbers, or other tightly timed speech.
+- **LocalAI TTS integration** - connect to an existing self-hosted LocalAI server, automatically discover TTS models and saved voice profiles, and generate through that deployment without installing duplicate model runtimes in TTS-Story.
 - **Improved voice casting and speaker workflows** - strengthened Qwen3 voice-design prompts, added configurable candidates per speaker, improved bulk candidate generation, and made approved voice selections easier to review, filter, save, and reuse.
 - **More consistent projects and audiobook timing** - saved projects now use shared server-side storage across localhost, IP-address, and alternate browser URLs, while configurable pause-marker timing and improved section detection provide better control over narration structure.
 
 ### Previous Updates
 
 - Smarter LLM failover, configurable backup profiles, and individual speaker-profile generation.
+- More reliable OmniVoice narration with protected sentence endings and configurable terminal buffers.
 - Production-ready MP3/M4B exports with improved chapter metadata and rebuild handling.
 - More reliable cloud generation with configurable concurrency, retries, pause/resume, and recovery checkpoints.
 - Improved cross-platform installation and updates for Windows, Linux, macOS, Apple Silicon, and Pinokio.
@@ -110,7 +111,7 @@ setup.bat --repair
 
 ## Supported Engines and Hardware
 
-TTS-Story exposes seventeen normal generation choices. Qwen3 VoiceDesign and OmniVoice Design are additional Voice Creation workflows rather than full-job engines.
+TTS-Story exposes eighteen normal generation choices. Qwen3 VoiceDesign and OmniVoice Design are additional Voice Creation workflows rather than full-job engines.
 
 ### Local engine hardware guide
 
@@ -140,8 +141,9 @@ Cloud engines perform model inference remotely and therefore require **no local 
 | **[Microsoft Edge TTS](docs/help/engines/edge-tts.md)** | **0 GB** | Internet connection; no API key | Experimental consumer endpoint with no availability guarantee. |
 | **[ElevenLabs](docs/help/engines/elevenlabs.md)** | **0 GB** | API key, model/voice access, and character quota | Subscription and concurrency limits apply. |
 | **[OpenAI-compatible TTS](docs/help/engines/openai-tts.md)** | **0 GB** | Compatible endpoint, model, voice, and key when required | Cost and capabilities depend on the endpoint. |
+| **[LocalAI TTS](docs/help/engines/localai-tts.md)** | Depends on the LocalAI host | Running LocalAI server with a TTS model; key only if authentication is enabled | Discovers TTS models and saved voice profiles without installing duplicate runtimes in TTS-Story. |
 
-VRAM use changes with precision, attention backend, chunk length, transcription device, drivers, and other loaded applications. FP16/bfloat16 generally use less memory than float32. NVIDIA CUDA is the primary tested path for the heavier local engines.
+VRAM use changes with precision, attention backend, chunk length, transcription device, drivers, and other loaded applications. FP16/bfloat16 generally use less memory than float32. NVIDIA CUDA is the primary tested path for the heavier local engines. Setup detects and validates optional FlashAttention 2 for Qwen3; when its CUDA/C++ build toolchain is unavailable, TTS-Story automatically uses PyTorch SDPA acceleration instead.
 
 For model-specific controls, languages, privacy, and limitations, see the [Engine Reference and Comparison](docs/help/engines/overview.md).
 

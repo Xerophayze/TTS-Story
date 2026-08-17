@@ -21,6 +21,7 @@ from .engines.azure_speech_engine import AzureSpeechEngine
 from .engines.edge_tts_engine import EdgeTTSEngine
 from .engines.elevenlabs_engine import ElevenLabsEngine
 from .engines.openai_tts_engine import OpenAITTSEngine
+from .engines.localai_tts_engine import LocalAITTSEngine
 from .engines.kokoro_engine import (
     DEFAULT_SAMPLE_RATE,
     KOKORO_AVAILABLE,
@@ -47,6 +48,7 @@ EngineRegistry: Dict[str, Type[TtsEngineBase]] = {
     "edge_tts": EdgeTTSEngine,
     "elevenlabs": ElevenLabsEngine,
     "openai_tts": OpenAITTSEngine,
+    "localai_tts": LocalAITTSEngine,
 }
 AVAILABLE_ENGINES = tuple(EngineRegistry.keys())
 

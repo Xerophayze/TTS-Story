@@ -443,17 +443,9 @@ class Qwen3VoiceCloneEngine(TtsEngineBase):
 
     @staticmethod
     def _resolve_attn_implementation(attn_value: Optional[str]) -> Optional[str]:
-        normalized = (attn_value or "").strip().lower().replace("-", "_")
-        if normalized in {"", "auto"}:
-            return None
-        if normalized in {"flash_attention_2", "flash_attention2", "flash"}:
-            try:
-                import flash_attn  # type: ignore  # noqa: F401
-            except Exception:
-                logger.warning("flash-attn not installed; falling back to eager attention for Qwen3")
-                return "eager"
-            return "flash_attention_2"
-        return normalized
+        from src.attention_backend import resolve_qwen_attention_backend
+
+        return resolve_qwen_attention_backend(attn_value, logger=logger)
 
 
 __all__ = [

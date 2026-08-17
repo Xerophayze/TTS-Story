@@ -101,13 +101,32 @@ class SectionHeadingPatternTests(unittest.TestCase):
             section["title"] for section in hierarchy["sections"]
         ])
 
-    def test_enabling_book_still_allows_intentional_multi_book_input(self) -> None:
+    def test_book_headings_are_flat_sections_not_separate_books(self) -> None:
         text = "Book One\nFirst story.\n\nBook Two\nSecond story."
 
         hierarchy = split_book_sections(text, ["book"])
 
-        self.assertEqual("book", hierarchy["kind"])
-        self.assertEqual(2, len(hierarchy["books"]))
+        self.assertEqual("section", hierarchy["kind"])
+        self.assertEqual([], hierarchy["books"])
+        self.assertEqual(["Book One", "Book Two"], [
+            section["title"] for section in hierarchy["sections"]
+        ])
+
+    def test_odyssey_style_books_remain_chapters_in_one_collection(self) -> None:
+        text = (
+            "The Odyssey.\nBy Homer.\n\n"
+            "Book 1.\nTell me, O Muse.\n\n"
+            "Book 2.\nNow when the child of morning appeared.\n\n"
+            "Book 3.\nBut as the sun was rising."
+        )
+
+        hierarchy = split_book_sections(text, ["book"])
+
+        self.assertEqual("section", hierarchy["kind"])
+        self.assertEqual([], hierarchy["books"])
+        self.assertEqual(["Title", "Book 1.", "Book 2.", "Book 3."], [
+            section["title"] for section in hierarchy["sections"]
+        ])
 
     def test_explicit_empty_heading_selection_detects_nothing(self) -> None:
         text = "Book One\nFirst story.\n\nChapter 2\nSecond story."

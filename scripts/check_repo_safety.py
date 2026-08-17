@@ -20,6 +20,7 @@ SECRET_CONFIG_KEYS = {
     "azure_speech_key",
     "elevenlabs_api_key",
     "openai_tts_api_key",
+    "localai_tts_api_key",
     "gemini_api_key",
     "replicate_api_key",
     "llm_local_api_key",
@@ -35,6 +36,7 @@ FORBIDDEN_EXACT_PATHS = {
     "data/external_voice_archives.json",
     "data/external_voices_cache.json",
     "data/projects.json",
+    "data/localai_voice_profiles.json",
     "jobs.db",
 }
 

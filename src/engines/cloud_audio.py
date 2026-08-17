@@ -53,7 +53,7 @@ def audio_bytes_to_wav(
             if result.returncode != 0:
                 detail = result.stderr.decode("utf-8", errors="replace").strip()[:300]
                 raise CloudAudioError(detail or "FFmpeg could not decode the provider audio.")
-            wav = bytes(result.stdout or b"")
+            wav = _finalize_streamed_wav(bytes(result.stdout or b""))
         elif raw[:4] == b"RIFF":
             # A WAV response is already in the engine contract. This fallback
             # keeps plan-gated ElevenLabs WAV output usable even without FFmpeg.
@@ -69,6 +69,31 @@ def audio_bytes_to_wav(
 
     validate_wav_bytes(wav)
     return wav
+
+
+def _finalize_streamed_wav(payload: bytes) -> bytes:
+    """Replace unknown RIFF/data sizes emitted when FFmpeg writes to a pipe."""
+    if len(payload) < 44 or payload[:4] != b"RIFF" or payload[8:12] != b"WAVE":
+        return payload
+    data_offset = -1
+    offset = 12
+    while offset + 8 <= len(payload):
+        chunk_id = payload[offset:offset + 4]
+        if chunk_id == b"data":
+            data_offset = offset
+            break
+        chunk_size = int.from_bytes(payload[offset + 4:offset + 8], "little")
+        if chunk_size > len(payload) - offset - 8:
+            break
+        offset += 8 + chunk_size + (chunk_size % 2)
+    if data_offset < 0:
+        return payload
+    finalized = bytearray(payload)
+    finalized[4:8] = min(len(finalized) - 8, 0xFFFFFFFF).to_bytes(4, "little")
+    finalized[data_offset + 4:data_offset + 8] = min(
+        len(finalized) - data_offset - 8, 0xFFFFFFFF
+    ).to_bytes(4, "little")
+    return bytes(finalized)
 
 
 def apply_wav_effects(payload: bytes, fx: Optional[VoiceFXSettings]) -> bytes:

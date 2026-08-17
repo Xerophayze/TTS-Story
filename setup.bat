@@ -725,6 +725,24 @@ if errorlevel 1 (
     echo WARNING: hf_xet install failed. Hugging Face downloads may be slower.
 )
 
+echo.
+echo Checking optional FlashAttention 2 acceleration for Qwen3-TTS...
+if "%INSTALL_FLASH_ATTN%"=="0" (
+    echo INSTALL_FLASH_ATTN=0 set. Skipping FlashAttention installation.
+) else (
+    python scripts\flash_attention_setup.py install
+    if errorlevel 1 (
+        echo WARNING: FlashAttention setup failed. Qwen3 will use PyTorch SDPA or eager attention.
+    )
+    if not "%TTS_STORY_PINOKIO%"=="1" if not "%FLASH_ATTN_PREREQ_PROMPT%"=="0" (
+        if "%REPAIR_MODE%"=="1" (
+            python scripts\flash_attention_setup.py offer-prerequisites
+        ) else if "%UPDATE_MODE%"=="0" (
+            python scripts\flash_attention_setup.py offer-prerequisites
+        )
+    )
+)
+
 call :EnsureVoicePromptFolder
 call :InstallSox
 call :InstallRubberBand
@@ -770,6 +788,8 @@ if errorlevel 1 (
         python scripts\torch_cuda_probe.py
     )
 )
+
+python scripts\flash_attention_setup.py diagnose
 
 python scripts\setup_state.py write --platform windows
 if errorlevel 1 (

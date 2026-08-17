@@ -422,6 +422,15 @@ echo "- hf_xet (faster Hugging Face downloads)"
 
 pip install hf_xet || echo "WARNING: hf_xet install failed. Hugging Face downloads may be slower."
 
+echo
+echo "Checking optional FlashAttention 2 acceleration for Qwen3-TTS..."
+if [ "${INSTALL_FLASH_ATTN:-1}" = "0" ]; then
+    echo "INSTALL_FLASH_ATTN=0 set. Skipping FlashAttention installation."
+else
+    python scripts/flash_attention_setup.py install || \
+        echo "WARNING: FlashAttention setup failed. Qwen3 will use PyTorch SDPA or eager attention."
+fi
+
 # 9a/12 Install KittenTTS runtime (optional, CPU-only)
 echo
 echo "[9a/12] Installing KittenTTS runtime (optional, CPU-only)..."
@@ -794,6 +803,8 @@ elif [ "$HAS_NVIDIA" -eq 1 ]; then
 else
     python scripts/torch_cuda_probe.py
 fi
+
+python scripts/flash_attention_setup.py diagnose
 
 python scripts/setup_state.py write --platform "$SETUP_PLATFORM_ID"
 touch .setup_complete

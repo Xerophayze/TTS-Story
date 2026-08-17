@@ -40,6 +40,9 @@
       "when": "{{platform !== 'linux'}}",
       "method": "shell.run",
       "params": {
+        "env": {
+          "TTS_STORY_PINOKIO": "1"
+        },
         "message": "{{os.platform() === 'win32' ? 'call setup.bat --update && exit' : 'chmod +x setup.sh && ./setup.sh --update && exit'}}",
         "on": [{ "event": "/Setup Complete/", "done": true }]
       }
