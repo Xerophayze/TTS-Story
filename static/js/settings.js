@@ -429,11 +429,13 @@ function pollEngineInstall(jobId, statusElement, button, output, action = 'insta
                         }
                     });
                     renderEngineSetupStatus();
+                    await loadHealthStatus();
                     alert('The engine runtime and its downloaded models were removed. Restart TTS-Story to finish unloading it. Your projects, generated audio, and saved voice samples were kept.');
                     return;
                 }
                 const settingsTab = statusElement.dataset.engineSetupTab || '';
                 await loadEngineSetupStatus();
+                await loadHealthStatus();
                 const installedEntries = engineSetupCatalog.filter(entry =>
                     entry.install_target === engine || entry.uninstall_target === engine
                 );

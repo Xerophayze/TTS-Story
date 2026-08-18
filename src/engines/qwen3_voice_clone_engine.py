@@ -66,7 +66,7 @@ class Qwen3VoiceCloneEngine(TtsEngineBase):
         default_prompt_text: Optional[str] = None,
     ):
         if not QWEN3_AVAILABLE:
-            raise ImportError("qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode.")
+            raise ImportError("Qwen3-TTS is not installed. Install it from Settings → Engine Settings.")
 
         resolved_device = self._resolve_device(device)
         if resolved_device.startswith("cuda") and torch.cuda.is_available():

@@ -2462,6 +2462,25 @@ audio {
     padding-top: 28px;
 }
 
+.engine-action-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    border-radius: 8px;
+    background: rgba(127, 29, 29, 0.18);
+    color: #fecaca;
+    font-size: 0.88rem;
+}
+
+.engine-action-notice.hidden {
+    display: none;
+}
+
 .speaker-profile-row {
     display: flex;
     flex-direction: column;

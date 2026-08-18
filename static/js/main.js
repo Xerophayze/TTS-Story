@@ -1,4 +1,60 @@
 const MIN_CHATTERBOX_PROMPT_SECONDS = 5;
+const QWEN_VOICE_DESIGN_INSTALL_MESSAGE = 'Install Qwen3-TTS from Settings → Engine Settings to generate voices.';
+window.qwenVoiceDesignAvailable = false;
+window.qwenVoiceDesignAvailabilityKnown = false;
+
+function openQwen3EngineSettings() {
+    document.querySelector('.tab-button[data-tab="settings"]')?.click();
+    document.getElementById('engine-settings-group')?.classList.remove('collapsed');
+    document.querySelector('.engine-tab-btn[data-engine-tab="qwen3"]')?.click();
+    document.getElementById('engine-settings-group')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.openQwen3EngineSettings = openQwen3EngineSettings;
+
+function refreshQwenVoiceDesignControls() {
+    const available = window.qwenVoiceDesignAvailable === true;
+    const known = window.qwenVoiceDesignAvailabilityKnown === true;
+    const unavailableTitle = known
+        ? QWEN_VOICE_DESIGN_INSTALL_MESSAGE
+        : 'Checking Qwen3-TTS VoiceDesign availability…';
+    const hasDetectedSpeakers = Array.isArray(currentStats?.speakers) && currentStats.speakers.length > 0;
+
+    const batchButton = document.getElementById('generate-voices-btn');
+    if (batchButton) {
+        batchButton.disabled = !available || !hasDetectedSpeakers;
+        batchButton.title = available ? '' : unavailableTitle;
+    }
+    document.getElementById('generate-voices-unavailable')?.classList.toggle('hidden', !known || available);
+
+    document.querySelectorAll('[data-role="speaker-generate-voice"]').forEach(button => {
+        button.disabled = !available;
+        button.title = available ? '' : unavailableTitle;
+    });
+    document.querySelectorAll('[data-role="qwen-voice-design-unavailable"]').forEach(notice => {
+        notice.classList.toggle('hidden', !known || available);
+    });
+
+    const voiceCreationButton = document.getElementById('qwen-voice-generate-btn');
+    if (voiceCreationButton) {
+        voiceCreationButton.disabled = !available;
+        voiceCreationButton.title = available ? '' : unavailableTitle;
+    }
+    document.getElementById('qwen-voice-unavailable')?.classList.toggle('hidden', !known || available);
+}
+window.refreshQwenVoiceDesignControls = refreshQwenVoiceDesignControls;
+
+function setQwenVoiceDesignAvailability(available, known = true) {
+    window.qwenVoiceDesignAvailable = available === true;
+    window.qwenVoiceDesignAvailabilityKnown = known === true;
+    refreshQwenVoiceDesignControls();
+    window.dispatchEvent(new CustomEvent('qwenVoiceDesignAvailabilityChanged', {
+        detail: {
+            available: window.qwenVoiceDesignAvailable,
+            known: window.qwenVoiceDesignAvailabilityKnown
+        }
+    }));
+}
+window.setQwenVoiceDesignAvailability = setQwenVoiceDesignAvailability;
 
 const HELP_TOPICS = {
     'input-text': {
@@ -3555,6 +3611,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     window.TTSStoryHelp?.init();
+    document.addEventListener('click', event => {
+        if (event.target instanceof Element && event.target.closest('[data-open-qwen3-settings]')) {
+            openQwen3EngineSettings();
+        }
+    });
 });
 
 function initVoiceDropdownFilters() {
@@ -4495,6 +4556,10 @@ async function loadHealthStatus() {
         const data = await response.json();
         
         if (data.success) {
+            setQwenVoiceDesignAvailability(
+                data.qwen3_voice_design_available ?? data.qwen3_available,
+                true
+            );
             const engineName = data.tts_engine || 'kokoro';
             updateModeIndicator(engineName);
             document.getElementById('cuda-status').textContent = 
@@ -4502,6 +4567,7 @@ async function loadHealthStatus() {
         }
     } catch (error) {
         console.error('Error loading health status:', error);
+        setQwenVoiceDesignAvailability(false, false);
     }
 }
 
@@ -4839,6 +4905,13 @@ async function requireQwenVoiceDesignBackend() {
         restartError.code = 'VOICE_DESIGN_BACKEND_RESTART_REQUIRED';
         throw restartError;
     }
+    const available = data.qwen3_voice_design_available ?? data.qwen3_available;
+    setQwenVoiceDesignAvailability(available, true);
+    if (!available) {
+        const installError = new Error(QWEN_VOICE_DESIGN_INSTALL_MESSAGE);
+        installError.code = 'QWEN_VOICE_DESIGN_INSTALL_REQUIRED';
+        throw installError;
+    }
 }
 
 async function pollVoiceDesignTask(taskId, urlFactory, statusLabel) {
@@ -4999,7 +5072,7 @@ async function generateSpeakerVoicePrompt(speaker) {
         showNotification(error.message || 'Failed to generate voice.', 'warning');
     } finally {
         if (generateBtn) {
-            generateBtn.disabled = false;
+            generateBtn.disabled = window.qwenVoiceDesignAvailable !== true;
             generateBtn.classList.remove('is-loading');
             generateBtn.textContent = generateBtn.dataset.labelIdle || 'Generate Voice';
         }
@@ -5054,7 +5127,7 @@ async function generateSpeakerVoiceCandidatesForSpeaker(speaker) {
     } finally {
         const currentButton = document.querySelector('#speaker-profile-summary [data-role="speaker-generate-voice"]');
         if (currentButton) {
-            currentButton.disabled = false;
+            currentButton.disabled = window.qwenVoiceDesignAvailable !== true;
             currentButton.classList.remove('is-loading');
             currentButton.textContent = 'Generate Voice';
         }
@@ -5150,7 +5223,11 @@ function renderSpeakerProfileSummary(speaker) {
             </div>
             <div class="speaker-profile-actions">
                 <button type="button" class="btn btn-secondary btn-sm" data-role="speaker-build-profile">Build Profile</button>
-                <button type="button" class="btn btn-secondary btn-sm" data-role="speaker-generate-voice">Generate Voice</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-role="speaker-generate-voice" disabled title="Checking Qwen3-TTS VoiceDesign availability…">Generate Voice</button>
+            </div>
+            <div class="engine-action-notice hidden" data-role="qwen-voice-design-unavailable">
+                <span>Qwen3-TTS VoiceDesign must be installed before this voice can be generated.</span>
+                <button type="button" class="btn btn-secondary btn-sm" data-open-qwen3-settings>Open Qwen3 Settings</button>
             </div>
         </div>
         ${candidates.length ? `
@@ -5180,6 +5257,7 @@ function renderSpeakerProfileSummary(speaker) {
     const candidateCountInput = summary.querySelector('[data-role="speaker-voice-candidate-count"]');
     const buildBtn = summary.querySelector('[data-role="speaker-build-profile"]');
     const generateBtn = summary.querySelector('[data-role="speaker-generate-voice"]');
+    refreshQwenVoiceDesignControls();
     if (descriptionInput) {
         descriptionInput.addEventListener('input', event => {
             updateSpeakerProfileEntry(speaker, { description: event.currentTarget.value || '' });
@@ -5805,7 +5883,7 @@ function displayStatistics(stats) {
 
     const batchBtn = document.getElementById('generate-voices-btn');
     if (batchBtn) {
-        batchBtn.disabled = !hasDetectedSpeakers;
+        batchBtn.disabled = !hasDetectedSpeakers || window.qwenVoiceDesignAvailable !== true;
     }
     const buildProfilesBtn = document.getElementById('build-speaker-profiles-btn');
     if (buildProfilesBtn) {

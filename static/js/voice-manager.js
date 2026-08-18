@@ -218,7 +218,22 @@ function setupQwenVoiceCreation() {
     if (saveBtn) {
         saveBtn.addEventListener('click', saveQwenVoicePrompt);
     }
-    loadQwenVoiceLanguages();
+    const refreshAvailability = event => {
+        const available = event?.detail?.available ?? (window.qwenVoiceDesignAvailable === true);
+        const known = event?.detail?.known ?? (window.qwenVoiceDesignAvailabilityKnown === true);
+        const status = document.getElementById('qwen-voice-status');
+        if (!available && status) {
+            status.textContent = known
+                ? 'Install Qwen3-TTS under Settings → Engine Settings to enable voice generation.'
+                : 'Checking Qwen3-TTS availability…';
+        } else if (available && status?.textContent?.includes('Qwen3-TTS')) {
+            status.textContent = '';
+        }
+        window.refreshQwenVoiceDesignControls?.();
+        if (available) loadQwenVoiceLanguages();
+    };
+    window.addEventListener('qwenVoiceDesignAvailabilityChanged', refreshAvailability);
+    refreshAvailability();
 }
 
 async function loadQwenVoiceLanguages() {
@@ -257,6 +272,11 @@ async function generateQwenVoicePreview() {
     const text = textInput?.value.trim() || '';
     const instruct = instructInput?.value.trim() || '';
     const language = languageSelect?.value || 'Auto';
+
+    if (window.qwenVoiceDesignAvailable !== true) {
+        showToast('Install Qwen3-TTS from Settings → Engine Settings to generate voices.', 'warning');
+        return;
+    }
 
     if (!text) {
         showToast('Enter sample text for the preview.', 'warning');
@@ -307,7 +327,7 @@ async function generateQwenVoicePreview() {
         }
     } finally {
         if (generateBtn) {
-            generateBtn.disabled = false;
+            generateBtn.disabled = window.qwenVoiceDesignAvailable !== true;
         }
     }
 }

@@ -23,6 +23,8 @@ Use a concrete instruction such as “calm middle-aged narrator, low pitch, meas
 
 Click **Generate Preview**, listen to the entire result, and click **Save to Voice Prompts** only when satisfied. Saving is disabled until a preview exists.
 
+If Qwen3-TTS is not installed, **Generate Preview** and the speaker **Generate Voice/Generate Voices** actions are disabled. Use the displayed **Open Qwen3 Settings** action, select **Install Engine**, and wait for the isolated runtime installation to finish.
+
 ## OmniVoice design
 
 Provide a name, optional gender metadata, a short description, and sample text. Build the Voice Instruction with the selectable tags for gender, age, pitch, whisper, and accent. Select at least one instruction tag before generating.
@@ -39,7 +41,7 @@ Use [Reference Voice Prompts](help:voice-prompts) to preview, archive, export, o
 
 ## Create voices from speaker profiles
 
-Prep Text can generate speaker profiles. Back on [Generate](app:generate), **Generate Voices** can use those profiles to design Qwen3 or OmniVoice samples sequentially for all detected speakers, optionally adding a name prefix. See [Generate and Auto-Assign Voices](help:auto-assign-voices).
+Prep Text can generate speaker profiles. Back on [Generate](app:generate), **Generate Voices** uses Qwen3 VoiceDesign to create samples sequentially for all detected speakers, optionally adding a name prefix. See [Generate and Auto-Assign Voices](help:auto-assign-voices).
 
 ## Quality and consent
 

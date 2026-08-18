@@ -184,7 +184,8 @@
                         <div id="speakers-list"></div>
                         <div class="speakers-actions">
                             <button type="button" id="build-speaker-profiles-btn" class="btn btn-secondary btn-sm" disabled>Build Profiles</button>
-                            <button type="button" id="generate-voices-btn" class="btn btn-secondary btn-sm">Generate Voices</button>
+                            <button type="button" id="generate-voices-btn" class="btn btn-secondary btn-sm" disabled title="Checking Qwen3-TTS VoiceDesign availability…">Generate Voices</button>
+                            <span id="generate-voices-unavailable" class="help-text hidden">Install Qwen3-TTS under Settings → Engine Settings to generate voices.</span>
                             <button type="button" id="auto-assign-voices-btn" class="btn btn-secondary btn-sm">Auto Assign</button>
                         </div>
                     </div>
@@ -515,9 +516,13 @@
                                 <textarea id="qwen-voice-instruct" rows="3" placeholder="e.g., Speak with controlled intensity and a smoky, cinematic tone."></textarea>
                             </div>
                             <div class="qwen-voice-actions">
-                                <button type="button" class="btn btn-primary" id="qwen-voice-generate-btn">Generate Preview</button>
+                                <button type="button" class="btn btn-primary" id="qwen-voice-generate-btn" disabled title="Checking Qwen3-TTS VoiceDesign availability…">Generate Preview</button>
                                 <button type="button" class="btn btn-secondary" id="qwen-voice-save-btn" disabled>Save to Voice Prompts</button>
                                 <span class="help-text" id="qwen-voice-status"></span>
+                            </div>
+                            <div id="qwen-voice-unavailable" class="engine-action-notice hidden">
+                                <span>Qwen3-TTS VoiceDesign must be installed before voices can be generated.</span>
+                                <button type="button" class="btn btn-secondary btn-sm" data-open-qwen3-settings>Open Qwen3 Settings</button>
                             </div>
                             <div class="qwen-voice-preview">
                                 <audio id="qwen-voice-preview" controls></audio>
@@ -2683,10 +2688,10 @@
     </div>
 
     <script src="/static/js/help.js?v=3"></script>
-<script src="/static/js/main.js?v=61"></script>
+<script src="/static/js/main.js?v=62"></script>
     <script src="/static/js/queue.js?v=4"></script>
 <script src="/static/js/library.js?v=45"></script>
-    <script src="/static/js/voice-manager.js?v=15"></script>
-<script src="/static/js/settings.js?v=24"></script>
+    <script src="/static/js/voice-manager.js?v=16"></script>
+<script src="/static/js/settings.js?v=25"></script>
 </body>
 </html>

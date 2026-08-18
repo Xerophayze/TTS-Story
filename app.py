@@ -2337,7 +2337,7 @@ def _qwen3_voice_design_signature(config: Dict[str, Any]) -> str:
 
 def _get_qwen3_voice_design_model(config: Dict[str, Any]):
     if not isolated_engine_available("qwen3_custom"):
-        raise ImportError("qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode.")
+        raise ImportError("Qwen3-TTS is not installed. Install it from Settings → Engine Settings.")
     global qwen3_voice_design_model, qwen3_voice_design_signature
     config = config or {}
     signature = _qwen3_voice_design_signature(config)
@@ -12820,6 +12820,7 @@ def health_check():
             CHATTERBOX_TURBO_UNAVAILABLE_REASON if not CHATTERBOX_TURBO_AVAILABLE else ""
         ),
         "qwen3_available": isolated_engine_available("qwen3_custom"),
+        "qwen3_voice_design_available": isolated_engine_available("qwen3_custom"),
         "qwen3_voice_design_api_version": 2,
         "omnivoice_available": omnivoice_available(),
         "pocket_tts_available": isolated_engine_available("pocket_tts"),
@@ -12861,7 +12862,7 @@ def qwen3_metadata():
     if not isolated_engine_available("qwen3_custom"):
         return jsonify({
             "success": False,
-            "error": "qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode."
+            "error": "Qwen3-TTS VoiceDesign is not installed. Install Qwen3-TTS from Settings → Engine Settings."
         }), 400
     # Return static metadata - these are the actual Qwen3-TTS-CustomVoice supported speakers/languages
     # Avoids loading the full model (~3-4GB GPU) just to get this list
@@ -12882,7 +12883,7 @@ def qwen3_voice_design_preview():
     if not isolated_engine_available("qwen3_custom"):
         return jsonify({
             "success": False,
-            "error": "qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode."
+            "error": "Qwen3-TTS VoiceDesign is not installed. Install Qwen3-TTS from Settings → Engine Settings."
         }), 400
     payload = request.get_json(silent=True) or {}
     text = (payload.get("text") or "").strip()
@@ -12898,7 +12899,7 @@ def qwen3_voice_design_save():
     if not isolated_engine_available("qwen3_custom"):
         return jsonify({
             "success": False,
-            "error": "qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode."
+            "error": "Qwen3-TTS VoiceDesign is not installed. Install Qwen3-TTS from Settings → Engine Settings."
         }), 400
     payload = request.get_json(silent=True) or {}
     name = (payload.get("name") or "").strip()

@@ -14,7 +14,7 @@ TTS-Story uses three distinct Qwen3-TTS model modes. **CustomVoice** and **Voice
 
 ## Requirements and setup
 
-The normal setup installs the Qwen TTS runtime. Each mode uses a separate 1.7B model by default, so selecting a new mode can trigger another multi-gigabyte download. A supported NVIDIA GPU is strongly recommended. CPU is selectable but can be impractically slow for long work.
+Install Qwen3-TTS from **Settings → Engine Settings → Qwen3-TTS**. TTS-Story creates its isolated runtime only when you select **Install Engine**. Each mode uses a separate 1.7B model by default, so selecting a new mode can trigger another multi-gigabyte download. A supported NVIDIA GPU is strongly recommended. CPU is selectable but can be impractically slow for long work.
 
 The defaults are:
 
@@ -23,6 +23,8 @@ The defaults are:
 - `Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign` for Voice Creation
 
 Open [Settings → Engine Settings](app:settings/qwen3), leave Device at `auto`, and use the default model IDs unless deliberately testing a compatible replacement.
+
+When this optional runtime is unavailable, **Generate Voice**, **Generate Voices**, and the Qwen **Generate Preview** action are disabled. The accompanying notice opens the Qwen3 Engine Settings panel so the runtime can be installed. Removing Qwen3 disables those actions again without removing already saved voice samples.
 
 ## Controls TTS-Story exposes
 

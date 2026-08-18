@@ -259,7 +259,30 @@ def test_speaker_properties_offers_single_profile_generation():
 def test_main_bundle_cache_key_includes_profile_migration_release():
     template = (PROJECT_ROOT / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert '/static/js/main.js?v=61' in template
+    assert '/static/js/main.js?v=62' in template
+
+
+def test_qwen_voice_generation_controls_require_optional_engine_installation(monkeypatch):
+    template = (PROJECT_ROOT / "templates" / "index.html").read_text(encoding="utf-8")
+    javascript = (PROJECT_ROOT / "static" / "js" / "main.js").read_text(encoding="utf-8")
+    voice_manager = (PROJECT_ROOT / "static" / "js" / "voice-manager.js").read_text(encoding="utf-8")
+
+    assert 'id="generate-voices-btn" class="btn btn-secondary btn-sm" disabled' in template
+    assert 'id="qwen-voice-generate-btn" disabled' in template
+    assert 'data-role="speaker-generate-voice" disabled' in javascript
+    assert 'data-open-qwen3-settings' in template
+    assert 'data-open-qwen3-settings' in javascript
+    assert "qwen3_voice_design_available" in javascript
+    assert "window.qwenVoiceDesignAvailable !== true" in voice_manager
+
+    monkeypatch.setattr(app_module, "isolated_engine_available", lambda _engine: False)
+    client = app_module.app.test_client()
+    health = client.get("/api/health").get_json()
+    preview = client.post("/api/qwen3/voice-design/preview", json={"text": "Test"})
+
+    assert health["qwen3_voice_design_available"] is False
+    assert preview.status_code == 400
+    assert "Settings" in preview.get_json()["error"]
 
 
 def test_voice_sample_assignments_survive_compatible_engine_switches():
