@@ -158,7 +158,7 @@ def test_onboarding_marker_is_dismissed(tmp_path, monkeypatch):
     assert not marker.exists()
 
 
-def test_engine_install_endpoint_is_local_only():
+def test_engine_install_endpoint_is_local_only_by_default():
     client = app_module.app.test_client()
     response = client.post(
         "/api/engines/install",
@@ -175,6 +175,38 @@ def test_engine_install_endpoint_is_local_only():
     assert response.status_code == 403
 
 
+def test_remote_engine_management_requires_matching_admin_token(monkeypatch):
+    config = dict(app_module.DEFAULT_CONFIG)
+    config.update({
+        "remote_engine_management_enabled": True,
+        "remote_engine_management_token": "correct-private-token",
+    })
+    monkeypatch.setattr(app_module, "load_config", lambda: dict(config))
+
+    with app_module.app.test_request_context(
+        "/api/engines/uninstall",
+        method="POST",
+        environ_base={"REMOTE_ADDR": "192.0.2.20"},
+    ):
+        assert app_module._engine_management_request_allowed() is False
+
+    with app_module.app.test_request_context(
+        "/api/engines/uninstall",
+        method="POST",
+        headers={"X-TTS-Story-Admin-Token": "correct-private-token"},
+        environ_base={"REMOTE_ADDR": "192.0.2.20"},
+    ):
+        assert app_module._engine_management_request_allowed() is True
+
+
+def test_settings_api_never_returns_remote_admin_token(monkeypatch):
+    config = dict(app_module.DEFAULT_CONFIG)
+    config["remote_engine_management_token"] = "do-not-return-this"
+    monkeypatch.setattr(app_module, "load_config", lambda: dict(config))
+    response = app_module.app.test_client().get("/api/settings")
+    assert response.status_code == 200
+    assert response.get_json()["settings"]["remote_engine_management_token"] == ""
+
 def test_frontend_has_engine_manager_and_first_run_welcome():
     template = (ROOT / "templates" / "index.html").read_text(encoding="utf-8")
     javascript = (ROOT / "static" / "js" / "settings.js").read_text(encoding="utf-8")
@@ -186,7 +218,7 @@ def test_frontend_has_engine_manager_and_first_run_welcome():
     assert 'id="remote-engine-tabs-label"' in template
     assert template.index('data-engine-tab="omnivoice"') < template.index('id="remote-engine-tabs-label"')
     assert template.index('id="remote-engine-tabs-label"') < template.index('data-engine-tab="azure-speech"')
-    assert '/static/js/settings.js?v=25' in template
+    assert '/static/js/settings.js?v=27' in template
     assert "async function loadEngineSetupStatus()" in javascript
     assert "async function startEngineInstall(" in javascript
     assert "async function startEngineUninstall(" in javascript
@@ -202,6 +234,9 @@ def test_frontend_has_engine_manager_and_first_run_welcome():
     assert "setEngineManagementBusy(activeJob, true)" in javascript
     assert "async function restartTtsStoryBackend(button)" in javascript
     assert "/api/system/restart" in javascript
+    assert 'id="remote-engine-management-enabled"' in template
+    assert 'id="remote-engine-management-token"' in template
+    assert "X-TTS-Story-Admin-Token" in javascript
     assert "instance_id !== previousInstance" in javascript
     main_javascript = (ROOT / "static" / "js" / "main.js").read_text(encoding="utf-8")
     assert "function showEngineFirstRunNotice(engineName)" in main_javascript

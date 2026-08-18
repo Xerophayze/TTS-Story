@@ -4,6 +4,18 @@ set -e
 REPO_URL="https://github.com/Xerophayze/TTS-Story.git"
 REPO_DIR="TTS-Story"
 
+run_as_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        echo "ERROR: A required system operation needs root access, but sudo is not installed."
+        echo "Run this installer as root or install the required package in the container image."
+        return 127
+    fi
+}
+
 pull_updates() {
     local config_backup=""
     if [ -f "config.json" ] && [ -n "$(git status --porcelain -- config.json 2>/dev/null)" ]; then
@@ -67,18 +79,18 @@ if ! command -v git >/dev/null 2>&1; then
     echo "Git not found. Installing Git..."
     
     if command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq git
+        run_as_root apt-get update -qq
+        run_as_root apt-get install -y -qq git
     elif command -v brew >/dev/null 2>&1; then
         brew install git
     elif command -v pacman >/dev/null 2>&1; then
-        sudo pacman -Sy --noconfirm git
+        run_as_root pacman -Sy --noconfirm git
     elif command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y git
+        run_as_root dnf install -y git
     elif command -v yum >/dev/null 2>&1; then
-        sudo yum install -y git
+        run_as_root yum install -y git
     elif command -v apk >/dev/null 2>&1; then
-        sudo apk add git
+        run_as_root apk add git
     else
         echo "ERROR: Could not detect package manager to install git."
         exit 1
@@ -107,7 +119,7 @@ if [ -d "$REPO_DIR" ]; then
             echo "Repository owned by current user."
         else
             echo "Fixing repository ownership..."
-            sudo chown -R $(whoami):$(whoami) "$REPO_DIR" 2>/dev/null || true
+            run_as_root chown -R "$(id -un):$(id -gn)" "$REPO_DIR" 2>/dev/null || true
         fi
         cd "$REPO_DIR"
         pull_updates

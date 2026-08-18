@@ -35,6 +35,24 @@ let llmBackupProfiles = [];
 const MAX_LLM_BACKUP_PROFILES = 100;
 let engineSetupCatalog = [];
 let activeEngineInstallPoll = null;
+
+function getRemoteEngineManagementToken() {
+    const inputValue = document.getElementById('remote-engine-management-token')?.value?.trim() || '';
+    if (inputValue) return inputValue;
+    try {
+        return sessionStorage.getItem('ttsStoryRemoteAdminToken') || '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function engineManagementHeaders({ json = false } = {}) {
+    const headers = {};
+    if (json) headers['Content-Type'] = 'application/json';
+    const token = getRemoteEngineManagementToken();
+    if (token) headers['X-TTS-Story-Admin-Token'] = token;
+    return headers;
+}
 let activeEngineManagementJobId = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -292,7 +310,7 @@ async function restartTtsStoryBackend(button) {
     try {
         const response = await fetch('/api/system/restart', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: engineManagementHeaders({ json: true }),
             body: '{}',
         });
         const data = await response.json();
@@ -339,7 +357,7 @@ async function startEngineInstall(engine, statusElement, button) {
     try {
         const response = await fetch('/api/engines/install', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: engineManagementHeaders({ json: true }),
             body: JSON.stringify({ engine }),
         });
         const data = await response.json();
@@ -375,7 +393,7 @@ async function startEngineUninstall(engineEntry, statusElement, button) {
     try {
         const response = await fetch('/api/engines/uninstall', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: engineManagementHeaders({ json: true }),
             body: JSON.stringify({ engine }),
         });
         const data = await response.json();
@@ -1187,6 +1205,18 @@ function setupSettingsListeners() {
     // Reset settings
     document.getElementById('reset-settings-btn').addEventListener('click', resetSettings);
 
+    document.getElementById('generate-remote-engine-management-token')?.addEventListener('click', () => {
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
+        const token = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+        const input = document.getElementById('remote-engine-management-token');
+        if (input) {
+            input.value = token;
+            input.type = 'text';
+            input.select();
+        }
+    });
+
     const fetchGeminiModelsBtn = document.getElementById('fetch-gemini-models-btn');
     if (fetchGeminiModelsBtn) {
         fetchGeminiModelsBtn.addEventListener('click', () => fetchGeminiModels(fetchGeminiModelsBtn));
@@ -1720,9 +1750,10 @@ async function fetchElevenLabsCatalog(buttonEl, { force = true } = {}) {
 
 function populateLocalAITtsCatalog(settings = {}) {
     const modelSelect = document.getElementById('localai-tts-model');
-    const voiceSelect = document.getElementById('localai-tts-default-voice');
+    const voiceInput = document.getElementById('localai-tts-default-voice');
+    const voiceOptions = document.getElementById('localai-tts-voice-options');
     const selectedModel = settings.localai_tts_model ?? modelSelect?.value ?? '';
-    const selectedVoice = settings.localai_tts_default_voice ?? voiceSelect?.value ?? '';
+    const selectedVoice = settings.localai_tts_default_voice ?? voiceInput?.value ?? '';
     if (modelSelect) {
         const entries = [...settingsLocalAITtsModels];
         if (selectedModel && !entries.some(model => (model.model_id || model.id) === selectedModel)) {
@@ -1736,24 +1767,18 @@ function populateLocalAITtsCatalog(settings = {}) {
         )));
         modelSelect.value = selectedModel || entries[0]?.model_id || entries[0]?.id || '';
     }
-    if (voiceSelect) {
-        const entries = [...settingsLocalAITtsVoices];
-        if (selectedVoice && !entries.some(voice => (voice.voice_id || voice.short_name) === selectedVoice)) {
-            entries.unshift({ voice_id: selectedVoice, display_name: `${selectedVoice} (saved)` });
-        }
-        voiceSelect.innerHTML = '';
-        voiceSelect.add(new Option('Model default voice', ''));
-        entries.forEach(voice => {
+    if (voiceOptions) {
+        voiceOptions.innerHTML = '';
+        settingsLocalAITtsVoices.forEach(voice => {
             const id = voice.voice_id || voice.short_name;
-            const locale = voice.locale ? ` · ${voice.locale}` : '';
-            const option = new Option(`${voice.display_name || id}${locale}`, id);
-            option.disabled = Boolean(voice.disabled);
-            if (voice.disabled_reason) option.title = voice.disabled_reason;
-            voiceSelect.add(option);
+            if (!id || voice.disabled) return;
+            const option = document.createElement('option');
+            option.value = id;
+            option.label = `${voice.display_name || id}${voice.locale ? ` · ${voice.locale}` : ''}`;
+            voiceOptions.appendChild(option);
         });
-        voiceSelect.value = selectedVoice;
-        if (voiceSelect.selectedOptions[0]?.disabled) voiceSelect.value = '';
     }
+    if (voiceInput) voiceInput.value = selectedVoice;
 }
 
 async function fetchLocalAITtsCatalog(buttonEl) {
@@ -1782,13 +1807,16 @@ async function fetchLocalAITtsCatalog(buttonEl) {
         settingsLocalAITtsVoices = Array.isArray(data.voices) ? data.voices : [];
         populateLocalAITtsCatalog({
             localai_tts_model: document.getElementById('localai-tts-model')?.value || data.configured_model || settingsLocalAITtsModels[0]?.model_id || '',
-            localai_tts_default_voice: document.getElementById('localai-tts-default-voice')?.value || data.configured_voice || settingsLocalAITtsVoices[0]?.voice_id || '',
+            localai_tts_default_voice: document.getElementById('localai-tts-default-voice')?.value || data.configured_voice || '',
         });
         if (status) {
             const cloning = data.selected_model_voice_cloning === true
                 ? ` ${data.tts_story_voice_ready_count || 0} TTS-Story sample(s) ready for cloning.`
                 : (data.selected_model_voice_cloning === false ? ' The selected model does not advertise voice cloning.' : ' Select a model and reload to check voice cloning.');
-            status.textContent = `Connected${data.version ? ` (${data.version})` : ''}. Loaded ${settingsLocalAITtsModels.length} TTS model(s) and ${settingsLocalAITtsVoices.length} voice option(s).${cloning}`;
+            const voiceNote = settingsLocalAITtsVoices.length
+                ? ` Loaded ${settingsLocalAITtsVoices.length} voice suggestion(s).`
+                : ' No saved voice profiles were advertised; freeform voice or speaker IDs can still be entered.';
+            status.textContent = `Connected${data.version ? ` (${data.version})` : ''}. Loaded ${settingsLocalAITtsModels.length} TTS model(s).${voiceNote}${cloning}`;
         }
         return data;
     } catch (error) {
@@ -1881,6 +1909,10 @@ function populateOpenAITtsSettingsOptions(settings) {
 
 // Apply settings to UI
 function applySettings(settings) {
+    const remoteManagementEnabled = document.getElementById('remote-engine-management-enabled');
+    if (remoteManagementEnabled) {
+        remoteManagementEnabled.checked = Boolean(settings.remote_engine_management_enabled);
+    }
     // Replicate-hosted TTS engines share one provider token and request limit.
     setElementValue('kokoro-replicate-api-key', settings.replicate_api_key || '');
     setElementValue('chatterbox-replicate-api-key', settings.replicate_api_key || '');
@@ -2034,6 +2066,7 @@ function applySettings(settings) {
     setElementValue('localai-tts-api-key', settings.localai_tts_api_key || '');
     setElementValue('localai-tts-base-url', settings.localai_tts_base_url || LOCALAI_TTS_BASE_URL, LOCALAI_TTS_BASE_URL);
     populateLocalAITtsCatalog(settings);
+    setElementValue('localai-tts-default-language', settings.localai_tts_default_language || '');
     setElementValue('localai-tts-instructions', settings.localai_tts_instructions || '');
     setElementValue('localai-tts-timeout', settings.localai_tts_timeout ?? 180, 180);
     setElementValue('localai-tts-max-parallel', settings.localai_tts_max_parallel ?? 1, 1);
@@ -2518,6 +2551,8 @@ async function saveSettings() {
         ) || 3)),
         group_chunks_by_speaker: document.getElementById('group-chunks-by-speaker')?.checked ?? false,
         cleanup_vram_after_job: document.getElementById('cleanup-vram-after-job')?.checked ?? false,
+        remote_engine_management_enabled: Boolean(document.getElementById('remote-engine-management-enabled')?.checked),
+        remote_engine_management_token: document.getElementById('remote-engine-management-token')?.value?.trim() || '',
         gemini_api_key: document.getElementById('gemini-api-key').value,
         gemini_model: document.getElementById('gemini-model').value,
         gemini_prompt: document.getElementById('gemini-prompt').value,
@@ -2577,6 +2612,7 @@ async function saveSettings() {
         localai_tts_base_url: document.getElementById('localai-tts-base-url')?.value?.trim() || LOCALAI_TTS_BASE_URL,
         localai_tts_model: document.getElementById('localai-tts-model')?.value?.trim() || '',
         localai_tts_default_voice: document.getElementById('localai-tts-default-voice')?.value?.trim() || '',
+        localai_tts_default_language: document.getElementById('localai-tts-default-language')?.value?.trim() || '',
         localai_tts_instructions: document.getElementById('localai-tts-instructions')?.value?.trim() || '',
         localai_tts_timeout: Math.max(10, Math.min(600, parseInt(document.getElementById('localai-tts-timeout')?.value, 10) || 180)),
         localai_tts_max_parallel: Math.max(1, Math.min(8, parseInt(document.getElementById('localai-tts-max-parallel')?.value, 10) || 1)),
@@ -2737,15 +2773,17 @@ async function saveSettings() {
     try {
         const response = await fetch('/api/settings', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: engineManagementHeaders({ json: true }),
             body: JSON.stringify(settings)
         });
         
         const data = await response.json();
         
         if (data.success) {
+            const remoteToken = document.getElementById('remote-engine-management-token')?.value?.trim() || '';
+            if (remoteToken) {
+                try { sessionStorage.setItem('ttsStoryRemoteAdminToken', remoteToken); } catch (_) {}
+            }
             alert('Settings saved successfully!');
             // LocalAI voice availability depends on the selected model and the
             // explicit voice-cloning rights confirmation. Refresh the shared
@@ -2851,6 +2889,7 @@ async function resetSettings() {
         localai_tts_base_url: LOCALAI_TTS_BASE_URL,
         localai_tts_model: '',
         localai_tts_default_voice: '',
+        localai_tts_default_language: '',
         localai_tts_instructions: '',
         localai_tts_timeout: 180,
         localai_tts_max_parallel: 1,
@@ -2922,15 +2961,15 @@ async function resetSettings() {
         dots_tts_language: 'none',
         dots_tts_normalize_text: false,
         dots_tts_optimize: false,
-        dots_tts_allow_xvector_only: false
+        dots_tts_allow_xvector_only: false,
+        remote_engine_management_enabled: false,
+        remote_engine_management_token: ''
     };
     
     try {
         const response = await fetch('/api/settings', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: engineManagementHeaders({ json: true }),
             body: JSON.stringify(defaults)
         });
         

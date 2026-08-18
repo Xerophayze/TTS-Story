@@ -144,7 +144,7 @@ Cloud engines perform model inference remotely and therefore require **no local 
 | **[Microsoft Edge TTS](docs/help/engines/edge-tts.md)** | **0 GB** | Internet connection; no API key | Experimental consumer endpoint with no availability guarantee. |
 | **[ElevenLabs](docs/help/engines/elevenlabs.md)** | **0 GB** | API key, model/voice access, and character quota | Subscription and concurrency limits apply. |
 | **[OpenAI-compatible TTS](docs/help/engines/openai-tts.md)** | **0 GB** | Compatible endpoint, model, voice, and key when required | Cost and capabilities depend on the endpoint. |
-| **[LocalAI TTS](docs/help/engines/localai-tts.md)** | Depends on the LocalAI host | Running LocalAI server with a TTS model; key only if authentication is enabled | Discovers TTS models and saved voice profiles without installing duplicate runtimes in TTS-Story. |
+| **[LocalAI TTS](docs/help/engines/localai-tts.md)** | Depends on the LocalAI host | Running LocalAI server with a TTS model; key only if authentication is enabled | Discovers TTS models and saved profiles, while also accepting freeform voice/speaker IDs and language values for models that do not advertise a voice catalog. |
 
 VRAM use changes with precision, attention backend, chunk length, transcription device, drivers, and other loaded applications. FP16/bfloat16 generally use less memory than float32. NVIDIA CUDA is the primary tested path for the heavier local engines. Setup detects and validates optional FlashAttention 2 for Qwen3; when its CUDA/C++ build toolchain is unavailable, TTS-Story automatically uses PyTorch SDPA acceleration instead.
 
@@ -162,6 +162,8 @@ For model-specific controls, languages, privacy, and limitations, see the [Engin
 8. Use the Audio Library to listen, repair individual chunks, regenerate speakers, rebuild audio, edit metadata, and export the final result.
 
 The complete screenshot-guided workflow is available in [Generate Your First Audio](docs/help/start-here/quick-start.md). See [Install, Remove, and Reinstall TTS Engines](docs/help/settings/engine-management.md) for optional-engine management and [LocalAI TTS](docs/help/engines/localai-tts.md) for self-hosted speech setup.
+
+Engine installation, removal, and backend restart remain localhost-only unless authenticated remote administration is explicitly enabled. This supports trusted LAN and reverse-proxy deployments without exposing destructive management actions by default.
 
 ## Voice Cloning
 

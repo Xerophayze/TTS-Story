@@ -1726,9 +1726,10 @@ function updateAssignmentModes(engineName) {
         const turboControl = row.querySelector('[data-role="turbo-control"]');
         const qwenControl = row.querySelector('[data-role="qwen3-control"]');
         const azureControl = row.querySelector('[data-role="azure-speech-control"]');
+        const localAIControl = row.querySelector('[data-role="localai-control"]');
         const kokoroPanel = row.querySelector('[data-role="kokoro-panel"]');
         if (kokoroControl) {
-            kokoroControl.style.display = (isTurbo || isCloneStyle) ? 'none' : 'flex';
+            kokoroControl.style.display = (isTurbo || isCloneStyle || isLocalAITts) ? 'none' : 'flex';
             const label = kokoroControl.querySelector('label');
             if (label) {
                 label.textContent = isQwen
@@ -1749,6 +1750,9 @@ function updateAssignmentModes(engineName) {
         if (azureControl) {
             azureControl.style.display = isAzureSpeech ? 'block' : 'none';
             if (isAzureSpeech) updateAzureVoiceControls(row);
+        }
+        if (localAIControl) {
+            localAIControl.style.display = isLocalAITts ? 'flex' : 'none';
         }
         if (kokoroPanel) {
             kokoroPanel.style.display = 'flex';
@@ -5804,8 +5808,16 @@ function applyProjectAssignments(project) {
         const refSelect = row.querySelector('.reference-select');
         const qwenLang = row.querySelector('.qwen3-language-select');
         const qwenInstruct = row.querySelector('.qwen3-instruct-input');
+        const localAIVoice = row.querySelector('.localai-voice-input');
+        const localAILanguage = row.querySelector('.localai-language-input');
         if (voiceSelect && assignments[speaker]?.voice) {
             voiceSelect.value = assignments[speaker].voice;
+        }
+        if (localAIVoice) {
+            localAIVoice.value = assignments[speaker]?.voice || '';
+        }
+        if (localAILanguage) {
+            localAILanguage.value = assignments[speaker]?.lang_code || '';
         }
         if (isAzureSpeechEngine(project.engine) && assignments[speaker]?.extra) {
             azureVoiceOptionState[speaker] = { ...assignments[speaker].extra };
@@ -5954,6 +5966,14 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
         if (!spk) return;
         const vs = row.querySelector('.voice-select');
         if (vs && vs.value) voiceSelectSnapshot[spk] = vs.value;
+        const localVoice = row.querySelector('.localai-voice-input');
+        const localLanguage = row.querySelector('.localai-language-input');
+        if (localVoice?.value || localLanguage?.value) {
+            voiceSelectSnapshot[`${spk}:localai`] = {
+                voice: localVoice?.value || '',
+                language: localLanguage?.value || '',
+            };
+        }
         const rs = row.querySelector('.reference-select');
         if (vs?.value?.startsWith(TTS_STORY_VOICE_REFERENCE_PREFIX)) {
             rememberCompatibleVoiceSample(spk, vs.value);
@@ -6012,6 +6032,13 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
                                    value="${emotion.replace(/"/g, '&quot;')}"
                                    placeholder="e.g., Speak with excitement" />
                         </div>
+                    </div>
+                    <div class="assignment-select localai-inline-control" data-role="localai-control" style="display: none;">
+                        <label>LocalAI Voice / Speaker ID</label>
+                        <input type="text" class="localai-voice-input" data-speaker="${speaker}" list="localai-tts-voice-options" placeholder="Model default, discovered profile, or custom ID" />
+                        <label>Language (optional)</label>
+                        <input type="text" class="localai-language-input" data-speaker="${speaker}" placeholder="e.g. en, en-US, French" />
+                        <small class="help-text">Values are passed directly to the selected LocalAI model.</small>
                     </div>
                 </div>
                 <div class="azure-speech-inline-options" data-role="azure-speech-control" style="display: none;">
@@ -6084,6 +6111,13 @@ function displayInlineVoiceAssignments(speakers, speakerEmotions = {}) {
             const vs = row.querySelector('.voice-select');
             if (vs && voiceSelectSnapshot[spk]) {
                 restoreSelectValue(vs, voiceSelectSnapshot[spk]);
+            }
+            const localSnapshot = voiceSelectSnapshot[`${spk}:localai`];
+            if (localSnapshot) {
+                const voiceInput = row.querySelector('.localai-voice-input');
+                const languageInput = row.querySelector('.localai-language-input');
+                if (voiceInput) voiceInput.value = localSnapshot.voice || '';
+                if (languageInput) languageInput.value = localSnapshot.language || '';
             }
             if (isAzureSpeechEngine(getSelectedJobEngine() || runtimeSettings?.tts_engine)) {
                 updateAzureVoiceControls(row, azureVoiceOptionState[spk] || {});
@@ -6233,9 +6267,7 @@ function populateVoiceSelects() {
         return;
     }
     if (isLocalAITts && !localAITtsVoices.length) {
-        setCatalogVoicePlaceholder('Loading LocalAI voice profiles...');
         if (!localAITtsCatalogPromise) loadLocalAITtsCatalog();
-        return;
     }
     if (!window.availableVoices && !window.availablePocketTtsVoices && !isKittenEngine(engineName) && !isIndexTTSEngine(engineName) && !isDotsTTSEngine(engineName) && !isCatalogCloudEngine(engineName)) return;
     const isQwen = isQwenEngine(engineName);
@@ -6274,6 +6306,30 @@ function populateVoiceSelects() {
         }
         if (isAzureSpeech) updateAzureVoiceControls(select.closest('.voice-assignment-row'));
     });
+    if (isLocalAITts) {
+        const sharedDatalist = document.getElementById('localai-tts-voice-options');
+        if (sharedDatalist) {
+            sharedDatalist.innerHTML = '';
+            localAITtsVoices.forEach(voice => {
+                const id = voice.voice_id || voice.short_name;
+                if (!id || voice.disabled) return;
+                const option = document.createElement('option');
+                option.value = id;
+                option.label = `${voice.display_name || id}${voice.locale ? ` · ${voice.locale}` : ''}`;
+                sharedDatalist.appendChild(option);
+            });
+        }
+        getAssignmentRows().forEach(row => {
+            const input = row.querySelector('.localai-voice-input');
+            if (!input) return;
+            const currentValue = input.value;
+            input.value = currentValue || runtimeSettings?.localai_tts_default_voice || '';
+            const languageInput = row.querySelector('.localai-language-input');
+            if (languageInput && !languageInput.value) {
+                languageInput.value = runtimeSettings?.localai_tts_default_language || '';
+            }
+        });
+    }
 }
 
 // Generate audio
@@ -7166,6 +7222,31 @@ function getVoiceAssignments() {
     const globalReference = (turboEnabled || qwenCloneEnabled || omniCloneEnabled) ? getGlobalReferenceSelection() : '';
     const qwenSpeakerDefault = document.getElementById('qwen3-default-speaker')?.value || '';
     const qwenLanguage = document.getElementById('qwen3-default-language')?.value || 'Auto';
+
+    if (isLocalAITtsEngine(engineName)) {
+        const rows = getAssignmentRows();
+        const targets = rows.length ? rows : [];
+        targets.forEach(row => {
+            const speaker = row.dataset.speaker;
+            if (!speaker) return;
+            const voice = row.querySelector('.localai-voice-input')?.value?.trim()
+                || runtimeSettings?.localai_tts_default_voice || '';
+            const language = row.querySelector('.localai-language-input')?.value?.trim()
+                || runtimeSettings?.localai_tts_default_language || '';
+            const assignment = createAssignment(voice, language, speaker);
+            assignment.voice = voice;
+            assignment.lang_code = language;
+            assignments[speaker] = assignment;
+        });
+        if (!targets.length) {
+            assignments.default = createAssignment(
+                runtimeSettings?.localai_tts_default_voice || '',
+                runtimeSettings?.localai_tts_default_language || '',
+                'default'
+            );
+        }
+        return assignments;
+    }
 
     // OmniVoice Clone: build per-speaker assignment from the reference-select.
     // If no reference is selected, emit an empty assignment so the empty-map

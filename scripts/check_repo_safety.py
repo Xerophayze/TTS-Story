@@ -26,6 +26,7 @@ SECRET_CONFIG_KEYS = {
     "llm_local_api_key",
     "chatterbox_turbo_replicate_api_token",
     "huggingface_token",
+    "remote_engine_management_token",
 }
 
 FORBIDDEN_EXACT_PATHS = {

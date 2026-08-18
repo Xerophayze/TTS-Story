@@ -9,6 +9,7 @@ import webbrowser
 import copy
 import inspect
 import hashlib
+import hmac
 import io
 import json
 import concurrent.futures
@@ -336,6 +337,7 @@ DEFAULT_CONFIG = {
     "localai_tts_base_url": DEFAULT_LOCALAI_TTS_BASE_URL,
     "localai_tts_model": "",
     "localai_tts_default_voice": "",
+    "localai_tts_default_language": "",
     "localai_tts_instructions": "",
     "localai_tts_timeout": 180,
     "localai_tts_max_parallel": 1,
@@ -447,6 +449,8 @@ DEFAULT_CONFIG = {
     "parallel_chunks": 3,
     "group_chunks_by_speaker": False,
     "cleanup_vram_after_job": False,
+    "remote_engine_management_enabled": False,
+    "remote_engine_management_token": "",
 }
 
 SECRET_CONFIG_KEYS = {
@@ -461,6 +465,7 @@ SECRET_CONFIG_KEYS = {
     "openai_tts_api_key",
     "localai_tts_api_key",
     "huggingface_token",
+    "remote_engine_management_token",
 }
 
 POCKET_TTS_PRESET_VOICES = [
@@ -2588,6 +2593,7 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             (config.get("localai_tts_base_url") or DEFAULT_LOCALAI_TTS_BASE_URL).strip(),
             (config.get("localai_tts_model") or "").strip(),
             (config.get("localai_tts_default_voice") or "").strip(),
+            (config.get("localai_tts_default_language") or "").strip(),
             (config.get("localai_tts_instructions") or "").strip(),
             str(config.get("localai_tts_timeout") or 180),
             str(config.get("localai_tts_max_parallel") or 1),
@@ -2922,6 +2928,7 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             base_url=base_url,
             model_id=model_id,
             default_voice=(config.get("localai_tts_default_voice") or "").strip(),
+            default_language=(config.get("localai_tts_default_language") or "").strip(),
             instructions=(config.get("localai_tts_instructions") or "").strip(),
             timeout=int(config.get("localai_tts_timeout") or 180),
             max_parallel=int(config.get("localai_tts_max_parallel") or 1),
@@ -6799,6 +6806,7 @@ def get_localai_tts_catalog():
         **catalog,
         "configured_model": configured_model,
         "configured_voice": config.get("localai_tts_default_voice") or "",
+        "configured_language": config.get("localai_tts_default_language") or "",
         "selected_model_voice_cloning": model_supports_cloning,
         "tts_story_voice_count": len(tts_story_voices),
         "tts_story_voice_ready_count": sum(not voice["disabled"] for voice in tts_story_voices),
@@ -8867,14 +8875,41 @@ def settings():
     """Get or update settings"""
     if request.method == 'GET':
         config = load_config()
+        config["remote_engine_management_token"] = ""
         return jsonify({
             "success": True,
             "settings": config
         })
     else:
         try:
-            new_settings = request.json
+            new_settings = request.json or {}
+            current_config = load_config()
+            protected_keys = {
+                "remote_engine_management_enabled",
+                "remote_engine_management_token",
+            }
+            protected_change = any(
+                key in new_settings
+                and (
+                    key == "remote_engine_management_token"
+                    and bool(str(new_settings.get(key) or "").strip())
+                    or key == "remote_engine_management_enabled"
+                    and bool(new_settings.get(key)) != bool(current_config.get(key))
+                )
+                for key in protected_keys
+            )
+            if (
+                not _is_local_management_request()
+                and protected_change
+                and not _engine_management_request_allowed(current_config)
+            ):
+                return jsonify({
+                    "success": False,
+                    "error": "Remote administration security settings can be changed only locally or by an authenticated remote administrator.",
+                }), 403
             config = load_config()
+            if not str(new_settings.get("remote_engine_management_token") or "").strip():
+                new_settings.pop("remote_engine_management_token", None)
             config.update(new_settings)
             save_config(config)
             
@@ -12653,10 +12688,37 @@ def _exit_for_supervised_restart() -> None:
         os._exit(SERVER_RESTART_EXIT_CODE)
 
 
+def _is_local_management_request() -> bool:
+    """Return true only for a direct loopback request."""
+    return request.remote_addr in {"127.0.0.1", "::1", None}
+
+
+def _engine_management_request_allowed(config: Optional[Dict[str, Any]] = None) -> bool:
+    """Authorize destructive engine management locally or with the saved remote token."""
+    if _is_local_management_request():
+        return True
+    config = config or load_config()
+    if not bool(config.get("remote_engine_management_enabled", False)):
+        return False
+    expected = str(config.get("remote_engine_management_token") or "").strip()
+    supplied = str(request.headers.get("X-TTS-Story-Admin-Token") or "").strip()
+    return bool(expected and supplied and hmac.compare_digest(expected, supplied))
+
+
+def _engine_management_denied(action: str):
+    return jsonify({
+        "success": False,
+        "error": (
+            f"{action} is allowed locally, or remotely after Remote Engine Management "
+            "is enabled and its administrator token is supplied."
+        ),
+    }), 403
+
+
 @app.route('/api/system/restart', methods=['POST'])
 def restart_system():
-    if request.remote_addr not in {"127.0.0.1", "::1", None}:
-        return jsonify({"success": False, "error": "Backend restart is allowed only from this computer."}), 403
+    if not _engine_management_request_allowed():
+        return _engine_management_denied("Backend restart")
     if os.environ.get("TTS_STORY_RESTARTABLE") != "1":
         return jsonify({
             "success": False,
@@ -12681,8 +12743,8 @@ def restart_system():
 
 @app.route('/api/engines/install', methods=['POST'])
 def install_optional_engine():
-    if request.remote_addr not in {"127.0.0.1", "::1", None}:
-        return jsonify({"success": False, "error": "Engine installation is allowed only from this computer."}), 403
+    if not _engine_management_request_allowed():
+        return _engine_management_denied("Engine installation")
     payload = request.get_json(silent=True) or {}
     engine = str(payload.get("engine") or "").strip().lower()
     allowed = {
@@ -12723,8 +12785,8 @@ def install_optional_engine():
 
 @app.route('/api/engines/uninstall', methods=['POST'])
 def uninstall_optional_engine():
-    if request.remote_addr not in {"127.0.0.1", "::1", None}:
-        return jsonify({"success": False, "error": "Engine removal is allowed only from this computer."}), 403
+    if not _engine_management_request_allowed():
+        return _engine_management_denied("Engine removal")
     if current_job_ids or current_job_id:
         return jsonify({
             "success": False,

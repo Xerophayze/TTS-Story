@@ -1152,9 +1152,21 @@
                                     <select id="localai-tts-model"><option value="">Load the LocalAI catalog first</option></select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="localai-tts-default-voice">Default Voice Profile</label>
-                                    <select id="localai-tts-default-voice"><option value="">Model default voice</option></select>
-                                    <small>LocalAI profiles and transcript-ready TTS-Story samples appear here for cloning-capable models.</small>
+                                    <label for="localai-tts-default-voice">Default Voice / Speaker ID (optional)</label>
+                                    <input type="text" id="localai-tts-default-voice" list="localai-tts-voice-options" placeholder="Use the model default or type a voice name">
+                                    <datalist id="localai-tts-voice-options"></datalist>
+                                    <small>Discovered profiles appear as suggestions, but you can type any voice name or speaker ID accepted by the selected LocalAI model.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="localai-tts-default-language">Default Language (optional)</label>
+                                    <input type="text" id="localai-tts-default-language" list="localai-tts-language-options" placeholder="e.g. en, en-US, French, Japanese">
+                                    <datalist id="localai-tts-language-options">
+                                        <option value="en"><option value="en-US"><option value="en-GB">
+                                        <option value="es"><option value="fr"><option value="de">
+                                        <option value="it"><option value="pt"><option value="ja">
+                                        <option value="ko"><option value="zh">
+                                    </datalist>
+                                    <small>Passed to LocalAI as <code>language</code>. Leave blank when the model detects or fixes its own language.</small>
                                 </div>
                                 <div class="form-group">
                                     <label class="checkbox-label" for="localai-tts-voice-profile-consent-confirmed">
@@ -1838,6 +1850,36 @@
                             </div>
                         </div>
 
+                    </div>
+                </div>
+
+                <!-- Remote Administration -->
+                <div class="settings-group collapsed" id="remote-admin-settings-group">
+                    <div class="settings-group-header" data-toggle="settings-group">
+                        <div class="section-title-inline">
+                            <h3><span class="group-icon">🔐</span> Remote Administration</h3>
+                            <button type="button" class="help-icon" data-help-id="engine-management" aria-label="Help: Remote engine management">?</button>
+                        </div>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="settings-group-content">
+                        <p class="help-text" style="margin-top:0;">Engine installation, removal, and backend restart are local-only by default. Enable authenticated remote management only when accessing TTS-Story through a trusted network or secured reverse proxy.</p>
+                        <div class="settings-form-grid">
+                            <div class="form-group">
+                                <label class="checkbox-label" for="remote-engine-management-enabled">
+                                    <input type="checkbox" id="remote-engine-management-enabled">
+                                    Allow authenticated remote engine management
+                                </label>
+                                <small>This setting must initially be enabled from localhost or directly in the local config file.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="remote-engine-management-token">Administrator Token</label>
+                                <input type="password" id="remote-engine-management-token" autocomplete="new-password" placeholder="Enter a long, random private token">
+                                <button type="button" class="btn btn-secondary btn-sm" id="generate-remote-engine-management-token" style="margin-top:8px;">Generate Random Token</button>
+                                <small>The saved token is never returned by the settings API. Enter it in each remote browser session that needs engine-management access.</small>
+                            </div>
+                        </div>
+                        <p class="warning-text">This protects only engine install/remove/restart actions. Configure authentication and HTTPS on the reverse proxy to protect the complete TTS-Story interface.</p>
                     </div>
                 </div>
 
@@ -2688,10 +2730,10 @@
     </div>
 
     <script src="/static/js/help.js?v=3"></script>
-<script src="/static/js/main.js?v=62"></script>
+<script src="/static/js/main.js?v=63"></script>
     <script src="/static/js/queue.js?v=4"></script>
-<script src="/static/js/library.js?v=45"></script>
+<script src="/static/js/library.js?v=46"></script>
     <script src="/static/js/voice-manager.js?v=16"></script>
-<script src="/static/js/settings.js?v=25"></script>
+<script src="/static/js/settings.js?v=27"></script>
 </body>
 </html>

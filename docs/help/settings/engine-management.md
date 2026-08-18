@@ -25,6 +25,19 @@ Red chips require installation or configuration. Green chips are ready and appea
 
 Install and uninstall controls are disabled while an engine-management operation is active, preventing the same installer from being started twice.
 
+## Managing engines from another computer
+
+Install, uninstall, and backend restart actions are restricted to localhost by default. To administer engines through another computer or a reverse proxy:
+
+1. Open **Settings → Remote Administration** from the TTS-Story computer using `localhost`.
+2. Enable **Allow authenticated remote engine management**.
+3. Enter and save a long, random administrator token.
+4. In the remote browser, enter the same token under **Remote Administration**. The browser sends it with engine install, removal, and restart requests.
+
+The saved token is not returned by the settings API and is kept only for the current remote browser session. TTS-Story intentionally does not trust `X-Forwarded-For` by itself because clients can spoof that header when a proxy is misconfigured. The token therefore works whether the request comes directly across the LAN, through Docker networking, or through a reverse proxy.
+
+This token protects only the destructive engine-management and restart endpoints. Use authentication and HTTPS at the reverse proxy to protect the complete web interface, especially if it is reachable beyond a trusted private network. To disable remote administration, use localhost or authenticate with the current token and clear the checkbox.
+
 ## What “isolated environment” means
 
 Each supported local engine receives its own Python virtual environment, normally under `engines/<engine>/.venv`, plus engine-owned model and cache directories. This keeps packages such as PyTorch, Transformers, NumPy, and engine-specific libraries from replacing incompatible versions used by TTS-Story or another engine.
@@ -73,6 +86,8 @@ Cloud and remote chips do not install model runtimes into TTS-Story. They become
 To stop using one, select another default engine and remove or replace its saved credentials privately. Deleting a TTS-Story setting does not delete an account, subscription, model, container, or saved voice profile on the external service.
 
 For a self-hosted speech server, see [LocalAI TTS](help:engine-localai-tts). For account-based services, see [Configure Online Services Safely](help:online-services).
+
+On Linux, the setup and update scripts run package-manager commands directly when already running as root. For a normal user they use `sudo` only when it is installed. Container deployments without `sudo` can therefore run setup as root; if a required system package is missing while running as an unprivileged no-sudo user, setup reports what must be installed instead of failing with “sudo: command not found.”
 
 ## If management appears stuck
 

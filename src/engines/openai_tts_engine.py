@@ -44,6 +44,8 @@ class OpenAITTSEngine(TtsEngineBase):
         max_parallel: int = 2,
         max_retries: int = 4,
         voice_required: bool = True,
+        default_language: str = "",
+        include_language: bool = False,
         request_func: Optional[Callable[..., Any]] = None,
         sleep_func: Callable[[float], None] = time.sleep,
         audio_converter: Callable[..., bytes] = audio_bytes_to_wav,
@@ -61,6 +63,8 @@ class OpenAITTSEngine(TtsEngineBase):
             self.speech_url = f"{raw_url}/audio/speech"
         self.model_id = self._required(model_id, "model")
         self.voice_required = bool(voice_required)
+        self.default_language = str(default_language or "").strip()
+        self.include_language = bool(include_language)
         self.default_voice = (
             self._required(default_voice, "voice")
             if self.voice_required else str(default_voice or "").strip()
@@ -199,6 +203,10 @@ class OpenAITTSEngine(TtsEngineBase):
         }
         if voice:
             payload["voice"] = {"id": voice} if voice.startswith("voice_") else voice
+        if self.include_language:
+            language = str(assignment.lang_code or self.default_language or "").strip()
+            if language:
+                payload["language"] = language
         instructions = str(extra.get("instructions") or self.instructions).strip()
         if instructions:
             payload["instructions"] = instructions

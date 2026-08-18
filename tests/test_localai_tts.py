@@ -4,6 +4,7 @@ import io
 import hashlib
 import json
 import wave
+from pathlib import Path
 
 from src.engines.localai_tts_engine import LocalAITTSEngine
 from src.localai_tts_client import discover_localai_tts_catalog, normalize_localai_urls
@@ -65,6 +66,61 @@ def test_localai_engine_allows_model_default_voice():
     )
     engine.generate_audio("Hello.")
     assert "voice" not in calls[0]["json"]
+
+
+def test_localai_engine_sends_freeform_voice_and_language():
+    calls = []
+    engine = LocalAITTSEngine(
+        model_id="custom-tts-model",
+        default_voice="voice-from-model-config",
+        default_language="fr-FR",
+        request_func=lambda method, url, **kwargs: calls.append(kwargs) or FakeResponse({}),
+        audio_converter=lambda payload, **kwargs: payload,
+    )
+    engine.generate_audio(
+        "Bonjour depuis LocalAI.",
+        voice="speaker-name-not-in-catalog",
+        lang_code="French",
+    )
+    assert calls[0]["json"]["voice"] == "speaker-name-not-in-catalog"
+    assert calls[0]["json"]["language"] == "French"
+
+
+def test_localai_engine_uses_configured_default_language():
+    calls = []
+    engine = LocalAITTSEngine(
+        model_id="custom-tts-model",
+        default_language="ja",
+        request_func=lambda method, url, **kwargs: calls.append(kwargs) or FakeResponse({}),
+        audio_converter=lambda payload, **kwargs: payload,
+    )
+    engine.generate_audio("LocalAI language fallback.")
+    assert calls[0]["json"]["language"] == "ja"
+
+
+def test_localai_settings_offer_freeform_voice_and_language_fields():
+    project_root = Path(__file__).resolve().parents[1]
+    template = (project_root / "templates" / "index.html").read_text(encoding="utf-8")
+    main_js = (project_root / "static" / "js" / "main.js").read_text(encoding="utf-8")
+    settings_js = (project_root / "static" / "js" / "settings.js").read_text(encoding="utf-8")
+    assert 'id="localai-tts-default-voice" list="localai-tts-voice-options"' in template
+    assert 'id="localai-tts-default-language"' in template
+    assert 'class="localai-voice-input"' in main_js
+    assert 'class="localai-language-input"' in main_js
+    assert "localai_tts_default_language" in settings_js
+    library_js = (project_root / "static" / "js" / "library.js").read_text(encoding="utf-8")
+    assert "Type a custom voice / speaker ID" in library_js
+    assert "resolveLocalAIFreeformSelection" in library_js
+
+
+def test_unix_installers_do_not_require_sudo_when_running_as_root():
+    project_root = Path(__file__).resolve().parents[1]
+    setup_script = (project_root / "setup.sh").read_text(encoding="utf-8")
+    update_script = (project_root / "install-update.sh").read_text(encoding="utf-8")
+    for script in (setup_script, update_script):
+        assert 'if [ "$(id -u)" -eq 0 ]; then' in script
+        assert "elif command -v sudo" in script
+        assert "run_as_root" in script
 
 
 def test_localai_engine_accepts_server_root_without_v1():

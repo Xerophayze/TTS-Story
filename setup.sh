@@ -6,6 +6,18 @@ cd "$SCRIPT_DIR"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/scripts/unix_torch.sh"
 
+run_as_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        echo "ERROR: This installation is missing a required system package, but neither root access nor sudo is available."
+        echo "Run the displayed package-manager command as root, or install the package in the container image, then retry setup.sh."
+        return 127
+    fi
+}
+
 echo "========================================"
 echo "TTS-Story Setup (Linux/macOS)"
 echo "========================================"
@@ -79,14 +91,14 @@ if ! command -v git >/dev/null 2>&1; then
     else
         echo "Git not found. Installing Git..."
         if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq git
+            run_as_root apt-get update -qq
+            run_as_root apt-get install -y -qq git
         elif command -v brew >/dev/null 2>&1; then
             brew install git
         elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -Sy --noconfirm git
+            run_as_root pacman -Sy --noconfirm git
         elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y git
+            run_as_root dnf install -y git
         else
             echo "WARNING: Could not detect package manager to install git."
             echo "Please install git manually and re-run setup.sh."
@@ -110,15 +122,15 @@ if ! "$PYTHON_BIN" -m venv --help >/dev/null 2>&1; then
     else
         echo "python3-venv not found. Installing..."
         if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq python3-venv python3-pip
+            run_as_root apt-get update -qq
+            run_as_root apt-get install -y -qq python3-venv python3-pip
         elif command -v brew >/dev/null 2>&1; then
             brew install python@3.11
             PYTHON_BIN="$(tts_story_find_compatible_python || true)"
         elif command -v pacman >/dev/null 2>&1; then
-            sudo pacman -Sy --noconfirm python-pythonz
+            run_as_root pacman -Sy --noconfirm python-pythonz
         elif command -v dnf >/dev/null 2>&1; then
-            sudo dnf install -y python3.10-venv
+            run_as_root dnf install -y python3.10-venv
         else
             echo "WARNING: Could not detect package manager to install python3-venv."
         fi
@@ -730,8 +742,8 @@ echo "[9/10] Checking system dependencies..."
 # Check for apt (Debian/Ubuntu)
 install_apt() {
     echo "Installing system packages via apt..."
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq espeak-ng sox ffmpeg libsox-dev rubberband-cli || echo "WARNING: Some system packages failed to install"
+    run_as_root apt-get update -qq
+    run_as_root apt-get install -y -qq espeak-ng sox ffmpeg libsox-dev rubberband-cli || echo "WARNING: Some system packages failed to install"
 }
 
 # Check for brew (macOS)
@@ -743,17 +755,22 @@ install_brew() {
 # Check for pacman (Arch Linux)
 install_pacman() {
     echo "Installing system packages via pacman..."
-    sudo pacman -Sy --noconfirm espeak-ng sox ffmpeg rubberband || echo "WARNING: Some system packages failed to install"
+    run_as_root pacman -Sy --noconfirm espeak-ng sox ffmpeg rubberband || echo "WARNING: Some system packages failed to install"
 }
 
 # Check for dnf (Fedora)
 install_dnf() {
     echo "Installing system packages via dnf..."
-    sudo dnf install -y espeak-ng sox ffmpeg rubberband || echo "WARNING: Some system packages failed to install"
+    run_as_root dnf install -y espeak-ng sox ffmpeg rubberband || echo "WARNING: Some system packages failed to install"
 }
 
 if [ "$PINOKIO_MODE" = "1" ]; then
     echo "Using system tools from Pinokio's managed Conda environment."
+elif command -v espeak-ng >/dev/null 2>&1 \
+    && command -v sox >/dev/null 2>&1 \
+    && command -v ffmpeg >/dev/null 2>&1 \
+    && command -v rubberband >/dev/null 2>&1; then
+    echo "Required system tools are already installed; no package-manager access is needed."
 elif command -v apt-get >/dev/null 2>&1; then
     install_apt
 elif command -v brew >/dev/null 2>&1; then
@@ -780,9 +797,9 @@ if command -v espeak-ng >/dev/null 2>&1; then
 else
     echo "WARNING: espeak-ng not found!"
     echo "Please install espeak-ng using your package manager:"
-    echo "  Ubuntu/Debian: sudo apt-get install espeak-ng"
+    echo "  Ubuntu/Debian: apt-get install espeak-ng (as root, or prefix with sudo)"
     echo "  macOS: brew install espeak-ng"
-    echo "  Arch: sudo pacman -S espeak-ng"
+    echo "  Arch: pacman -S espeak-ng (as root, or prefix with sudo)"
 fi
 
 # Verify rubberband

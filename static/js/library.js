@@ -2866,6 +2866,31 @@ function mapLibraryCloudVoices(data, provider) {
     }));
 }
 
+function appendLocalAIFreeformOption(select) {
+    if (!select || Array.from(select.options).some(option => option.value === '__localai_custom__')) return;
+    const option = document.createElement('option');
+    option.value = '__localai_custom__';
+    option.textContent = 'Type a custom voice / speaker ID…';
+    select.appendChild(option);
+}
+
+function resolveLocalAIFreeformSelection(select) {
+    if (!select || select.value !== '__localai_custom__') return null;
+    const voice = window.prompt('Enter the voice name or speaker ID accepted by this LocalAI model:', '')?.trim();
+    if (!voice) {
+        select.value = '';
+        return { cancelled: true, voice: '', language: '' };
+    }
+    const language = window.prompt('Optional language value for this model (leave blank for its default):', '')?.trim() || '';
+    const option = document.createElement('option');
+    option.value = voice;
+    option.textContent = `${voice}${language ? ` (${language})` : ''} · custom`;
+    select.insertBefore(option, Array.from(select.options).find(item => item.value === '__localai_custom__') || null);
+    select.value = voice;
+    libraryVoiceMap.set(voice, { id: voice, name: voice, langCode: language, isLocalAITts: true });
+    return { cancelled: false, voice, language };
+}
+
 async function populateLibraryVoiceSelects(engine) {
     const body = document.getElementById('chunk-review-modal-body');
     if (!body) return;
@@ -3303,6 +3328,7 @@ async function populateLibraryVoiceSelects(engine) {
             
             select.appendChild(opt);
         });
+        if (isLocalAITts) appendLocalAIFreeformOption(select);
         
         if (selectedValue) {
             select.value = selectedValue;
@@ -3459,6 +3485,7 @@ async function populateLibraryVoiceSelects(engine) {
             
             select.appendChild(opt);
         });
+        if (isLocalAITts) appendLocalAIFreeformOption(select);
     }
 
     const chunkById = new Map(chunks.map(chunk => [chunk.id, chunk]));
@@ -3775,7 +3802,11 @@ async function triggerBulkSpeakerRegen(
     const body = document.getElementById('chunk-review-modal-body');
     const card = button.closest('.bulk-speaker-card');
     const select = card?.querySelector('.bulk-speaker-voice-select');
-    const voiceValue = select?.value;
+    const normalizedEngine = (engine || '').toLowerCase().replace(/[_-]/g, '');
+    const isLocalAI = normalizedEngine.includes('localaitts');
+    const freeform = isLocalAI ? resolveLocalAIFreeformSelection(select) : null;
+    if (freeform?.cancelled) return;
+    const voiceValue = freeform?.voice || select?.value;
 
     if (!voiceValue) {
         alert('Please select a voice first.');
@@ -3789,7 +3820,6 @@ async function triggerBulkSpeakerRegen(
         return;
     }
 
-    const normalizedEngine = (engine || '').toLowerCase().replace(/[_-]/g, '');
     const isChatterbox = normalizedEngine.includes('chatterbox');
     const isVoxCPM = normalizedEngine.includes('voxcpm');
     const isQwenEngine = normalizedEngine.includes('qwen3');
@@ -3827,6 +3857,11 @@ async function triggerBulkSpeakerRegen(
                 language: language,
                 ...(instruct && { instruct: instruct })
             } 
+        };
+    } else if (isLocalAI) {
+        voicePayload = {
+            voice: voiceValue,
+            lang_code: freeform?.language || voiceData?.langCode || '',
         };
     } else {
         voicePayload = {
@@ -3949,7 +3984,7 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
     
     // Get voice selection from per-chunk dropdown or stored override
     const voiceSelect = card?.querySelector('.library-chunk-voice-select');
-    const voiceValue = voiceSelect?.value || '';
+    let voiceValue = voiceSelect?.value || '';
     const storedOverride = libraryChunkVoiceOverrides[chunkId] || {};
     const selectedVoiceValue = voiceValue || storedOverride.audio_prompt_path || storedOverride.voice || '';
     
@@ -3959,6 +3994,14 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
     const normalizedEngine = (resolvedEngine || originalChunk?.engine || chunkReviewModalData?.engine || '')
         .toLowerCase()
         .replace(/[_-]/g, '');
+    const isLocalAI = normalizedEngine.includes('localaitts');
+    const freeform = isLocalAI ? resolveLocalAIFreeformSelection(voiceSelect) : null;
+    if (freeform?.cancelled) {
+        setRegenButtonBusy(button, false);
+        return;
+    }
+    if (freeform?.voice) voiceValue = freeform.voice;
+    const resolvedSelectedVoiceValue = freeform?.voice || selectedVoiceValue;
     const isChatterbox = normalizedEngine.includes('chatterbox');
     const isVoxCPM = normalizedEngine.includes('voxcpm');
     const isQwenEngine = normalizedEngine.includes('qwen3');
@@ -3996,6 +4039,12 @@ async function triggerLibraryChunkRegen(jobId, chunkId, button) {
                 language: language,
                 ...(instruct && { instruct: instruct })
             }
+        };
+    } else if (isLocalAI && resolvedSelectedVoiceValue) {
+        voicePayload = {
+            voice: resolvedSelectedVoiceValue,
+            lang_code: freeform?.language || libraryVoiceMap.get(resolvedSelectedVoiceValue)?.langCode
+                || originalChunk?.voice_assignment?.lang_code || '',
         };
     } else if (selectedVoiceValue) {
         const originalAssignment = originalChunk?.voice_assignment || {};

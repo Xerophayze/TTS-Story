@@ -32,6 +32,8 @@ After saving, the LocalAI chip turns green and **LocalAI TTS · Self-hosted** ap
 
 TTS-Story queries LocalAI's model-capability endpoint and lists only TTS-capable models when that endpoint is available. It also reads saved voice profiles and passes the selected `localai://voice-profiles/...` URI to the speech request. The exact voices and cloning controls therefore change with the selected LocalAI model.
 
+Some LocalAI backends accept built-in voice names or speaker IDs but do not publish them through the voice-profile catalog. The catalog is therefore a suggestion list, not a restriction. In Settings or Speaker Properties, type the exact voice/speaker value required by the selected model. You may also supply an optional freeform language value (for example `en`, `fr-FR`, or `Japanese`); TTS-Story sends it as LocalAI's `language` request field. Leave it blank when the model uses a fixed language or automatic detection.
+
 ## Voice profiles and TTS-Story samples
 
 The catalog includes profiles already managed by LocalAI. When the selected model advertises voice cloning, the main-page Speaker Properties selector also includes transcript-ready samples from TTS-Story's **Voice Prompts** library. Samples without transcripts are omitted from that selector until their text is entered or generated.
@@ -57,6 +59,7 @@ Increase **Maximum Parallel Requests** only after a short test. LocalAI jobs are
 ## Troubleshooting
 
 - **No models:** Confirm the model is loaded in LocalAI and advertises the `tts` capability.
+- **0 voice options:** This only means LocalAI did not advertise saved profiles. Type the model's voice name or speaker ID manually; use its model documentation or configuration as the source of truth.
 - **No TTS-Story samples:** The selected model must advertise voice cloning. Add exact transcripts, confirm cloning rights in Settings, and reload the catalog.
 - **Transcript required:** Edit the sample under Voice Prompts and enter exactly what is spoken in the clip.
 - **Connection refused:** Start the LocalAI container and verify its published port. Docker commonly publishes port 8080.
