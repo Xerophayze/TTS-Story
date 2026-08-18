@@ -26,7 +26,7 @@ The adapter produces 24 kHz speech before TTS-Story performs any requested final
 
 ## Replicate requirements and setup
 
-Create a Replicate API token, enter it under **Engine Settings → API Keys**, and select **Kokoro Replicate** for the job. TTS-Story calls a pinned `jaaari/kokoro-82m` model version and submits text, voice, and speed.
+Create a Replicate API token, enter it under **Engine Settings → Kokoro Cloud**, and select **Kokoro Replicate** for the job. The token and Replicate parallel-request limit are shared with Chatterbox Cloud. TTS-Story calls a pinned `jaaari/kokoro-82m` model version and submits text, voice, and speed.
 
 Replicate uses its own supported voice names. A local `custom_...` blend is not uploaded to the hosted model and should be used with local Kokoro instead.
 

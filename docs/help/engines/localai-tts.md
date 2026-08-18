@@ -1,6 +1,19 @@
 # LocalAI TTS
 
-LocalAI TTS lets TTS-Story use models that are already installed and served by a separate [LocalAI](https://localai.io/) instance. This avoids installing a duplicate copy of the same TTS model inside TTS-Story.
+LocalAI TTS lets TTS-Story use models that are already installed and served by a separate [LocalAI](https://localai.io/) instance. LocalAI is an actual self-hosted AI server application—not just a generic phrase for “local AI.” It can expose speech models through OpenAI-compatible and LocalAI-specific API routes. Connecting it avoids installing a duplicate copy of the same TTS model inside TTS-Story.
+
+## What the connection means
+
+TTS-Story is the audiobook client and job manager. LocalAI owns the selected speech model, its runtime, GPU/CPU use, model downloads, built-in voices, and saved voice profiles. TTS-Story sends synthesis text and the selected voice information to that server, receives audio, and then performs its normal chunk tracking, pause/resume, effects, merging, and Library processing.
+
+This connection does **not**:
+
+- install LocalAI, Docker, or a TTS model for you;
+- make every LocalAI model capable of speech or voice cloning;
+- move a LocalAI model into TTS-Story's isolated engine folders; or
+- delete LocalAI models or saved profiles when TTS-Story settings are changed.
+
+LocalAI may run in Docker on the same computer, on another trusted computer, or on a server. “Self-hosted” describes who controls the service; text and selected reference audio still leave the TTS-Story process and travel to the configured LocalAI endpoint. Use authentication and trusted networking when the endpoint is not limited to the same computer.
 
 ## Connect LocalAI
 
@@ -15,7 +28,9 @@ LocalAI TTS lets TTS-Story use models that are already installed and served by a
 5. Select **Test Connection & Load Catalog**.
 6. Choose a discovered TTS model and voice profile, then save Settings.
 
-TTS-Story queries LocalAI's model-capability endpoint and lists only TTS-capable models when that endpoint is available. It also reads saved voice profiles and passes the selected `localai://voice-profiles/...` URI to the speech request.
+After saving, the LocalAI chip turns green and **LocalAI TTS · Self-hosted** appears in Generate. TTS-Story does not show an Install/Uninstall action for LocalAI because its container, models, and dependencies are managed outside this project.
+
+TTS-Story queries LocalAI's model-capability endpoint and lists only TTS-capable models when that endpoint is available. It also reads saved voice profiles and passes the selected `localai://voice-profiles/...` URI to the speech request. The exact voices and cloning controls therefore change with the selected LocalAI model.
 
 ## Voice profiles and TTS-Story samples
 
@@ -23,7 +38,7 @@ The catalog includes profiles already managed by LocalAI. When the selected mode
 
 To use a TTS-Story sample:
 
-1. Make sure the sample has an exact transcript in **Available Voices → Voice Prompts → Edit**. Generated samples are filled automatically when their original preview text is available.
+1. Make sure the sample has an exact transcript in **Available Voices → Voice Prompts → Edit**. Generated samples are filled automatically when their original preview text is available. For missing text, use **Generate Transcript** on one sample or **Generate Transcripts** for a selected batch, then review the result.
 2. In LocalAI TTS Settings, confirm that you have the rights or permission to use the sample for voice cloning.
 3. Reload the catalog and select the TTS-Story sample as a default or speaker voice.
 
@@ -31,7 +46,7 @@ TTS-Story uploads only a selected sample when it is first used. LocalAI saves it
 
 When a speaker already has a TTS-Story voice sample assigned, switching between LocalAI and another voice-sample-capable engine keeps that assignment whenever the same sample is available. Temporarily choosing an engine that does not use voice samples also leaves the assignment stored in the project, so it returns when you switch back. Selecting a different sample explicitly replaces the stored assignment.
 
-Some LocalAI models have a built-in default voice. For those models, **Model default voice** can be left selected. Models such as OmniVoice can instead use an explicit saved profile.
+Some LocalAI models have a built-in default voice. For those models, **Model default voice** can be left selected. Models such as OmniVoice can instead use an explicit saved profile. If the model does not advertise compatible custom-reference support, TTS-Story voice prompts remain unavailable for that model even when their transcripts are complete.
 
 ## Performance and concurrency
 
@@ -45,6 +60,9 @@ Increase **Maximum Parallel Requests** only after a short test. LocalAI jobs are
 - **No TTS-Story samples:** The selected model must advertise voice cloning. Add exact transcripts, confirm cloning rights in Settings, and reload the catalog.
 - **Transcript required:** Edit the sample under Voice Prompts and enter exactly what is spoken in the clip.
 - **Connection refused:** Start the LocalAI container and verify its published port. Docker commonly publishes port 8080.
+- **Docker is running but unreachable:** Confirm the container publishes its API port to the host. The TTS-Story backend—not the browser alone—must be able to reach the configured address.
 - **404:** Use the LocalAI server root or `/v1` base, not an unrelated dashboard URL.
 - **Slow or failed concurrent generation:** Return parallel requests to 1 and inspect the LocalAI container log.
 - **Remote server:** Replace `localhost` with the host's reachable address and configure LocalAI authentication before exposing it beyond a trusted network.
+
+LocalAI TTS is separate from the **LM Studio** and **Ollama** choices under LLM Pre-Processing. Those options prepare or tag manuscript text. LocalAI TTS generates the final speech audio.

@@ -1,43 +1,42 @@
-"""Local Chatterbox Turbo engine powered by chatterbox-tts weights."""
+"""Chatterbox Turbo adapter backed by an isolated engine environment."""
+
 from __future__ import annotations
 
-import gc
+import json
 import logging
 import os
+import subprocess
+import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import soundfile as sf
-import torch
 
 from .base import EngineCapabilities, TtsEngineBase, VoiceAssignment
-from ..audio_effects import AudioPostProcessor, VoiceFXSettings
+from ..audio_effects import AudioPostProcessor, VoiceFXSettings, convert_mp3_to_wav_if_needed
+
 
 logger = logging.getLogger(__name__)
-
 CHATTERBOX_TURBO_SAMPLE_RATE = 24000
-CHATTERBOX_TURBO_UNAVAILABLE_REASON = ""
-
-
-def _setup_hint() -> str:
-    return "Run setup.bat" if os.name == "nt" else "Run ./setup.sh"
-
-try:
-    from chatterbox.tts_turbo import ChatterboxTurboTTS  # type: ignore
-    from huggingface_hub import snapshot_download  # type: ignore
-
-    CHATTERBOX_TURBO_AVAILABLE = True
-except Exception as exc:  # pragma: no cover - optional native dependency
-    CHATTERBOX_TURBO_AVAILABLE = False
-    CHATTERBOX_TURBO_UNAVAILABLE_REASON = f"{type(exc).__name__}: {exc}"
-    ChatterboxTurboTTS = None  # type: ignore[assignment]
-    snapshot_download = None  # type: ignore[assignment]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CHATTERBOX_ENGINE_ROOT = PROJECT_ROOT / "engines" / "chatterbox"
+CHATTERBOX_WORKER = CHATTERBOX_ENGINE_ROOT / "chatterbox_worker.py"
+CHATTERBOX_PYTHON = CHATTERBOX_ENGINE_ROOT / ".venv" / (
+    "Scripts/python.exe" if os.name == "nt" else "bin/python"
+)
+CHATTERBOX_READY_MARKER = CHATTERBOX_ENGINE_ROOT / ".chatterbox_ready"
+CHATTERBOX_TURBO_AVAILABLE = (
+    CHATTERBOX_PYTHON.is_file()
+    and CHATTERBOX_WORKER.is_file()
+    and CHATTERBOX_READY_MARKER.is_file()
+)
+CHATTERBOX_TURBO_UNAVAILABLE_REASON = "" if CHATTERBOX_TURBO_AVAILABLE else (
+    "isolated Chatterbox environment is not installed"
+)
 
 
 class ChatterboxTurboLocalEngine(TtsEngineBase):
-    """Offline-capable Chatterbox Turbo engine."""
-
     name = "chatterbox_turbo_local"
     capabilities = EngineCapabilities(
         supports_voice_cloning=True,
@@ -58,204 +57,163 @@ class ChatterboxTurboLocalEngine(TtsEngineBase):
         exaggeration: float = 0.0,
         norm_loudness: bool = True,
         prompt_norm_loudness: bool = True,
-    ):
+    ) -> None:
         if not CHATTERBOX_TURBO_AVAILABLE:
             raise ImportError(
-                f"Chatterbox Turbo is unavailable ({CHATTERBOX_TURBO_UNAVAILABLE_REASON or 'runtime import failed'}). "
-                f"{_setup_hint()} to install or repair its dependencies."
+                "Chatterbox Turbo's isolated environment is not installed. "
+                "Install Chatterbox Local from Settings → Engine Settings."
             )
-
-        resolved_device = self._resolve_device(device)
-        if resolved_device.startswith("cuda") and torch.cuda.is_available():
-            torch.backends.cudnn.benchmark = True
-            logger.info("Enabled cuDNN benchmark mode for faster inference")
-        logger.info("Loading Chatterbox Turbo on device=%s", resolved_device)
-        self._patch_s3tokenizer_prepare_audio()  # Must patch BEFORE model loads
-        self._patch_prepare_conditionals()  # Patch to ensure float32 audio throughout
-        
-        # Download model without requiring HuggingFace token (models are public)
-        local_path = self._download_model()
-        self.model: ChatterboxTurboTTS = ChatterboxTurboTTS.from_local(
-            local_path, resolved_device
-        )
-        self._coerce_tokenizer_buffers()
-
-        self.device = resolved_device
-        self.default_prompt = self._normalize_prompt_path(default_prompt)
-        self.temperature = float(temperature)
-        self.top_p = float(top_p)
-        self.top_k = int(top_k)
-        self.repetition_penalty = float(repetition_penalty)
-        self.cfg_weight = float(cfg_weight)
-        self.exaggeration = float(exaggeration)
-        self.norm_loudness = bool(norm_loudness)
-        self.prompt_norm_loudness = bool(prompt_norm_loudness)
-        self.prompt_cache: Dict[str, Path] = {}
-        self._last_prompt_path: Optional[Path] = None
+        self.device = (device or "auto").strip().lower()
+        self.default_prompt = (default_prompt or "").strip() or None
+        self.defaults = {
+            "temperature": float(temperature),
+            "top_p": float(top_p),
+            "top_k": int(top_k),
+            "repetition_penalty": float(repetition_penalty),
+            "cfg_weight": float(cfg_weight),
+            "exaggeration": float(exaggeration),
+            "norm_loudness": bool(norm_loudness),
+            "prompt_norm_loudness": bool(prompt_norm_loudness),
+        }
         self.post_processor = AudioPostProcessor()
 
-    def _download_model(self) -> str:
-        """Download Chatterbox Turbo model without requiring HuggingFace token.
-        
-        The Chatterbox models are public on HuggingFace, so we can download
-        them with token=False. The default chatterbox library incorrectly
-        uses token=True which requires authentication even for public models.
-        """
-        REPO_ID = "ResembleAI/chatterbox-turbo"
-        
-        # Use HF_TOKEN env var if available, otherwise False for public access
-        token = os.getenv("HF_TOKEN") or False
-        
-        logger.info("Downloading Chatterbox Turbo model from HuggingFace (token=%s)", 
-                    "env" if os.getenv("HF_TOKEN") else "public")
-        
-        local_path = snapshot_download(
-            repo_id=REPO_ID,
-            token=token,
-            allow_patterns=["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"]
-        )
-        
-        logger.info("Model downloaded to: %s", local_path)
-        return local_path
-
-    def _patch_s3tokenizer_prepare_audio(self) -> None:
-        """Patch S3Tokenizer._prepare_audio to ensure float32 tensors.
-
-        librosa.resample() can return float64 numpy arrays. When these are
-        converted to torch tensors via torch.from_numpy(), they become float64
-        tensors. The s3tokenizer encoder then fails because mask_to_bias()
-        asserts dtype must be float32/bfloat16/float16.
-
-        This patch ensures all audio arrays are converted to float32 before
-        becoming tensors, fixing the dtype mismatch at its source.
-        """
-        try:
-            from chatterbox.models.s3tokenizer.s3tokenizer import S3Tokenizer
-        except Exception:  # pragma: no cover - optional dependency internals
-            return
-
-        original = getattr(S3Tokenizer, "_prepare_audio", None)
-        if not callable(original):
-            return
-
-        if getattr(original, "__kokoro_story_patched__", False):
-            return
-
-        import numpy as np
-
-        def _prepare_audio_patched(self, wavs):  # type: ignore[no-untyped-def]
-            """Prepare audio with forced float32 conversion."""
-            processed_wavs = []
-            for wav in wavs:
-                if isinstance(wav, np.ndarray):
-                    # Force float32 to avoid dtype issues downstream
-                    wav = torch.from_numpy(wav.astype(np.float32))
-                elif torch.is_tensor(wav):
-                    if wav.dtype != torch.float32:
-                        wav = wav.float()
-                if wav.dim() == 1:
-                    wav = wav.unsqueeze(0)
-                processed_wavs.append(wav)
-            return processed_wavs
-
-        setattr(_prepare_audio_patched, "__kokoro_story_patched__", True)
-        S3Tokenizer._prepare_audio = _prepare_audio_patched  # type: ignore[assignment]
-
-    def _patch_prepare_conditionals(self) -> None:
-        """Patch ChatterboxTurboTTS.prepare_conditionals to ensure float32 audio.
-
-        librosa.resample() returns float64 numpy arrays. The resampled audio
-        is used in two places:
-        1. S3Tokenizer.forward() - handled by _patch_s3tokenizer_prepare_audio
-        2. VoiceEncoder.embeds_from_wavs() - fails because LSTM expects float32
-
-        This patch converts the resampled audio to float32 immediately after
-        resampling, fixing dtype issues in both code paths.
-        """
-        try:
-            from chatterbox.tts_turbo import ChatterboxTurboTTS
-        except Exception:  # pragma: no cover - optional dependency internals
-            return
-
-        original = getattr(ChatterboxTurboTTS, "prepare_conditionals", None)
-        if not callable(original):
-            return
-
-        if getattr(original, "__kokoro_story_patched__", False):
-            return
-
-        import librosa
-        from chatterbox.tts_turbo import S3GEN_SR, S3_SR
-
-        def prepare_conditionals_patched(self, wav_fpath, exaggeration=0.5, norm_loudness=True):
-            """Patched prepare_conditionals with float32 audio conversion."""
-            # Load and norm reference wav
-            s3gen_ref_wav, _sr = librosa.load(wav_fpath, sr=S3GEN_SR)
-
-            assert len(s3gen_ref_wav) / _sr > 5.0, "Audio prompt must be longer than 5 seconds!"
-
-            if norm_loudness:
-                s3gen_ref_wav = self.norm_loudness(s3gen_ref_wav, _sr)
-
-            # Resample and FORCE float32 - this is the critical fix
-            ref_16k_wav = librosa.resample(s3gen_ref_wav, orig_sr=S3GEN_SR, target_sr=S3_SR)
-            ref_16k_wav = ref_16k_wav.astype(np.float32)  # Force float32
-            s3gen_ref_wav = s3gen_ref_wav.astype(np.float32)  # Also ensure this is float32
-
-            s3gen_ref_wav = s3gen_ref_wav[:self.DEC_COND_LEN]
-            s3gen_ref_dict = self.s3gen.embed_ref(s3gen_ref_wav, S3GEN_SR, device=self.device)
-
-            # Speech cond prompt tokens
-            if plen := self.t3.hp.speech_cond_prompt_len:
-                s3_tokzr = self.s3gen.tokenizer
-                t3_cond_prompt_tokens, _ = s3_tokzr.forward([ref_16k_wav[:self.ENC_COND_LEN]], max_len=plen)
-                t3_cond_prompt_tokens = torch.atleast_2d(t3_cond_prompt_tokens).to(self.device)
-
-            # Voice-encoder speaker embedding
-            ve_embed = torch.from_numpy(self.ve.embeds_from_wavs([ref_16k_wav], sample_rate=S3_SR))
-            ve_embed = ve_embed.mean(axis=0, keepdim=True).to(self.device)
-
-            # Import these inside the function to avoid circular imports
-            from chatterbox.tts_turbo import T3Cond, Conditionals
-
-            t3_cond = T3Cond(
-                speaker_emb=ve_embed,
-                cond_prompt_speech_tokens=t3_cond_prompt_tokens,
-                emotion_adv=exaggeration * torch.ones(1, 1, 1),
-            ).to(device=self.device)
-            self.conds = Conditionals(t3_cond, s3gen_ref_dict)
-
-        setattr(prepare_conditionals_patched, "__kokoro_story_patched__", True)
-        ChatterboxTurboTTS.prepare_conditionals = prepare_conditionals_patched  # type: ignore[assignment]
-
-    # ------------------------------------------------------------------ #
     @property
     def sample_rate(self) -> int:
         return CHATTERBOX_TURBO_SAMPLE_RATE
 
-    # ------------------------------------------------------------------ #
-    def generate_audio(
-        self,
-        text: str,
-        voice: Optional[str] = None,
-        lang_code: Optional[str] = None,
-        speed: float = 1.0,
-        sample_rate: Optional[int] = None,
-        audio_prompt_path: Optional[str] = None,
-        fx_settings=None,
-        **_kwargs,
-    ) -> np.ndarray:
-        """Single-clip synthesis for preview use."""
-        assignment = VoiceAssignment(
-            voice=voice or "",
-            lang_code=lang_code,
-            audio_prompt_path=audio_prompt_path or self.default_prompt,
-            speed_override=speed,
+    def _resolve_prompt_path(self, path_value: Optional[str]) -> Path:
+        candidate = Path(path_value or self.default_prompt or "")
+        if candidate.is_file():
+            return candidate.resolve()
+        fallback = PROJECT_ROOT / "data" / "voice_prompts" / str(path_value or self.default_prompt or "")
+        if fallback.is_file():
+            return fallback.resolve()
+        raise FileNotFoundError(
+            f"Chatterbox reference audio was not found: {path_value or self.default_prompt or '(empty)'}. "
+            "Assign a voice sample at least five seconds long."
         )
-        audio, sr = self._synthesize(text, assignment, speed, sample_rate)
-        return audio
 
-    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _assignment(voice_config: Dict[str, Dict], speaker: str) -> VoiceAssignment:
+        payload = voice_config.get(speaker) or voice_config.get("default") or {}
+        return VoiceAssignment(
+            voice=payload.get("voice"),
+            lang_code=payload.get("lang_code"),
+            audio_prompt_path=payload.get("audio_prompt_path"),
+            fx_payload=payload.get("fx"),
+            speed_override=payload.get("speed"),
+            extra=payload.get("extra") or {},
+        )
+
+    def _prepare_item(self, item: Dict[str, Any], assignment: VoiceAssignment, temporary: List[Path]) -> None:
+        prompt, converted = convert_mp3_to_wav_if_needed(
+            self._resolve_prompt_path(assignment.audio_prompt_path)
+        )
+        if converted:
+            temporary.append(Path(converted))
+        fx_settings = (
+            assignment.fx_payload
+            if isinstance(assignment.fx_payload, VoiceFXSettings)
+            else VoiceFXSettings.from_payload(assignment.fx_payload)
+        )
+        output_fx = fx_settings
+        if fx_settings:
+            prepared = self.post_processor.prepare_prompt_audio(str(prompt), fx_settings)
+            if prepared:
+                prompt = Path(prepared)
+                temporary.append(prompt)
+                output_fx = (
+                    VoiceFXSettings(pitch_semitones=0.0, speed=1.0, tone=fx_settings.tone)
+                    if fx_settings.tone != "neutral"
+                    else None
+                )
+        item["audio_prompt_path"] = str(prompt)
+        item["extra"] = assignment.extra or {}
+        item["output_fx"] = output_fx
+
+    def _run_worker(self, items: List[Dict[str, Any]], progress_cb=None, chunk_cb=None) -> List[str]:
+        temporary: List[Path] = []
+        job_file: Optional[Path] = None
+        process: Optional[subprocess.Popen] = None
+        completed: set[int] = set()
+        output_lines: List[str] = []
+        try:
+            for item in items:
+                self._prepare_item(item, item.pop("assignment"), temporary)
+            job_payload = {
+                "device": self.device,
+                "defaults": self.defaults,
+                "items": [
+                    {key: value for key, value in item.items() if key not in {"output_fx", "chunk_meta"}}
+                    for item in items
+                ],
+            }
+            handle = tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix=".json",
+                prefix="tts_story_chatterbox_",
+                encoding="utf-8",
+                delete=False,
+            )
+            job_file = Path(handle.name)
+            with handle:
+                json.dump(job_payload, handle, ensure_ascii=False)
+            process = subprocess.Popen(
+                [str(CHATTERBOX_PYTHON), str(CHATTERBOX_WORKER), "--job-file", str(job_file)],
+                cwd=str(PROJECT_ROOT),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+            )
+            for raw_line in process.stdout or []:
+                line = raw_line.rstrip()
+                output_lines.append(line)
+                if not line.startswith("TTS_STORY_EVENT "):
+                    logger.info("[chatterbox worker] %s", line)
+                    continue
+                event = json.loads(line[len("TTS_STORY_EVENT "):])
+                if event.get("event") != "chunk":
+                    continue
+                index = int(event["index"])
+                item = items[index]
+                output_path = Path(event["path"])
+                output_fx = item.get("output_fx")
+                if output_fx:
+                    audio, output_rate = sf.read(output_path, dtype="float32")
+                    audio = self.post_processor.apply_post_pipeline(audio, output_rate, output_fx)
+                    sf.write(output_path, audio, output_rate)
+                completed.add(index)
+                if callable(progress_cb):
+                    progress_cb()
+                if callable(chunk_cb):
+                    chunk_cb(item["chunk_index"], item["chunk_meta"], str(output_path))
+            return_code = process.wait()
+            if return_code != 0:
+                details = "\n".join(output_lines[-30:])
+                raise RuntimeError(f"Chatterbox isolated worker failed (code {return_code}).\n{details}")
+            if len(completed) != len(items):
+                raise RuntimeError(
+                    f"Chatterbox generated {len(completed)} of {len(items)} requested chunks."
+                )
+            ordered = sorted(items, key=lambda item: item["original_order_index"])
+            return [str(item["output_path"]) for item in ordered]
+        except BaseException:
+            if process and process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+            raise
+        finally:
+            if job_file:
+                job_file.unlink(missing_ok=True)
+            for path in temporary:
+                path.unlink(missing_ok=True)
+
     def generate_batch(
         self,
         segments: List[Dict],
@@ -268,300 +226,73 @@ class ChatterboxTurboLocalEngine(TtsEngineBase):
         parallel_workers: int = 1,
         group_by_speaker: bool = False,
     ) -> List[str]:
-        if sample_rate and sample_rate != self.sample_rate:
-            logger.warning(
-                "Chatterbox Turbo outputs at %s Hz. Requested sample rate %s will be resampled during merge.",
-                self.sample_rate,
-                sample_rate,
-            )
+        del speed, sample_rate, parallel_workers
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-
-        chunk_items: List[Dict[str, Any]] = []
-        chunk_order = 0
-        speaker_order: List[str] = []
-        for seg_idx, segment in enumerate(segments):
+        items: List[Dict[str, Any]] = []
+        for segment_index, segment in enumerate(segments):
             speaker = segment.get("speaker")
-            if speaker not in speaker_order:
-                speaker_order.append(speaker)
-            for chunk_idx, chunk_text in enumerate(segment.get("chunks") or []):
-                chunk_items.append({
+            for chunk_index, text in enumerate(segment.get("chunks") or []):
+                order_index = len(items)
+                items.append({
                     "speaker": speaker,
-                    "text": chunk_text,
-                    "segment_index": seg_idx,
-                    "chunk_index": chunk_idx,
-                    "order_index": chunk_order,
+                    "text": text,
+                    "segment_index": segment_index,
+                    "chunk_index": chunk_index,
+                    "order_index": order_index,
+                    "original_order_index": order_index,
+                    "output_path": str(output_dir / f"chunk_{order_index:04d}.wav"),
+                    "assignment": self._assignment(voice_config, speaker),
+                    "chunk_meta": {
+                        "speaker": speaker,
+                        "text": text,
+                        "segment_index": segment_index,
+                        "chunk_index": chunk_index,
+                        "order_index": order_index,
+                    },
                 })
-                chunk_order += 1
+        if group_by_speaker:
+            items = sorted(items, key=lambda item: (str(item["speaker"]), item["original_order_index"]))
+        for worker_index, item in enumerate(items):
+            item["order_index"] = worker_index
+        return self._run_worker(items, progress_cb=progress_cb, chunk_cb=chunk_cb)
 
-        if group_by_speaker and chunk_items:
-            grouped: List[Dict[str, Any]] = []
-            by_speaker: Dict[str, List[Dict[str, Any]]] = {speaker: [] for speaker in speaker_order}
-            for item in chunk_items:
-                by_speaker[item["speaker"]].append(item)
-            for speaker in speaker_order:
-                grouped.extend(sorted(by_speaker.get(speaker, []), key=lambda entry: entry["order_index"]))
-            processing_items = grouped
-        else:
-            processing_items = chunk_items
-
-        files: List[Optional[str]] = [None] * len(chunk_items)
-        for item in processing_items:
-            speaker = item["speaker"]
-            assignment = self._voice_assignment_for(voice_config, speaker)
-            logger.info(
-                "Chatterbox Turbo chunk %s/%s speaker=%s voice=%s",
-                item["order_index"] + 1,
-                len(chunk_items),
-                speaker,
-                assignment.voice,
-            )
-            output_path = output_dir / f"chunk_{item['order_index']:04d}.wav"
-            audio, sr = self._synthesize(item["text"], assignment, speed)
-            sf.write(str(output_path), audio, sr)
-            files[item["order_index"]] = str(output_path)
-            if callable(progress_cb):
-                try:
-                    progress_cb()
-                except Exception:
-                    # JobPaused or other cancellation exception - re-raise so caller handles it
-                    raise
-            if callable(chunk_cb):
-                chunk_meta = {
-                    "speaker": speaker,
-                    "text": item["text"],
-                    "segment_index": item["segment_index"],
-                    "chunk_index": item["chunk_index"],
-                    "order_index": item["order_index"],
-                }
-                chunk_cb(item["chunk_index"], chunk_meta, str(output_path))
-
-        return [path for path in files if path]
-
-    # ------------------------------------------------------------------ #
-    def cleanup(self) -> None:  # pragma: no cover - device cleanup
-        """Release model and GPU memory."""
-        logger.info("Cleaning up Chatterbox Turbo Local engine resources")
-        
-        # Clear cached conditionals
-        if hasattr(self, 'model') and self.model is not None:
-            try:
-                self.model.conds = None
-            except Exception:
-                pass
-            
-            # Move model components to CPU before deletion to free VRAM
-            try:
-                self.model.cpu()
-            except Exception:
-                pass
-        
-        # Clear prompt cache
-        if hasattr(self, 'prompt_cache'):
-            self.prompt_cache.clear()
-        
-        # Force garbage collection before emptying CUDA cache
-        gc.collect()
-        
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            allocated = torch.cuda.memory_allocated(0) / 1024**2
-            reserved = torch.cuda.memory_reserved(0) / 1024**2
-            logger.info("CUDA memory after cleanup: %.1f MB allocated, %.1f MB reserved", allocated, reserved)
-
-    # ------------------------------------------------------------------ #
-    def _voice_assignment_for(self, voice_config: Dict[str, Dict], speaker: str) -> VoiceAssignment:
-        payload = voice_config.get(speaker) or voice_config.get("default") or {}
-        return VoiceAssignment(
-            voice=payload.get("voice"),
-            lang_code=payload.get("lang_code"),
-            audio_prompt_path=payload.get("audio_prompt_path"),
-            fx_payload=payload.get("fx"),
-            speed_override=payload.get("speed"),
-            extra=payload.get("extra") or {},
-        )
-
-    # ------------------------------------------------------------------ #
-    def _synthesize(
+    def generate_audio(
         self,
         text: str,
-        assignment: VoiceAssignment,
-        speed: float,
+        voice: Optional[str] = None,
+        lang_code: Optional[str] = None,
+        speed: float = 1.0,
         sample_rate: Optional[int] = None,
-    ) -> Tuple[np.ndarray, int]:
-        # Some upstream libraries recreate tokenizer buffers with double precision;
-        # ensure we keep things in float32 before each conditioning step.
-        self._ensure_tokenizer_buffers()
-        prompt_path = assignment.audio_prompt_path or self.default_prompt
-        fx_settings = VoiceFXSettings.from_payload(assignment.fx_payload)
-        reference_seconds = None
-        temp_prompt = None
-        temp_mp3_conv = None
-        resolved_prompt = None
-        if prompt_path:
-            try:
-                resolved_prompt = self._resolve_prompt_path(prompt_path)
-                # Convert MP3 to WAV to prevent artifacts
-                from ..audio_effects import convert_mp3_to_wav_if_needed
-                resolved_prompt, temp_mp3_conv = convert_mp3_to_wav_if_needed(resolved_prompt)
-                if fx_settings:
-                    temp_prompt = self.post_processor.prepare_prompt_audio(str(resolved_prompt), fx_settings)
-                    if temp_prompt:
-                        resolved_prompt = temp_prompt
-                        if fx_settings.tone != "neutral":
-                            fx_settings = VoiceFXSettings(pitch_semitones=0.0, speed=1.0, tone=fx_settings.tone)
-                        else:
-                            fx_settings = None
-            except FileNotFoundError:
-                if assignment.audio_prompt_path:
-                    raise
-                logger.warning(
-                    f"Default prompt '{prompt_path}' not found, proceeding without reference voice. "
-                    "Add a voice in Settings or the Chatterbox Voices section."
-                )
-                prompt_path = None
-        if resolved_prompt:
-            reuse_conditionals = temp_prompt is None and self._last_prompt_path == resolved_prompt
-            if not reuse_conditionals or self.model.conds is None:
-                reference_seconds = None
-                try:
-                    import soundfile as _sf
-                    info = _sf.info(resolved_prompt)
-                    reference_seconds = info.frames / float(info.samplerate or 16000)
-                except Exception:  # pragma: no cover - best effort warning
-                    reference_seconds = None
-                if reference_seconds is not None and reference_seconds < 5.0:
-                    raise ValueError(
-                        f"Reference prompt '{Path(resolved_prompt).name}' is only {reference_seconds:.2f}s. "
-                        "Chatterbox Turbo requires clips at least 5 seconds long."
-                    )
-                self.model.prepare_conditionals(
-                    str(resolved_prompt),
-                    exaggeration=self._resolve_numeric(
-                        assignment.extra, "exaggeration", self.exaggeration
-                    ),
-                    norm_loudness=self.prompt_norm_loudness,
-                )
-                if temp_prompt is None:
-                    self._last_prompt_path = resolved_prompt
-        elif self.model.conds is None:
-            raise ValueError(
-                "Chatterbox Turbo requires a reference audio prompt of at least 5 seconds. "
-                "Specify an audio_prompt_path per speaker or set chatterbox_local_default_prompt."
-            )
+        audio_prompt_path: Optional[str] = None,
+        fx_settings=None,
+        **_kwargs,
+    ) -> np.ndarray:
+        del voice, lang_code, speed, sample_rate
+        with tempfile.TemporaryDirectory(prefix="tts_story_chatterbox_preview_") as directory:
+            output = Path(directory) / "preview.wav"
+            item = {
+                "speaker": "preview",
+                "text": text,
+                "segment_index": 0,
+                "chunk_index": 0,
+                "order_index": 0,
+                "original_order_index": 0,
+                "output_path": str(output),
+                "assignment": VoiceAssignment(
+                    voice="",
+                    audio_prompt_path=audio_prompt_path or self.default_prompt,
+                    fx_payload=fx_settings,
+                    extra={},
+                ),
+                "chunk_meta": {},
+            }
+            self._run_worker([item])
+            audio, _ = sf.read(output, dtype="float32")
+            return np.asarray(audio, dtype=np.float32)
 
-        try:
-            params = self._resolve_generation_params(assignment.extra or {})
-            wav = self.model.generate(
-                text=text,
-                temperature=params["temperature"],
-                top_p=params["top_p"],
-                top_k=params["top_k"],
-                repetition_penalty=params["repetition_penalty"],
-                cfg_weight=params["cfg_weight"],
-                exaggeration=params["exaggeration"],
-                audio_prompt_path=None,  # already prepared via prepare_conditionals
-                norm_loudness=params["norm_loudness"],
-            )
-        finally:
-            if temp_prompt:
-                temp_prompt.unlink(missing_ok=True)
-            if temp_mp3_conv:
-                temp_mp3_conv.unlink(missing_ok=True)
-
-        audio = wav.squeeze(0).detach().cpu().numpy().astype("float32")
-        audio = self.post_processor.apply_post_pipeline(audio, self.sample_rate, fx_settings)
-
-        return audio, self.sample_rate
-
-    # ------------------------------------------------------------------ #
-    @staticmethod
-    def _resolve_numeric(extra: Dict, key: str, default_value: float) -> float:
-        value = extra.get(key)
-        if value is None:
-            return default_value
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return default_value
-
-    # ------------------------------------------------------------------ #
-    def _resolve_generation_params(self, extra: Dict) -> Dict[str, float]:
-        return {
-            "temperature": self._resolve_numeric(extra, "temperature", self.temperature),
-            "top_p": self._resolve_numeric(extra, "top_p", self.top_p),
-            "top_k": int(self._resolve_numeric(extra, "top_k", self.top_k)),
-            "repetition_penalty": self._resolve_numeric(
-                extra, "repetition_penalty", self.repetition_penalty
-            ),
-            "cfg_weight": self._resolve_numeric(extra, "cfg_weight", self.cfg_weight),
-            "exaggeration": self._resolve_numeric(extra, "exaggeration", self.exaggeration),
-            "norm_loudness": bool(extra.get("norm_loudness", self.norm_loudness)),
-        }
-
-    # ------------------------------------------------------------------ #
-    def _resolve_device(self, device: str) -> str:
-        candidate = (device or "auto").strip().lower()
-        if candidate == "auto":
-            return "cuda" if torch.cuda.is_available() else "cpu"
-        if candidate.startswith("cuda") and not torch.cuda.is_available():
-            raise RuntimeError("CUDA device requested but no GPU is available.")
-        return candidate
-
-    # ------------------------------------------------------------------ #
-    def _normalize_prompt_path(self, path: Optional[str]) -> Optional[str]:
-        if not path:
-            return None
-        trimmed = path.strip()
-        return trimmed or None
-
-    # ------------------------------------------------------------------ #
-    def _resolve_prompt_path(self, path_str: str) -> Path:
-        candidate = Path(path_str)
-        if candidate.is_file():
-            return candidate
-        fallback = Path("data/voice_prompts") / path_str
-        if fallback.is_file():
-            return fallback
-        raise FileNotFoundError(
-            f"Chatterbox Turbo reference clip not found: {path_str}. "
-            "Ensure the file exists or update chatterbox_local_default_prompt."
-        )
-
-    # ------------------------------------------------------------------ #
-    def _ensure_tokenizer_buffers(self) -> None:
-        s3gen = getattr(self.model, "s3gen", None)
-        tokenizer = getattr(s3gen, "tokenizer", None)
-        if tokenizer is None:
-            return
-        try:
-            tokenizer.float()
-        except Exception:
-            logger.debug("Tokenizer.float() failed; continuing with manual buffer casts", exc_info=True)
-        mel_filters = getattr(tokenizer, "_mel_filters", None)
-        if isinstance(mel_filters, torch.Tensor) and mel_filters.dtype != torch.float32:
-            tokenizer._mel_filters = mel_filters.float()
-            logger.debug("Coerced tokenizer _mel_filters to float32")
-        window = getattr(tokenizer, "window", None)
-        if isinstance(window, torch.Tensor) and window.dtype != torch.float32:
-            tokenizer.window = window.float()
-            logger.debug("Coerced tokenizer window to float32")
-        # ensure internal buffers dict also updated (some versions reference _buffers directly)
-        buffers = getattr(tokenizer, "_buffers", None)
-        if isinstance(buffers, dict):
-            buf = buffers.get("_mel_filters")
-            if isinstance(buf, torch.Tensor) and buf.dtype != torch.float32:
-                buffers["_mel_filters"] = buf.float()
-            buf = buffers.get("window")
-            if isinstance(buf, torch.Tensor) and buf.dtype != torch.float32:
-                buffers["window"] = buf.float()
-
-    def _coerce_tokenizer_buffers(self) -> None:
-        """Downcast S3 tokenizer buffers to float32 to match audio tensors."""
-        try:
-            self._ensure_tokenizer_buffers()
-        except Exception:  # pragma: no cover - defensive
-            logger.debug("Unable to coerce tokenizer filter dtype", exc_info=True)
+    def cleanup(self) -> None:
+        """Each worker exits after its batch, releasing model and GPU memory."""
 
 
 __all__ = [

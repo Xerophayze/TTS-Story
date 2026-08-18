@@ -9,7 +9,10 @@ import gc
 
 import numpy as np
 import soundfile as sf
-import torch
+try:
+    import torch
+except ImportError:  # Core-only installs do not include local engine runtimes.
+    torch = None  # type: ignore[assignment]
 
 from .base import EngineCapabilities, TtsEngineBase
 from ..audio_effects import AudioPostProcessor, VoiceFXSettings
@@ -19,10 +22,9 @@ DEFAULT_SAMPLE_RATE = 24000
 
 try:
     from kokoro import KPipeline  # type: ignore
-    KOKORO_AVAILABLE = True
+    KOKORO_AVAILABLE = torch is not None
 except ImportError:  # pragma: no cover - handled upstream
     KOKORO_AVAILABLE = False
-    logging.warning("Kokoro not installed. Local TTS will not be available.")
 
 
 class KokoroEngine(TtsEngineBase):

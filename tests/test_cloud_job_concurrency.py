@@ -60,3 +60,29 @@ def test_cloud_concurrency_and_edge_retry_controls_are_persisted_in_settings():
     ):
         assert f'id="{element_id}"' in template
         assert element_id in settings
+
+
+def test_cloud_provider_controls_are_grouped_with_their_engines():
+    template = read("templates/index.html")
+    settings = read("static/js/settings.js")
+    app = read("app.py")
+
+    assert 'data-engine-tab="cloud-concurrency"' not in template
+    assert 'data-engine-tab="api-keys"' not in template
+    assert 'data-engine-tab="kokoro-replicate"' in template
+
+    kokoro_start = template.index('id="engine-panel-kokoro-replicate"')
+    azure_start = template.index('id="engine-panel-azure-speech"', kokoro_start)
+    kokoro_panel = template[kokoro_start:azure_start]
+    assert 'id="kokoro-replicate-api-key"' in kokoro_panel
+    assert 'id="kokoro-replicate-max-parallel"' in kokoro_panel
+
+    chatterbox_start = template.index('id="engine-panel-chatterbox-replicate"')
+    voxcpm_start = template.index('id="engine-panel-voxcpm"', chatterbox_start)
+    chatterbox_panel = template[chatterbox_start:voxcpm_start]
+    assert 'id="chatterbox-replicate-api-key"' in chatterbox_panel
+    assert 'id="chatterbox-replicate-max-parallel"' in chatterbox_panel
+
+    assert "settings.replicate_max_parallel ?? settings.parallel_chunks" in settings
+    assert '"kokoro_replicate": "replicate_max_parallel"' in app
+    assert '"edge_tts": "edge_tts_max_parallel"' in app

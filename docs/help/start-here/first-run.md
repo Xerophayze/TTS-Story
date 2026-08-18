@@ -11,18 +11,25 @@ At the top of the page, review the status bar:
 
 A missing CUDA device is not a general failure. CPU engines and online services do not require CUDA. If the page does not populate or both indicators remain at **Loading...** or **Checking...**, restart TTS-Story before changing settings.
 
-## 2. Choose a realistic first engine
+## 2. Install or configure a realistic first engine
 
-Open [Settings](app:settings) and expand **Quick Settings**. Choose a **Default Engine** suited to this computer:
+On a new installation, TTS-Story opens a welcome dialog because no speech engine is forced into the core setup. Select **Open Engine Settings**, or open [Settings](app:settings) and expand **Engine Settings** yourself. Red engine tabs still need installation or configuration; green tabs are ready.
+
+For a local engine, open its red tab and select **Install Engine**. Keep the TTS-Story backend running while the progress log runs. You may navigate away or refresh and then return to the panel to reconnect to the current operation. Restart TTS-Story only when its panel displays the restart action. For a cloud or self-hosted engine, enter the required endpoint, credentials, model, or region and select **Save Settings**.
+
+Local engines are installed separately under engine-owned virtual environments, so one engine's package versions do not replace another's. Read [Install, Remove, and Reinstall TTS Engines](help:engine-management) before removing or repairing an engine.
+
+After at least one tab is green, expand **Quick Settings** and choose a **Default Engine** suited to this computer:
 
 - NVIDIA GPU: a local GPU engine can provide privacy and avoid usage fees.
 - CPU-only computer: Pocket TTS or KittenTTS is a practical local starting point.
 - Internet connection with no speech API key: **Microsoft Edge TTS · Experimental Cloud** is easy to test, but its consumer service is unofficial and not guaranteed.
 - Existing cloud account: use Replicate, Azure Speech, or ElevenLabs after configuring its credentials.
+- Existing LocalAI deployment: connect **LocalAI TTS** to reuse a TTS model already served by that LocalAI host.
 
 The saved default is only the starting selection for new work. The **Engine** field under **Generation Options** can override it for an individual job.
 
-Select **Save Settings** after choosing the default, even when it is a local engine with no credentials to configure.
+Only ready engines appear in the default and Generate-page engine lists. Select **Save Settings** after choosing the default.
 
 ![Quick Settings and Audio and Generation groups in TTS-Story Settings](../../../static/help/screenshots/settings-foundations.png)
 
@@ -62,7 +69,7 @@ If a cloud selector is empty, return to that engine's Settings panel and load it
 
 ## 5. Run a short Quick Test
 
-Assign one voice, leave **Pitch** and **Speed** at their defaults, and select **Quick Test**. The first local preview can be slower because a model may be loading or downloading. A successful second preview is a better measure of normal responsiveness.
+Assign one voice, leave **Pitch** and **Speed** at their defaults, and select **Quick Test**. The first local preview or job can be slower because a model may be loading or downloading. When the first job is submitted with an engine, a one-time overlay explains that the job may remain quiet while its runtime prepares. A successful later preview or generation is a better measure of normal responsiveness.
 
 If the preview fails:
 
@@ -75,6 +82,6 @@ Use [Troubleshooting Checklist](help:troubleshooting-overview) if the error pers
 
 ## 6. Save a known-good baseline
 
-Keep default audio and performance settings until a short generation completes successfully. Then change one setting at a time. For important work, save the current Generate-page state with **Manage Projects**, but remember that projects are stored only in this browser profile. They are not a substitute for backing up the original manuscript or the TTS-Story data folders.
+Keep default audio and performance settings until a short generation completes successfully. Then change one setting at a time. For important work, save the current Generate-page state with **Manage Projects**. Projects are stored by the TTS-Story backend and remain consistent across `localhost`, `127.0.0.1`, and local-network URLs that reach the same installation. They are still not a substitute for backing up the original manuscript or the TTS-Story data folders.
 
 You are ready for [Generate Your First Audio](help:quick-start).

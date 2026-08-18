@@ -26,6 +26,9 @@ set "BLACKWELL_TORCHVISION_VERSION=0.23.0"
 set "BLACKWELL_TORCHAUDIO_VERSION=2.8.0"
 set "UPDATE_MODE=0"
 set "REPAIR_MODE=0"
+set "CORE_ONLY=1"
+set "FRESH_INSTALL=0"
+if not exist ".setup_complete" set "FRESH_INSTALL=1"
 if not "%~1"=="" if /i not "%~1"=="--update" if /i not "%~1"=="--repair" (
     echo ERROR: Unknown setup option: %~1
     echo Use --update for a fast update or --repair for full reconciliation.
@@ -39,7 +42,7 @@ if "%REPAIR_MODE%"=="1" echo Repair mode enabled. Setup will perform full depend
 
 REM Check Python installation. Prefer an existing project venv during updates,
 REM because Pinokio may invoke setup.bat from a Conda base Python.
-echo [1/12] Checking Python installation...
+echo [1/10] Checking Python installation...
 set "PYTHON_CMD=python"
 set "USE_EXISTING_VENV=0"
 set "VENV_PYTHON=venv\Scripts\python.exe"
@@ -145,7 +148,7 @@ echo Found Python %PYTHON_VERSION%
 if "%UPDATE_MODE%"=="1" if "%REPAIR_MODE%"=="0" if exist ".setup_complete" if exist "%VENV_PYTHON%" (
     "%VENV_PYTHON%" scripts\setup_state.py matches --platform windows >nul 2>&1
     if not errorlevel 1 (
-        "%VENV_PYTHON%" -c "import flask, soundfile, torch" >nul 2>&1
+        "%VENV_PYTHON%" -c "import flask, soundfile" >nul 2>&1
         if not errorlevel 1 (
             echo.
             echo Dependency definitions are unchanged and the existing environment passed its health check.
@@ -187,7 +190,7 @@ if defined GPU_NAME (
 
 REM Create virtual environment
 echo.
-echo [2/12] Creating virtual environment...
+echo [2/10] Creating virtual environment...
 if "%USE_EXISTING_VENV%"=="1" (
     echo Virtual environment already exists, skipping...
 ) else if exist venv (
@@ -203,7 +206,7 @@ if "%USE_EXISTING_VENV%"=="1" (
 
 REM Activate virtual environment
 echo.
-echo [3/12] Activating virtual environment...
+echo [3/10] Activating virtual environment...
 call venv\Scripts\activate.bat
 python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 11) else 1)" >nul 2>&1
 if errorlevel 1 (
@@ -214,7 +217,7 @@ if errorlevel 1 (
 
 REM Upgrade pip
 echo.
-echo [4/12] Upgrading pip...
+echo [4/10] Upgrading pip...
 python -m pip install --upgrade pip --quiet
 
 set "SKIP_MAIN_DEPS=0"
@@ -232,9 +235,14 @@ if "%UPDATE_MODE%"=="1" (
     )
 )
 
-REM Install PyTorch (let pip/PyTorch auto-detect CUDA)
+if "%CORE_ONLY%"=="1" (
+    echo Core-only setup: PyTorch will be installed with the first compatible local TTS engine.
+    goto :SkipCoreTorchInstall
+)
+
+REM Legacy full-engine setup path. Core setup installs PyTorch per engine instead.
 echo.
-echo [5/12] Installing PyTorch...
+echo [Optional engine support] Installing PyTorch...
 echo This may take several minutes...
 echo.
 
@@ -348,10 +356,17 @@ if "%NEED_TORCH_INSTALL%"=="0" (
 
 REM Install other dependencies (excluding torch + chatterbox runtime handled separately)
 echo.
-echo [6/12] Installing other Python dependencies...
+echo [5/10] Installing core Python dependencies...
 if "%SKIP_MAIN_DEPS%"=="1" (
     echo Main Python dependencies are unchanged. Skipping dependency reinstall for update.
+    if "%CORE_ONLY%"=="1" goto :AfterOptionalEngineInstall
     goto :AfterMainDependencyInstall
+)
+
+:SkipCoreTorchInstall
+if "%CORE_ONLY%"=="1" (
+    echo.
+    echo [5/10] Installing core Python dependencies...
 )
 findstr /v /i "torch" requirements.txt > temp_requirements.txt
 findstr /v /i "pyopenjtalk" temp_requirements.txt > temp_requirements_filtered.txt
@@ -363,6 +378,12 @@ if errorlevel 1 (
     exit /b 1
 )
 del temp_requirements_filtered.txt
+
+if "%CORE_ONLY%"=="1" (
+    echo.
+    echo Core dependencies are ready. Optional TTS engines are installed from Settings.
+    goto :AfterOptionalEngineInstall
+)
 
 echo.
 echo Installing optional pyopenjtalk (Japanese text support)...
@@ -381,7 +402,7 @@ if errorlevel 1 (
 
 REM Install local Chatterbox runtime
 echo.
-echo [7/12] Installing Chatterbox Turbo runtime...
+echo [Optional engine] Installing Chatterbox Turbo runtime...
 pip install chatterbox-tts==%CHATTERBOX_TTS_VERSION% --no-deps
 if errorlevel 1 (
     echo WARNING: Failed to install chatterbox-tts==%CHATTERBOX_TTS_VERSION%.
@@ -403,7 +424,7 @@ if errorlevel 1 (
 
 REM Install VoxCPM runtime
 echo.
-echo [8/12] Installing VoxCPM 1.5 runtime...
+echo [Optional engine] Installing VoxCPM 1.5 runtime...
 pip install voxcpm --no-deps
 if errorlevel 1 (
     echo WARNING: Failed to install voxcpm - VoxCPM engine will not be available
@@ -415,7 +436,7 @@ if defined MAIN_DEPS_SIGNATURE (
 
 REM Setup OmniVoice isolated environment
 echo.
-echo [9/12] Setting up OmniVoice isolated environment...
+echo [Optional engine] Setting up OmniVoice isolated environment...
 echo OmniVoice requires torch==2.8 which conflicts with main deps, so it runs in its own venv.
 set "OMNIVOICE_DIR=%~dp0engines\omnivoice"
 if "%OMNIVOICE_DIR:~-1%"=="\" set "OMNIVOICE_DIR=%OMNIVOICE_DIR:~0,-1%"
@@ -494,7 +515,7 @@ echo OmniVoice isolated environment ready.
 
 REM Install KittenTTS runtime (optional, CPU-only)
 echo.
-echo [10/12] Installing KittenTTS runtime (optional, CPU-only)...
+echo [Optional engine] Installing KittenTTS runtime (CPU-only)...
 pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl
 if errorlevel 1 (
     echo WARNING: Failed to install kittentts - KittenTTS engine will not be available
@@ -513,7 +534,7 @@ if not "%PREFETCH_KITTEN_TTS_MODEL%"=="0" (
 
 REM Setup IndexTTS isolated environment (optional)
 echo.
-echo [10/12] Setting up IndexTTS isolated environment (optional)...
+echo [Optional engine] Setting up IndexTTS isolated environment...
 echo IndexTTS uses its own isolated venv to avoid dependency conflicts.
 set "INDEX_TTS_DIR=%~dp0engines\index-tts"
 REM Strip trailing backslash if present
@@ -607,7 +628,7 @@ echo Try manually: cd engines\index-tts ^&^& uv sync
 
 REM Setup Dot.TTS isolated environment (optional)
 echo.
-echo [10b/12] Setting up Dot.TTS isolated environment (optional)...
+echo [Optional engine] Setting up Dot.TTS isolated environment...
 echo Dot.TTS pins newer torch/transformers versions, so it runs in its own venv.
 set "DOTS_TTS_DIR=%~dp0engines\dots-tts"
 set "DOTS_TTS_REPO=%DOTS_TTS_DIR%\repo"
@@ -718,7 +739,7 @@ echo Dot.TTS isolated environment ready.
 
 REM Optional performance extras (best-effort)
 echo.
-echo [11/12] Installing optional performance extras...
+echo [Optional engine] Installing performance extras...
 echo - hf_xet (faster Hugging Face downloads)
 pip install hf_xet
 if errorlevel 1 (
@@ -743,6 +764,9 @@ if "%INSTALL_FLASH_ATTN%"=="0" (
     )
 )
 
+:AfterOptionalEngineInstall
+echo.
+echo [6/10] Preparing application data directories...
 call :EnsureVoicePromptFolder
 call :InstallSox
 call :InstallRubberBand
@@ -765,10 +789,13 @@ if errorlevel 1 (
 REM Verify installation
 echo.
 echo ========================================
-echo Verifying Installation
+echo [10/10] Verifying Installation
 echo ========================================
 echo.
-if "%NEEDS_BLACKWELL_TORCH%"=="1" (
+python -c "import torch" >nul 2>&1
+if errorlevel 1 (
+    echo Core installation verified. No local PyTorch engine is installed yet.
+) else if "%NEEDS_BLACKWELL_TORCH%"=="1" (
     python scripts\torch_cuda_probe.py --require-arch sm_120 --test-cuda >nul 2>&1
 ) else if "%HAS_NVIDIA%"=="1" (
     python scripts\torch_cuda_probe.py --test-cuda >nul 2>&1
@@ -789,7 +816,8 @@ if errorlevel 1 (
     )
 )
 
-python scripts\flash_attention_setup.py diagnose
+python -c "import torch" >nul 2>&1
+if not errorlevel 1 python scripts\flash_attention_setup.py diagnose
 
 python scripts\setup_state.py write --platform windows
 if errorlevel 1 (
@@ -797,15 +825,16 @@ if errorlevel 1 (
     exit /b 1
 )
 type nul > ".setup_complete"
+if "%FRESH_INSTALL%"=="1" type nul > ".first_run_pending"
 echo.
 echo ========================================
 echo Setup Complete!
 echo ========================================
 echo.
 echo Next steps:
-echo 1. If espeak-ng is not installed, install it now
-echo 2. Run: run.bat
-echo 3. Open browser to: http://localhost:5000
+echo 1. Run: run.bat
+echo 2. Open browser to: http://localhost:5000
+echo 3. Choose and install or configure a TTS engine in Settings
 echo.
 exit /b 0
 
@@ -897,7 +926,7 @@ goto :EOF
 
 :InstallSox
 echo.
-echo [10/12] Installing SoX...
+echo [7/10] Installing SoX...
 set "SOX_DIR=%~dp0tools\sox"
 set "SOX_URL_1=https://gigenet.dl.sourceforge.net/project/sox/sox/14.4.2/sox-14.4.2-win64.zip"
 set "SOX_URL_2=https://gigenet.dl.sourceforge.net/project/sox/sox/14.4.2/sox-14.4.2-win32.zip"
@@ -991,7 +1020,7 @@ goto :EOF
 
 :InstallRubberBand
 echo.
-echo [11/12] Installing Rubber Band CLI...
+echo [8/10] Installing Rubber Band CLI...
 set "RB_DIR=%~dp0tools\rubberband"
 set "RB_URL=https://breakfastquay.com/files/releases/rubberband-4.0.0-gpl-executable-windows.zip"
 set "RB_ZIP=%TEMP%\rubberband_cli.zip"
@@ -1055,7 +1084,7 @@ goto :EOF
 
 :InstallFFmpeg
 echo.
-echo [12/12] Installing FFmpeg...
+echo [9/10] Installing FFmpeg and checking remaining system dependencies...
 set "FF_DIR=%~dp0tools\ffmpeg"
 set "FF_URL_1=https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 set "FF_URL_2=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"

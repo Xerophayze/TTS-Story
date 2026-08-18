@@ -76,7 +76,13 @@ The preview validates a voice and short request. A generated sample also tests c
 
 ## Default engine and job engine
 
-**Settings → Quick Settings → Default Engine** chooses the initial engine for new work. **Generate → Generation Options → Engine** selects the engine for the current job. Changing the job engine can repopulate or clear voice selectors, so choose it before doing detailed assignments.
+Engine Settings uses red tabs for engines that still need installation or configuration and green tabs for ready engines. Local engines have an **Install Engine** action; hosted engines become ready after their required connection settings are saved. Only ready engines appear in **Settings → Quick Settings → Default Engine** and **Generate → Generation Options → Engine**.
+
+Installed local engines also provide **Uninstall Engine**. TTS-Story shows a confirmation before removing that engine's runtime and downloaded model files. Shared dependencies, projects, generated audio, and saved voice samples are preserved. If you reinstall the engine later, its runtime and models must be downloaded again. Restart TTS-Story after removal when prompted.
+
+Install/removal progress remains available if you leave Settings or refresh the page. For isolated-environment details, safe removal boundaries, and first-run downloads, read [Install, Remove, and Reinstall TTS Engines](help:engine-management).
+
+The default engine chooses the initial engine for new work. The Generate-page engine selects the engine for the current job. Compatible voice-sample assignments are retained when switching among cloning engines.
 
 ![Engine Settings navigation showing the available TTS engine tabs](../../../static/help/screenshots/engine-settings-navigation.png)
 

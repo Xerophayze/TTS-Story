@@ -100,4 +100,14 @@ echo Press Ctrl+C to stop the server
 echo.
 
 REM Start the application
+set "TTS_STORY_RESTARTABLE=1"
+:run_server
 python app.py
+set "SERVER_EXIT_CODE=!errorlevel!"
+if "!SERVER_EXIT_CODE!"=="75" (
+    echo.
+    echo Restart requested. Relaunching TTS-Story backend...
+    set "TTS_STORY_SKIP_BROWSER=1"
+    goto run_server
+)
+exit /b !SERVER_EXIT_CODE!

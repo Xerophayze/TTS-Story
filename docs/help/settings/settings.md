@@ -18,6 +18,8 @@ Changing the default engine also opens its engine settings tab. Configure the en
 
 ## Engine tabs
 
+Engine chips are grouped into **Local / Installable Engines** and **Cloud / Remote Providers**. Red chips need installation or configuration, green chips are ready, and a busy state identifies the engine currently being installed or removed. Only ready engines appear in Generate.
+
 Each engine tab contains only the controls relevant to that integration, such as:
 
 - model or version;
@@ -31,6 +33,8 @@ Each engine tab contains only the controls relevant to that integration, such as
 Start with the displayed defaults. Follow the matching article in [Engine Reference and Comparison](help:engine-overview) before changing model-specific sampling controls.
 
 Cloud catalog buttons such as **Test & Load Voices**, **Fetch Voices**, or **Test Connection & Load Catalog** validate the current fields and populate account/service choices. Save after selecting the desired default.
+
+Local panels also provide **Install Engine** or **Uninstall Engine**. Installation progress survives navigation and page refreshes, and each local runtime is isolated from the TTS-Story core and other engines. See [Install, Remove, and Reinstall TTS Engines](help:engine-management).
 
 ## Audio and generation defaults
 

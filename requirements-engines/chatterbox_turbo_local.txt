@@ -1,0 +1,4 @@
+chatterbox-tts==0.1.6
+huggingface-hub
+soundfile
+librosa==0.11.0

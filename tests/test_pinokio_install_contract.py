@@ -62,7 +62,7 @@ def test_setup_completion_marker_only_follows_verification():
     unix_setup = read("setup.sh")
     windows_setup = read("setup.bat")
 
-    assert unix_setup.index("python scripts/torch_cuda_probe.py", unix_setup.index("[12/12]")) < unix_setup.index(
+    assert unix_setup.index("python scripts/torch_cuda_probe.py", unix_setup.index("[10/10]")) < unix_setup.index(
         "touch .setup_complete"
     )
     assert unix_setup.index("touch .setup_complete") < unix_setup.rindex('echo "Setup Complete!"')

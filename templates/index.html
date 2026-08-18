@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TTS-Story - Multi-Voice TTS</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2326324a'/%3E%3Cpath d='M18 22h6v20h-6zM28 22h6v20h-6zM38 22h6v20h-6z' fill='%23a78bfa'/%3E%3Ccircle cx='32' cy='16' r='4' fill='%23fcd34d'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23fcd34d'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="/static/css/style.css?v=37">
+    <link rel="stylesheet" href="/static/css/style.css?v=40">
     <link rel="stylesheet" href="/static/css/help.css?v=3">
 </head>
 <body>
@@ -811,24 +811,39 @@
                         <span class="collapse-icon">▼</span>
                     </div>
                     <div class="settings-group-content">
-                        <div class="engine-tabs">
-                            <button type="button" class="engine-tab-btn active" data-engine-tab="kokoro">Kokoro</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-local">Chatterbox Local</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-replicate">Chatterbox Cloud</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="cloud-concurrency">Cloud Concurrency</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="azure-speech">Azure Speech</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="edge-tts">Edge TTS</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="elevenlabs">ElevenLabs</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="openai-tts">OpenAI TTS</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="localai-tts">LocalAI TTS</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="voxcpm">VoxCPM 1.5</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="pocket-tts">Pocket TTS</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="qwen3">Qwen3-TTS</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="omnivoice">OmniVoice</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="kitten-tts">KittenTTS</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="index-tts">IndexTTS</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="dots-tts">Dot.TTS</button>
-                            <button type="button" class="engine-tab-btn" data-engine-tab="api-keys">API Keys</button>
+                        <div class="engine-tabs" aria-label="TTS engine settings">
+                            <section class="engine-tab-group" aria-labelledby="local-engine-tabs-label">
+                                <div class="engine-tab-group-heading">
+                                    <h4 id="local-engine-tabs-label">Local / Installable Engines</h4>
+                                    <span>Models and runtimes installed on this computer</span>
+                                </div>
+                                <div class="engine-tab-group-buttons">
+                                    <button type="button" class="engine-tab-btn active" data-engine-tab="kokoro">Kokoro</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-local">Chatterbox Local</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="voxcpm">VoxCPM 1.5</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="pocket-tts">Pocket TTS</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="qwen3">Qwen3-TTS</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="omnivoice">OmniVoice</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="kitten-tts">KittenTTS</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="index-tts">IndexTTS</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="dots-tts">Dot.TTS</button>
+                                </div>
+                            </section>
+                            <section class="engine-tab-group engine-tab-group-remote" aria-labelledby="remote-engine-tabs-label">
+                                <div class="engine-tab-group-heading">
+                                    <h4 id="remote-engine-tabs-label">Cloud / Remote Providers</h4>
+                                    <span>Online services and separately hosted endpoints</span>
+                                </div>
+                                <div class="engine-tab-group-buttons">
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="kokoro-replicate">Kokoro Cloud</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="chatterbox-replicate">Chatterbox Cloud</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="azure-speech">Azure Speech</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="edge-tts">Edge TTS</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="elevenlabs">ElevenLabs</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="openai-tts">OpenAI TTS</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="localai-tts">LocalAI TTS</button>
+                                </div>
+                            </section>
                         </div>
 
                         <!-- Kokoro Panel -->
@@ -845,20 +860,25 @@
                                     <small>Character limit per chunk (recommended 300–600).</small>
                                 </div>
                             </div>
-                            <p class="help-text">For Replicate, add your API key in the API Keys tab.</p>
                         </div>
 
-                        <!-- Microsoft Azure Speech Panel -->
-                        <div class="engine-panel" id="engine-panel-cloud-concurrency">
+                        <!-- Kokoro Replicate Panel -->
+                        <div class="engine-panel" id="engine-panel-kokoro-replicate">
                             <div class="section-title-inline settings-panel-title">
-                                <h4>Cloud Job Concurrency</h4>
+                                <h4>Kokoro Cloud · Replicate</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-kokoro-cloud" aria-label="Help: Kokoro Cloud">?</button>
                             </div>
-                            <p class="help-text" style="margin-top:0;">Allow separate cloud TTS jobs to process at the same time. Local engines remain serialized to protect GPU and system resources.</p>
+                            <p class="help-text" style="margin-top:0;">Cloud-hosted Kokoro through Replicate. The same Replicate token and request limit are shared with Chatterbox Cloud.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
-                                    <label for="cloud-tts-concurrent-jobs">Maximum Concurrent Cloud Jobs</label>
-                                    <input type="number" id="cloud-tts-concurrent-jobs" min="1" max="4" step="1" value="2">
-                                    <small>Each job may also send parallel chunk requests according to the selected provider's limit.</small>
+                                    <label for="kokoro-replicate-api-key">Replicate API Token</label>
+                                    <input type="password" id="kokoro-replicate-api-key" placeholder="r8_..." autocomplete="new-password">
+                                    <small>Stored locally and shared only by Replicate-hosted TTS engines.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="kokoro-replicate-max-parallel">Maximum Parallel Requests</label>
+                                    <input type="number" id="kokoro-replicate-max-parallel" min="1" max="8" step="1" value="3">
+                                    <small>Simultaneous Replicate chunks within a job.</small>
                                 </div>
                             </div>
                         </div>
@@ -1238,6 +1258,16 @@
                             <p class="help-text" style="margin-top:0;">Cloud-hosted Chatterbox on Replicate. Requires API key.</p>
                             <div class="settings-form-grid">
                                 <div class="form-group">
+                                    <label for="chatterbox-replicate-api-key">Replicate API Token</label>
+                                    <input type="password" id="chatterbox-replicate-api-key" placeholder="r8_..." autocomplete="new-password">
+                                    <small>Shared with Kokoro Cloud because both use the same Replicate account.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="chatterbox-replicate-max-parallel">Maximum Parallel Requests</label>
+                                    <input type="number" id="chatterbox-replicate-max-parallel" min="1" max="8" step="1" value="3">
+                                    <small>Simultaneous Replicate chunks within a job.</small>
+                                </div>
+                                <div class="form-group">
                                     <label for="chatterbox-turbo-replicate-model">Model Version</label>
                                     <input type="text" id="chatterbox-turbo-replicate-model" placeholder="resemble-ai/chatterbox-turbo:...">
                                 </div>
@@ -1339,6 +1369,33 @@
                                 <button type="button" class="help-icon" data-help-id="engine-pocket-tts" aria-label="Help: Pocket TTS">?</button>
                             </div>
                             <p class="help-text" style="margin-top:0;">CPU-only Pocket TTS with voice prompts (.wav/.mp3 or .safetensors). Built-in voices run faster than cloning prompts.</p>
+                            <div class="settings-subsection" style="margin-bottom:16px;">
+                                <h4>Hugging Face Access for Voice Cloning</h4>
+                                <p class="help-text">
+                                    Preset voices do not require authentication. Custom voice cloning uses gated Kyutai weights and requires you to accept the model conditions and provide a token.
+                                </p>
+                                <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0;">
+                                    <a class="btn btn-secondary" href="https://huggingface.co/kyutai/pocket-tts" target="_blank" rel="noopener noreferrer">Review &amp; Accept Model Terms</a>
+                                    <a class="btn btn-secondary" href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer">Create Hugging Face Token</a>
+                                </div>
+                                <ol class="help-text" style="margin-top:8px;">
+                                    <li><a href="https://huggingface.co/kyutai/pocket-tts" target="_blank" rel="noopener noreferrer">Open the Pocket TTS model page</a>, sign in, review the conditions, and request/accept access.</li>
+                                    <li><a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer">Create a Hugging Face access token</a> with Read permission, or a fine-grained token that can read <code>kyutai/pocket-tts</code>.</li>
+                                    <li>Paste the token below, verify access, and save Settings.</li>
+                                </ol>
+                                <div class="settings-form-grid">
+                                    <div class="form-group">
+                                        <label for="pocket-tts-huggingface-token">Hugging Face Access Token</label>
+                                        <input type="password" id="pocket-tts-huggingface-token" placeholder="hf_..." autocomplete="new-password">
+                                        <small>Stored locally and scrubbed from repository syncs.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Access Check</label>
+                                        <button type="button" class="btn btn-secondary" id="pocket-tts-verify-huggingface-btn">Verify Voice-Cloning Access</button>
+                                        <small id="pocket-tts-huggingface-status" role="status"></small>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="settings-form-grid">
                                 <div class="form-group">
                                     <label for="pocket-tts-model-variant">Model Variant</label>
@@ -1776,19 +1833,6 @@
                             </div>
                         </div>
 
-                        <!-- API Keys Panel -->
-                        <div class="engine-panel" id="engine-panel-api-keys">
-                            <div class="section-title-inline settings-panel-title">
-                                <h4>API Keys</h4>
-                                <button type="button" class="help-icon" data-help-id="engine-api-keys" aria-label="Help: API Keys">?</button>
-                            </div>
-                            <p class="help-text" style="margin-top:0;">API keys for cloud-based engines.</p>
-                            <div class="form-group">
-                                <label for="kokoro-replicate-api-key">Replicate API Token</label>
-                                <input type="password" id="kokoro-replicate-api-key" placeholder="r8_..." autocomplete="new-password">
-                                <small>Used by Kokoro Replicate and Chatterbox Replicate. Get key from <a href="https://replicate.com" target="_blank">replicate.com</a></small>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -1832,9 +1876,14 @@
                                 <small>Digital silence inserted for six asterisks</small>
                             </div>
                             <div class="form-group">
-                                <label for="parallel-chunks">Parallel Chunks</label>
-                                <input type="number" id="parallel-chunks" value="3" min="1" max="25" step="1">
-                                <small>Replicate only (1-25)</small>
+                                <label for="cloud-tts-concurrent-jobs">Simultaneous Cloud Projects</label>
+                                <input type="number" id="cloud-tts-concurrent-jobs" min="1" max="4" step="1" value="2">
+                                <small>Global safety ceiling for separate cloud TTS projects. Per-provider request limits are configured in each cloud engine panel.</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="parallel-chunks">Local Parallel Chunks</label>
+                                <input type="number" id="parallel-chunks" min="1" max="8" step="1" value="3">
+                                <small>Used only by local engines that support parallel chunk generation.</small>
                             </div>
                         </div>
                         <div class="form-group checkbox-group" style="margin-top:12px;">
@@ -2084,6 +2133,44 @@
             <div class="button-group" style="margin-top:20px;">
                 <button id="save-settings-btn" class="btn btn-primary">Save Settings</button>
                 <button id="reset-settings-btn" class="btn btn-secondary">Reset to Defaults</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="first-run-welcome-overlay">
+        <div class="modal hidden first-run-welcome-modal" id="first-run-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="first-run-welcome-title">
+            <div class="modal-header">
+                <h3 id="first-run-welcome-title">Welcome to TTS-Story</h3>
+            </div>
+            <div class="modal-body">
+                <p>TTS-Story is installed and ready. Voice engines are now optional, so you can install or configure only the ones you plan to use.</p>
+                <ol class="first-run-steps">
+                    <li>Open <strong>Settings → Engine Settings</strong>.</li>
+                    <li>Choose a local engine and click <strong>Install</strong>, or enter the credentials required by a cloud or self-hosted engine.</li>
+                    <li>Save Settings. Ready engines turn green and appear in the Generate page engine list.</li>
+                </ol>
+                <p class="help-text">Local model files may download during installation or the first generation. Large engines can take several minutes.</p>
+            </div>
+            <div class="modal-footer first-run-actions">
+                <button type="button" class="btn btn-secondary" id="first-run-close-btn">Explore First</button>
+                <button type="button" class="btn btn-primary" id="first-run-settings-btn">Open Engine Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay hidden" id="engine-first-run-overlay">
+        <div class="modal hidden engine-first-run-modal" id="engine-first-run-modal" role="dialog" aria-modal="true" aria-labelledby="engine-first-run-title">
+            <div class="modal-header">
+                <h3 id="engine-first-run-title">Preparing This TTS Engine</h3>
+                <button type="button" class="modal-close" id="engine-first-run-close" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Your audio job has been submitted successfully.</strong></p>
+                <p id="engine-first-run-message">This engine may need to download additional model files and prepare its runtime before generating its first audio.</p>
+                <p class="help-text">The first run can take several minutes and may appear quiet while files download or models load. Keep TTS-Story running and monitor the Job Queue. Later generations with this engine should start much faster.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="engine-first-run-ok">Got It</button>
             </div>
         </div>
     </div>
@@ -2596,10 +2683,10 @@
     </div>
 
     <script src="/static/js/help.js?v=3"></script>
-<script src="/static/js/main.js?v=59"></script>
+<script src="/static/js/main.js?v=61"></script>
     <script src="/static/js/queue.js?v=4"></script>
 <script src="/static/js/library.js?v=45"></script>
     <script src="/static/js/voice-manager.js?v=15"></script>
-    <script src="/static/js/settings.js?v=17"></script>
+<script src="/static/js/settings.js?v=24"></script>
 </body>
 </html>

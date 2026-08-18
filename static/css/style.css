@@ -4297,12 +4297,47 @@ audio {
 
 /* Engine sub-tabs within Engine Settings group */
 .engine-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: grid;
+    gap: 12px;
     margin-bottom: 16px;
     padding-bottom: 12px;
     border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.engine-tab-group {
+    padding: 12px;
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.28);
+}
+
+.engine-tab-group-remote {
+    background: rgba(14, 116, 144, 0.06);
+}
+
+.engine-tab-group-heading {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-bottom: 10px;
+}
+
+.engine-tab-group-heading h4 {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.engine-tab-group-heading span {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.engine-tab-group-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .engine-tab-btn {
@@ -4441,6 +4476,100 @@ audio {
     border: 1px solid rgba(99, 102, 241, 0.45);
     border-radius: 10px;
     background: linear-gradient(135deg, rgba(79, 70, 229, 0.14), rgba(15, 23, 42, 0.72));
+}
+
+.engine-tab-btn.engine-status-ready {
+    border-color: #2fbf8f;
+    color: #9af0cf;
+    background: rgba(47, 191, 143, 0.14);
+}
+
+.engine-tab-btn.engine-status-missing {
+    border-color: #d95f70;
+    color: #ffb4bf;
+    background: rgba(217, 95, 112, 0.14);
+}
+
+.engine-tab-btn.engine-status-ready.active {
+    box-shadow: 0 0 0 2px rgba(47, 191, 143, 0.3);
+}
+
+.engine-tab-btn.engine-status-missing.active {
+    box-shadow: 0 0 0 2px rgba(217, 95, 112, 0.3);
+}
+
+.engine-tab-btn.engine-status-busy,
+.engine-tab-btn.engine-status-busy.active {
+    border-color: #f0b84b;
+    color: #ffe0a3;
+    background: rgba(240, 184, 75, 0.16);
+    box-shadow: 0 0 0 2px rgba(240, 184, 75, 0.24);
+}
+
+.engine-setup-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: rgba(13, 20, 35, 0.65);
+}
+
+.engine-setup-status.ready {
+    border-color: #2fbf8f;
+}
+
+.engine-setup-status.missing {
+    border-color: #d95f70;
+}
+
+.engine-setup-status.busy {
+    border-color: #f0b84b;
+    background: rgba(240, 184, 75, 0.08);
+}
+
+.engine-setup-status-text {
+    flex: 1 1 260px;
+}
+
+.engine-install-output {
+    flex-basis: 100%;
+    max-height: 190px;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-family: Consolas, Monaco, monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.first-run-welcome-modal {
+    width: min(640px, 94vw);
+}
+
+.engine-first-run-modal {
+    width: min(620px, 94vw);
+}
+
+.engine-first-run-modal .modal-body p {
+    line-height: 1.6;
+}
+
+.first-run-steps {
+    display: grid;
+    gap: 10px;
+    padding-left: 24px;
+}
+
+.first-run-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
 }
 
 .llm-backup-profile-card {

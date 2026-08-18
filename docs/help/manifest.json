@@ -1,7 +1,7 @@
 {
   "title": "TTS-Story User Guide",
   "subtitle": "From first launch to a finished, reviewed audiobook",
-  "version": "2026.08.07.1",
+  "version": "2026.08.17.1",
   "categories": [
     {
       "id": "start-here",
@@ -104,6 +104,7 @@
       "description": "Understand defaults, tune quality and speed, and know where local data is stored.",
       "article_ids": [
         "settings",
+        "engine-management",
         "settings-audio",
         "performance-tuning",
         "data-storage"
@@ -128,9 +129,10 @@
     "audio-library-actions": "audio-library",
     "qwen-voice-creation": "voice-creation",
     "settings-quick": "settings",
-    "settings-engines": "engine-overview",
+    "settings-engines": "engine-management",
     "settings-llm": "llm-overview",
     "engine-api-keys": "online-services",
+    "engine-kokoro-cloud": "engine-kokoro",
     "engine-chatterbox-local": "engine-chatterbox",
     "engine-chatterbox-cloud": "engine-chatterbox"
   },
@@ -531,6 +533,14 @@
       "summary": "Understand global defaults, engine tabs, save behavior, and when per-job choices override settings.",
       "keywords": ["settings", "default engine", "save", "reset", "configuration"],
       "related": ["settings-audio", "engine-overview", "data-storage"]
+    },
+    {
+      "id": "engine-management",
+      "file": "settings/engine-management.md",
+      "title": "Install, Remove, and Reinstall TTS Engines",
+      "summary": "Manage optional local engines, isolated environments, first-run downloads, live progress, restarts, and safe removal.",
+      "keywords": ["install engine", "uninstall engine", "reinstall", "isolated environment", "venv", "model download", "restart", "red chip", "green chip"],
+      "related": ["engine-overview", "first-run", "gpu-cpu-errors", "engine-localai-tts"]
     },
     {
       "id": "settings-audio",

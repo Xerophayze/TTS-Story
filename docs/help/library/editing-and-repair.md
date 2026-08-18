@@ -60,4 +60,4 @@ Metadata edits affect packaging and display. They do not change speaker tags, ch
 
 If the Library item was deleted, its `static/audio/<job-id>` directory and associated files are removed. If individual chunks are missing and cannot be regenerated, restore the item from a filesystem backup or rerun generation from a saved manuscript/Project.
 
-Projects are stored separately in browser local storage and are not a backup of generated audio or global settings. See [Save and Restore Projects](help:projects) and [Local Data, API Keys, and Backups](help:data-storage).
+Projects are stored separately in the backend's shared project library and are not a backup of generated audio or global settings. See [Save and Restore Projects](help:projects) and [Local Data, API Keys, and Backups](help:data-storage).

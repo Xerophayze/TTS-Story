@@ -14,6 +14,13 @@ def test_blocks_runtime_and_credential_paths():
     assert SAFETY.path_problem("static/samples/voice.wav")
     assert SAFETY.path_problem("jobs.db")
     assert SAFETY.path_problem("secrets/private.key")
+    assert SAFETY.path_problem("engines/chatterbox/.venv/Scripts/python.exe")
+    assert SAFETY.path_problem("engines/new-engine/.engine_ready")
+    assert SAFETY.path_problem("engines/new-engine/models/model.safetensors")
+    assert SAFETY.path_problem(".codex-remote-attachments/private/screenshot.png")
+    assert SAFETY.path_problem(".cache/huggingface/model.bin")
+    assert SAFETY.path_problem("data/engine-first-run.json")
+    assert SAFETY.path_problem("temp_requirements_filtered5.txt")
 
 
 def test_allows_placeholders_and_tracked_engine_worker():
@@ -50,3 +57,15 @@ def test_detects_high_confidence_token_pattern():
 def test_detects_openrouter_token_pattern():
     token = b"sk-or-v1-" + (b"A" * 40)
     assert "OpenAI-style key" in SAFETY.content_problems("settings.txt", token)
+
+
+def test_detects_opaque_api_key_by_assignment_context():
+    content = b'azure_speech_key = "0123456789abcdef0123456789abcdef"'
+    assert "credential-like populated key or token setting" in SAFETY.content_problems(
+        "settings.py", content
+    )
+
+
+def test_allows_documented_placeholder_key_assignment():
+    content = b'api_key = "your-api-key-placeholder"'
+    assert SAFETY.content_problems("README.md", content) == []

@@ -23,6 +23,7 @@ import shutil
 import sqlite3
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -98,10 +99,9 @@ from src.engines.voxcpm_local_engine import VOXCPM_AVAILABLE
 from src.engines.qwen3_custom_voice_engine import QWEN3_AVAILABLE
 from src.engines.qwen3_voice_clone_engine import QWEN3_AVAILABLE as QWEN3_CLONE_AVAILABLE
 from src.engines.omnivoice_clone_engine import (
-    OMNIVOICE_AVAILABLE,
-    _OMNIVOICE_UNAVAILABLE_REASON as OMNIVOICE_UNAVAILABLE_REASON,
+    omnivoice_available,
+    omnivoice_unavailable_reason,
 )
-from src.engines.omnivoice_design_engine import OMNIVOICE_AVAILABLE as OMNIVOICE_DESIGN_AVAILABLE
 from src.engines.pocket_tts_engine import POCKET_TTS_AVAILABLE
 from src.engines.kitten_tts_engine import (
     KITTEN_TTS_AVAILABLE,
@@ -166,6 +166,7 @@ from src.tts_engine import (
     get_engine,
     AVAILABLE_ENGINES,
 )
+from src.engines.isolated_proxy import isolated_engine_available
 from src.voice_manager import VoiceManager
 from src.voice_sample_generator import generate_voice_samples
 # Keep the Gemini wrapper after engine imports. Its SDK is also lazy-loaded in
@@ -208,6 +209,28 @@ PREP_PROGRESS_DIR.mkdir(parents=True, exist_ok=True)
 LLM_PROFILE_USAGE_FILE = Path("data/llm_profile_usage.json")
 LLM_PROFILE_USAGE_LOCK = threading.Lock()
 PROJECTS_FILE = Path(__file__).resolve().parent / "data" / "projects.json"
+ENGINE_FIRST_RUN_NOTICE_FILE = Path(__file__).resolve().parent / "data" / "engine-first-run.json"
+ENGINE_FIRST_RUN_NOTICE_LOCK = threading.Lock()
+FIRST_RUN_MARKER = Path(__file__).resolve().parent / ".first_run_pending"
+ENGINE_INSTALL_LOG_DIR = Path(__file__).resolve().parent / "data" / "engine-installs"
+ENGINE_INSTALL_LOG_DIR.mkdir(parents=True, exist_ok=True)
+ENGINE_INSTALL_LOCK = threading.Lock()
+ENGINE_INSTALL_JOBS: Dict[str, Dict[str, Any]] = {}
+SERVER_INSTANCE_ID = uuid.uuid4().hex
+SERVER_RESTART_EXIT_CODE = 75
+
+ENGINE_INSTALL_GENERATION_IDS = {
+    "kokoro": {"kokoro"},
+    "chatterbox_turbo_local": {"chatterbox_turbo_local"},
+    "voxcpm_local": {"voxcpm_local"},
+    "pocket_tts": {"pocket_tts", "pocket_tts_preset"},
+    "qwen3": {"qwen3_custom", "qwen3_clone"},
+    "omnivoice": {"omnivoice_clone", "omnivoice_design"},
+    "kitten_tts": {"kitten_tts"},
+    "index_tts": {"index_tts"},
+    "dots_tts": {"dots_tts"},
+    "edge_tts": {"edge_tts"},
+}
 PROJECTS_LOCK = threading.RLock()
 JOB_METADATA_FILENAME = "metadata.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
@@ -383,6 +406,7 @@ DEFAULT_CONFIG = {
     "pocket_tts_noise_clamp": None,
     "pocket_tts_eos_threshold": -4.0,
     "pocket_tts_default_prompt": "",
+    "huggingface_token": "",
     "pocket_tts_prompt_truncate": False,
     "pocket_tts_num_threads": None,
     "pocket_tts_interop_threads": None,
@@ -419,6 +443,7 @@ DEFAULT_CONFIG = {
     "dots_tts_default_prompt_text": "",
     "dots_tts_allow_xvector_only": False,
     "dots_tts_chunk_size": 250,
+    "replicate_max_parallel": 3,
     "parallel_chunks": 3,
     "group_chunks_by_speaker": False,
     "cleanup_vram_after_job": False,
@@ -435,6 +460,7 @@ SECRET_CONFIG_KEYS = {
     "elevenlabs_api_key",
     "openai_tts_api_key",
     "localai_tts_api_key",
+    "huggingface_token",
 }
 
 POCKET_TTS_PRESET_VOICES = [
@@ -488,6 +514,7 @@ QWEN3_CLONE_SETTING_KEYS = {
     "qwen3_clone_default_prompt_text",
 }
 POCKET_TTS_SETTING_KEYS = {
+    "huggingface_token",
     "pocket_tts_model_variant",
     "pocket_tts_temp",
     "pocket_tts_lsd_decode_steps",
@@ -1251,6 +1278,9 @@ chunk_regen_executor = ThreadPoolExecutor(max_workers=1)
 qwen3_voice_design_model = None
 qwen3_voice_design_signature = None
 qwen3_voice_design_generation_count = 0
+qwen3_voice_design_process = None
+qwen3_voice_design_log_handle = None
+qwen3_voice_design_process_lock = threading.Lock()
 library_cache = {
     "items": None,
     "timestamp": 0.0,
@@ -1479,10 +1509,9 @@ def _validate_voice_assignments_for_engine(
                 missing_voices.append(speaker)
 
         if engine_name == "chatterbox_turbo_local":
-            # Reference audio prompt is optional - Chatterbox can use its default voice
-            # Only require prompt if explicitly configured in default_prompt
             default_prompt = (config.get("chatterbox_turbo_local_default_prompt") or "").strip()
-            # Don't require prompt - allow Chatterbox to use its default voice
+            if not prompt and not default_prompt:
+                missing_prompts.append(speaker)
 
         if engine_name == "qwen3_clone":
             default_prompt = (config.get("qwen3_clone_default_prompt") or "").strip()
@@ -2307,7 +2336,7 @@ def _qwen3_voice_design_signature(config: Dict[str, Any]) -> str:
 
 
 def _get_qwen3_voice_design_model(config: Dict[str, Any]):
-    if not QWEN3_AVAILABLE:
+    if not isolated_engine_available("qwen3_custom"):
         raise ImportError("qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode.")
     global qwen3_voice_design_model, qwen3_voice_design_signature
     config = config or {}
@@ -2336,6 +2365,49 @@ def _get_qwen3_voice_design_model(config: Dict[str, Any]):
         )
         qwen3_voice_design_signature = signature
         return qwen3_voice_design_model
+
+
+def _run_isolated_qwen_voice_design(request_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Run casting in Qwen's persistent isolated process and keep its model warm."""
+    global qwen3_voice_design_process, qwen3_voice_design_log_handle
+    python = Path(__file__).resolve().parent / "engines" / "qwen3" / ".venv" / (
+        "Scripts/python.exe" if os.name == "nt" else "bin/python"
+    )
+    worker = Path(__file__).resolve().parent / "engines" / "qwen3_voice_design_worker.py"
+    if not python.is_file() or not worker.is_file():
+        raise ImportError("Qwen3-TTS isolated runtime is not installed.")
+    with qwen3_voice_design_process_lock:
+        if qwen3_voice_design_process is None or qwen3_voice_design_process.poll() is not None:
+            log_path = Path(__file__).resolve().parent / "data" / "qwen3-voice-design-worker.log"
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            if qwen3_voice_design_log_handle:
+                qwen3_voice_design_log_handle.close()
+            qwen3_voice_design_log_handle = log_path.open("a", encoding="utf-8", errors="replace")
+            qwen3_voice_design_process = subprocess.Popen(
+                [str(python), "-u", str(worker)],
+                cwd=str(Path(__file__).resolve().parent),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=qwen3_voice_design_log_handle,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+            )
+        process = qwen3_voice_design_process
+        process.stdin.write(json.dumps(request_payload, ensure_ascii=False) + "\n")
+        process.stdin.flush()
+        request_id = request_payload["id"]
+        for line in process.stdout:
+            if not line.startswith("TTS_STORY_QWEN_RESULT "):
+                continue
+            response = json.loads(line[len("TTS_STORY_QWEN_RESULT "):])
+            if response.get("id") != request_id:
+                continue
+            if not response.get("success"):
+                raise RuntimeError(response.get("error") or "Qwen3 VoiceDesign worker failed")
+            return response
+        raise RuntimeError("Qwen3 VoiceDesign worker stopped without returning a result.")
 
 
 def _engine_signature(engine_name: str, config: Dict) -> str:
@@ -2439,6 +2511,7 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
         )
         return f"{engine_name}::{'|'.join(parts)}"
     if engine_name in {"pocket_tts", "pocket_tts_preset"}:
+        huggingface_token = (config.get("huggingface_token") or "").strip()
         parts = (
             (config.get("pocket_tts_model_variant") or "").strip(),
             str(config.get("pocket_tts_temp")),
@@ -2449,6 +2522,8 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             str(bool(config.get("pocket_tts_prompt_truncate", False))),
             str(config.get("pocket_tts_num_threads")),
             str(config.get("pocket_tts_interop_threads")),
+            hashlib.sha256(huggingface_token.encode("utf-8")).hexdigest()[:12]
+            if huggingface_token else "no-hf-token",
         )
         return f"{engine_name}::{'|'.join(parts)}"
     if engine_name == "kokoro_replicate":
@@ -2527,12 +2602,12 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
     """Instantiate a specific engine with configuration-derived options."""
     config = config or {}
     if engine_name == "kokoro":
-        if not KOKORO_AVAILABLE:
-            raise ImportError("Kokoro is not installed. Run setup to enable local mode.")
+        if not isolated_engine_available("kokoro"):
+            raise ImportError("Kokoro is not installed. Install it from Settings → Engine Settings.")
         device = config.get("device", "auto")
         logger.info("Creating Kokoro engine with device='%s'", device)
-        engine = TTSEngine(device=device)
-        logger.info("Kokoro engine created on device='%s'", engine.device)
+        engine = get_engine("kokoro", device=device)
+        logger.info("Kokoro isolated engine proxy created for device='%s'", device)
         return engine
 
     if engine_name == "chatterbox_turbo_local":
@@ -2540,7 +2615,7 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             raise ImportError(
                 "Chatterbox Turbo is unavailable: "
                 f"{CHATTERBOX_TURBO_UNAVAILABLE_REASON or 'runtime import failed'}. "
-                "Run setup.bat on Windows or ./setup.sh on Linux/macOS to repair it."
+                "Install or repair Chatterbox Local from Settings → Engine Settings."
             )
         device = (config.get("chatterbox_turbo_local_device") or config.get("device") or "auto").strip()
         return get_engine(
@@ -2581,8 +2656,8 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
         )
 
     if engine_name == "voxcpm_local":
-        if not VOXCPM_AVAILABLE:
-            raise ImportError("voxcpm is not installed. Run setup to enable VoxCPM local mode.")
+        if not isolated_engine_available("voxcpm_local"):
+            raise ImportError("VoxCPM is not installed. Install it from Settings → Engine Settings.")
         device = (config.get("voxcpm_local_device") or "auto").strip()
         return get_engine(
             "voxcpm_local",
@@ -2597,8 +2672,8 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
         )
 
     if engine_name == "qwen3_custom":
-        if not QWEN3_AVAILABLE:
-            raise ImportError("qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode.")
+        if not isolated_engine_available("qwen3_custom"):
+            raise ImportError("Qwen3-TTS is not installed. Install it from Settings → Engine Settings.")
         device = (config.get("qwen3_custom_device") or "auto").strip()
         return get_engine(
             "qwen3_custom",
@@ -2611,8 +2686,8 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
         )
 
     if engine_name == "qwen3_clone":
-        if not QWEN3_CLONE_AVAILABLE:
-            raise ImportError("qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode.")
+        if not isolated_engine_available("qwen3_clone"):
+            raise ImportError("Qwen3-TTS is not installed. Install it from Settings → Engine Settings.")
         device = (config.get("qwen3_clone_device") or "auto").strip()
         return get_engine(
             "qwen3_clone",
@@ -2626,8 +2701,8 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
         )
 
     if engine_name == "omnivoice_clone":
-        if not OMNIVOICE_AVAILABLE:
-            raise ImportError(f"OmniVoice engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment.")
+        if not omnivoice_available():
+            raise ImportError(f"OmniVoice engine not available. {omnivoice_unavailable_reason()} Install OmniVoice from Settings.")
         return get_engine(
             "omnivoice_clone",
             device=(config.get("omnivoice_clone_device") or "auto").strip() or "auto",
@@ -2641,8 +2716,8 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
         )
 
     if engine_name == "omnivoice_design":
-        if not OMNIVOICE_DESIGN_AVAILABLE:
-            raise ImportError(f"OmniVoice design engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment.")
+        if not omnivoice_available():
+            raise ImportError(f"OmniVoice design engine not available. {omnivoice_unavailable_reason()} Install OmniVoice from Settings.")
         return get_engine(
             "omnivoice_design",
             device=(config.get("omnivoice_design_device") or "auto").strip() or "auto",
@@ -2679,10 +2754,11 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
         )
 
     if engine_name in {"pocket_tts", "pocket_tts_preset"}:
-        if not POCKET_TTS_AVAILABLE:
-            raise ImportError("pocket-tts is not installed. Run setup to enable Pocket TTS.")
+        if not isolated_engine_available(engine_name):
+            raise ImportError("Pocket TTS is not installed. Install it from Settings → Engine Settings.")
         return get_engine(
             "pocket_tts",
+            environment={"HF_TOKEN": (config.get("huggingface_token") or "").strip()},
             device="cpu",
             model_variant=(config.get("pocket_tts_model_variant") or "b6369a24").strip(),
             temp=float(config.get("pocket_tts_temp") or 0.7),
@@ -2696,11 +2772,8 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
         )
 
     if engine_name == "kitten_tts":
-        if not KITTEN_TTS_AVAILABLE:
-            raise ImportError(
-                "kittentts is not installed. Run: "
-                "pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl"
-            )
+        if not isolated_engine_available("kitten_tts"):
+            raise ImportError("KittenTTS is not installed. Install it from Settings → Engine Settings.")
         return get_engine(
             "kitten_tts",
             model_id=(config.get("kitten_tts_model_id") or KITTEN_TTS_DEFAULT_MODEL).strip(),
@@ -2763,11 +2836,10 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
         )
 
     if engine_name == "edge_tts":
-        if not EDGE_TTS_AVAILABLE:
+        if not isolated_engine_available("edge_tts"):
             raise ImportError(
                 "Edge TTS is unavailable: "
-                f"{EDGE_TTS_UNAVAILABLE_REASON or 'edge-tts is not installed'}. "
-                "Run install-update.bat, then restart TTS-Story."
+                "edge-tts is not installed. Install it from Settings → Engine Settings."
             )
         return get_engine(
             "edge_tts",
@@ -5157,7 +5229,19 @@ def process_audio_job(job_data):
                 engine_kwargs["chunk_cb"] = pause_aware_chunk_cb if has_pause_markers else chunk_cb
                 supports_chunk_cb = True
             if "parallel_workers" in sig_params:
-                engine_kwargs["parallel_workers"] = max(1, min(8, int(config.get("parallel_chunks", 1) or 1)))
+                parallel_setting = {
+                    "kokoro_replicate": "replicate_max_parallel",
+                    "chatterbox_turbo_replicate": "replicate_max_parallel",
+                    "azure_speech": "azure_speech_max_parallel",
+                    "edge_tts": "edge_tts_max_parallel",
+                    "elevenlabs": "elevenlabs_max_parallel",
+                    "openai_tts": "openai_tts_max_parallel",
+                    "localai_tts": "localai_tts_max_parallel",
+                }.get(engine_name, "parallel_chunks")
+                engine_kwargs["parallel_workers"] = max(
+                    1,
+                    min(8, int(config.get(parallel_setting, 1) or 1)),
+                )
             if "start_index" in sig_params:
                 engine_kwargs["start_index"] = 0 if has_pause_markers else section_skip
             if "pause_cb" in sig_params:
@@ -6056,8 +6140,8 @@ def process_qwen3_voice_design_save_task(job_data: Dict[str, Any]) -> None:
 
 def _generate_omnivoice_design_preview(payload: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     """Generate an OmniVoice voice-design preview clip and return base64 audio."""
-    if not OMNIVOICE_DESIGN_AVAILABLE:
-        raise ImportError(f"OmniVoice design engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment.")
+    if not omnivoice_available():
+        raise ImportError(f"OmniVoice design engine not available. {omnivoice_unavailable_reason()} Install OmniVoice from Settings.")
     instruct = (payload.get("instruct") or "").strip()
     text = (payload.get("text") or "").strip()
     if not instruct:
@@ -6403,6 +6487,40 @@ def get_pocket_tts_voices():
     })
 
 
+@app.route('/api/pocket-tts/huggingface-access', methods=['POST'])
+def verify_pocket_tts_huggingface_access():
+    """Verify that a Hugging Face token can read Pocket TTS gated weights."""
+    payload = request.get_json(silent=True) or {}
+    token = str(payload.get("token") or load_config().get("huggingface_token") or "").strip()
+    if not token:
+        return jsonify({
+            "success": False,
+            "error": "Enter a Hugging Face access token first.",
+        }), 400
+    try:
+        from huggingface_hub import get_hf_file_metadata, hf_hub_url
+        from huggingface_hub.errors import HfHubHTTPError
+
+        model_url = hf_hub_url("kyutai/pocket-tts", "tts_b6369a24.safetensors")
+        get_hf_file_metadata(model_url, token=token, timeout=15)
+        return jsonify({
+            "success": True,
+            "message": "Access confirmed. Pocket TTS voice-cloning weights are available to this token.",
+        })
+    except HfHubHTTPError as exc:
+        status_code = getattr(getattr(exc, "response", None), "status_code", None)
+        if status_code in {401, 403}:
+            message = (
+                "Access was denied. Sign in to Hugging Face, accept the Pocket TTS model conditions, "
+                "then create a read or fine-grained token for kyutai/pocket-tts."
+            )
+            return jsonify({"success": False, "error": message}), 403
+        return jsonify({"success": False, "error": f"Hugging Face access check failed: {exc}"}), 502
+    except Exception as exc:
+        logger.warning("Pocket TTS Hugging Face access check failed: %s", exc)
+        return jsonify({"success": False, "error": f"Hugging Face access check failed: {exc}"}), 502
+
+
 @app.route('/api/azure-speech/voices', methods=['GET', 'POST'])
 def get_azure_speech_voices():
     """Validate Azure credentials and return the region-specific voice catalog."""
@@ -6465,7 +6583,7 @@ def get_edge_tts_voices():
     """Return the current Edge voice catalog without using a static voice list."""
     data = (request.get_json(silent=True) or {}) if request.method == 'POST' else {}
     force = bool(data.get('force')) or request.args.get('force', '').lower() in {'1', 'true', 'yes'}
-    if not EDGE_TTS_AVAILABLE:
+    if not isolated_engine_available("edge_tts"):
         return jsonify({
             "success": False,
             "error": (
@@ -6484,7 +6602,7 @@ def get_edge_tts_voices():
                     "experimental": True,
                 })
     try:
-        engine = EdgeTTSEngine(default_voice=load_config().get('edge_tts_default_voice'))
+        engine = get_engine("edge_tts", default_voice=load_config().get('edge_tts_default_voice'))
         voices = engine.list_voices()
     except EdgeTTSError as exc:
         return jsonify({"success": False, "error": str(exc)}), 502
@@ -6956,26 +7074,26 @@ def _generate_voice_design_preview(payload: Dict[str, Any], config: Dict[str, An
     seed = max(0, min(seed, 0x7fffffff))
 
     started_at = time.perf_counter()
-    with gpu_inference_lock:
-        model = _get_qwen3_voice_design_model(config)
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.reset_peak_memory_stats()
-        cuda_devices = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else []
-        with torch.random.fork_rng(devices=cuda_devices):
-            torch.manual_seed(seed)
-            if torch.cuda.is_available():
-                torch.cuda.manual_seed_all(seed)
-            wavs, sr = model.generate_voice_design(
-                text=text,
-                instruct=instruct or "",
-                language=language,
-                non_streaming_mode=True,
-                **generation_kwargs,
-            )
-    if not wavs:
-        raise RuntimeError("No audio produced for preview.")
-    audio_data = _apply_voice_design_cleanup(wavs[0], int(sr))
+    temporary_output = Path(tempfile.gettempdir()) / f"tts-story-qwen-{uuid.uuid4().hex}.wav"
+    try:
+        with gpu_inference_lock:
+            worker_result = _run_isolated_qwen_voice_design({
+                "id": uuid.uuid4().hex,
+                "text": text,
+                "instruct": instruct or "",
+                "language": language,
+                "seed": seed,
+                "generation_kwargs": generation_kwargs,
+                "output_path": str(temporary_output),
+                "model_id": (config.get("qwen3_voice_design_model_id") or "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign").strip(),
+                "device": (config.get("qwen3_custom_device") or "auto").strip(),
+                "dtype": (config.get("qwen3_custom_dtype") or "bfloat16").strip(),
+                "attention": (config.get("qwen3_custom_attn_implementation") or "flash_attention_2").strip(),
+            })
+        raw_audio, sr = sf.read(temporary_output, dtype="float32")
+    finally:
+        temporary_output.unlink(missing_ok=True)
+    audio_data = _apply_voice_design_cleanup(raw_audio, int(sr))
     duration_seconds = float(len(audio_data)) / float(sr)
     if duration_seconds < MIN_VOICE_DESIGN_PREVIEW_SECONDS:
         raise RuntimeError(
@@ -6993,13 +7111,11 @@ def _generate_voice_design_preview(payload: Dict[str, Any], config: Dict[str, An
     wav_bytes = buffer.getvalue()
     encoded = base64.b64encode(wav_bytes).decode("ascii")
     elapsed_seconds = time.perf_counter() - started_at
-    cuda_metrics = {}
-    if torch.cuda.is_available():
-        cuda_metrics = {
-            "cuda_allocated_mb": round(torch.cuda.memory_allocated() / 1024**2, 1),
-            "cuda_reserved_mb": round(torch.cuda.memory_reserved() / 1024**2, 1),
-            "cuda_peak_allocated_mb": round(torch.cuda.max_memory_allocated() / 1024**2, 1),
-        }
+    cuda_metrics = {
+        key: worker_result[key]
+        for key in ("cuda_allocated_mb", "cuda_reserved_mb", "cuda_peak_allocated_mb")
+        if key in worker_result
+    }
     logger.info(
         "Qwen3 VoiceDesign completed seed=%s duration=%.1fs elapsed=%.1fs allocated=%sMB reserved=%sMB peak=%sMB",
         seed,
@@ -10017,12 +10133,24 @@ def generate_audio():
         # Add to queue
         job_queue.put(job_data)
         logger.info(f"Job {job_id} added to queue. Queue size: {job_queue.qsize()}")
+
+        try:
+            show_first_run_notice = _consume_engine_first_run_notice(active_engine)
+        except Exception as notice_error:
+            logger.warning(
+                "Unable to persist first-run notice state for %s: %s",
+                active_engine,
+                notice_error,
+            )
+            show_first_run_notice = True
         
         return jsonify({
             "success": True,
             "job_id": job_id,
             "status": "queued",
-            "queue_position": job_queue.qsize()
+            "queue_position": job_queue.qsize(),
+            "first_run_notice": show_first_run_notice,
+            "engine": active_engine,
         })
         
     except ValueError as e:
@@ -12298,6 +12426,373 @@ def delete_saved_project(project_id: str):
     return jsonify({"success": True})
 
 
+def _load_engine_first_run_notice_state() -> set[str]:
+    try:
+        with ENGINE_FIRST_RUN_NOTICE_FILE.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        seen = payload.get("seen") if isinstance(payload, dict) else []
+        return {str(engine).strip().lower() for engine in (seen or []) if str(engine).strip()}
+    except (OSError, ValueError, TypeError):
+        return set()
+
+
+def _consume_engine_first_run_notice(engine_name: str) -> bool:
+    """Return True once per engine installation/first use, then persist it."""
+    normalized = _normalize_engine_name(engine_name)
+    if not normalized:
+        return False
+    with ENGINE_FIRST_RUN_NOTICE_LOCK:
+        seen = _load_engine_first_run_notice_state()
+        if normalized in seen:
+            return False
+        seen.add(normalized)
+        ENGINE_FIRST_RUN_NOTICE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        write_json_atomic(
+            ENGINE_FIRST_RUN_NOTICE_FILE,
+            {"seen": sorted(seen)},
+            ensure_ascii=False,
+        )
+    return True
+
+
+def _reset_engine_first_run_notice(install_target: str) -> None:
+    """Make the notice eligible again after a local engine is reinstalled."""
+    generation_ids = ENGINE_INSTALL_GENERATION_IDS.get(install_target, {install_target})
+    with ENGINE_FIRST_RUN_NOTICE_LOCK:
+        seen = _load_engine_first_run_notice_state()
+        updated = seen.difference(generation_ids)
+        if updated == seen:
+            return
+        ENGINE_FIRST_RUN_NOTICE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        write_json_atomic(
+            ENGINE_FIRST_RUN_NOTICE_FILE,
+            {"seen": sorted(updated)},
+            ensure_ascii=False,
+        )
+
+
+def _engine_setup_catalog(config: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    """Describe install/configuration state without loading model weights."""
+    config = config or load_config()
+    replicate_ready = bool((config.get("replicate_api_key") or "").strip())
+    chatterbox_cloud_ready = bool(
+        (config.get("chatterbox_turbo_replicate_api_token") or "").strip()
+        or replicate_ready
+    )
+    openai_ready = bool(
+        (config.get("openai_tts_api_key") or "").strip()
+        or "api.openai.com" not in (
+            config.get("openai_tts_base_url") or DEFAULT_OPENAI_TTS_BASE_URL
+        ).lower()
+    )
+    definitions = [
+        ("kokoro", "Kokoro", "local", isolated_engine_available("kokoro"), "kokoro"),
+        ("kokoro_replicate", "Kokoro · Replicate", "cloud", replicate_ready, "kokoro-replicate"),
+        ("chatterbox_turbo_local", "Chatterbox Local", "local", CHATTERBOX_TURBO_AVAILABLE, "chatterbox-local"),
+        ("chatterbox_turbo_replicate", "Chatterbox Cloud", "cloud", chatterbox_cloud_ready, "chatterbox-replicate"),
+        ("voxcpm_local", "VoxCPM 1.5", "local", isolated_engine_available("voxcpm_local"), "voxcpm"),
+        ("pocket_tts", "Pocket TTS · Clone", "local", isolated_engine_available("pocket_tts"), "pocket-tts"),
+        ("pocket_tts_preset", "Pocket TTS · Presets", "local", isolated_engine_available("pocket_tts_preset"), "pocket-tts"),
+        ("qwen3_custom", "Qwen3-TTS · Custom Voice", "local", isolated_engine_available("qwen3_custom"), "qwen3"),
+        ("qwen3_clone", "Qwen3-TTS · Voice Clone", "local", isolated_engine_available("qwen3_clone"), "qwen3"),
+        ("omnivoice_clone", "OmniVoice · Voice Clone", "local", omnivoice_available(), "omnivoice"),
+        ("kitten_tts", "KittenTTS", "local", isolated_engine_available("kitten_tts"), "kitten-tts"),
+        ("index_tts", "IndexTTS", "local", INDEX_TTS_AVAILABLE, "index-tts"),
+        ("dots_tts", "Dot.TTS", "local", DOTS_TTS_AVAILABLE, "dots-tts"),
+        ("azure_speech", "Microsoft Azure Speech", "cloud", bool(
+            (config.get("azure_speech_key") or "").strip()
+            and (config.get("azure_speech_region") or "").strip()
+        ), "azure-speech"),
+        ("edge_tts", "Microsoft Edge TTS", "local_client", isolated_engine_available("edge_tts"), "edge-tts"),
+        ("elevenlabs", "ElevenLabs", "cloud", bool(
+            (config.get("elevenlabs_api_key") or "").strip()
+        ), "elevenlabs"),
+        ("openai_tts", "OpenAI-compatible TTS", "cloud", openai_ready, "openai-tts"),
+        ("localai_tts", "LocalAI TTS", "service", bool(
+            (config.get("localai_tts_model") or "").strip()
+        ), "localai-tts"),
+    ]
+    install_targets = {
+        "kokoro": "kokoro",
+        "chatterbox_turbo_local": "chatterbox_turbo_local",
+        "voxcpm_local": "voxcpm_local",
+        "pocket_tts": "pocket_tts",
+        "pocket_tts_preset": "pocket_tts",
+        "qwen3_custom": "qwen3",
+        "qwen3_clone": "qwen3",
+        "omnivoice_clone": "omnivoice",
+        "kitten_tts": "kitten_tts",
+        "index_tts": "index_tts",
+        "dots_tts": "dots_tts",
+        "edge_tts": "edge_tts",
+    }
+    return [{
+        "id": engine_id,
+        "name": name,
+        "kind": kind,
+        "ready": bool(ready),
+        "settings_tab": settings_tab,
+        "install_target": install_targets.get(engine_id),
+        "uninstall_target": install_targets.get(engine_id) if ready else None,
+        "uninstall_warning": (
+            f"This will remove {name}'s runtime package and downloaded model files. "
+            "Shared TTS dependencies, projects, generated audio, and saved voice samples will be kept. "
+            "Reinstalling this engine later will require downloading its runtime and models again."
+        ) if engine_id in install_targets else None,
+        "action": (
+            "ready" if ready else ("install" if engine_id in install_targets else "configure")
+        ),
+    } for engine_id, name, kind, ready, settings_tab in definitions]
+
+
+def _run_engine_install_job(job_id: str, engine: str) -> None:
+    job = ENGINE_INSTALL_JOBS[job_id]
+    log_path = Path(job["log_path"])
+    command = [sys.executable, str(Path(__file__).resolve().parent / "scripts" / "install_engine.py"), engine]
+    try:
+        with log_path.open("w", encoding="utf-8", errors="replace") as log_handle:
+            process = subprocess.Popen(
+                command,
+                cwd=str(Path(__file__).resolve().parent),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+            )
+            job["pid"] = process.pid
+            for line in process.stdout or []:
+                log_handle.write(line)
+                log_handle.flush()
+                job["output"] = (job.get("output", "") + line)[-20000:]
+            return_code = process.wait()
+        job["status"] = "complete" if return_code == 0 else "failed"
+        job["return_code"] = return_code
+        job["restart_required"] = return_code == 0
+        job["finished_at"] = datetime.now().isoformat()
+        if return_code == 0:
+            _reset_engine_first_run_notice(engine)
+    except Exception as exc:
+        logger.exception("Optional engine installation failed: %s", engine)
+        job["status"] = "failed"
+        job["error"] = str(exc)
+        job["finished_at"] = datetime.now().isoformat()
+
+
+def _run_engine_uninstall_job(job_id: str, engine: str) -> None:
+    job = ENGINE_INSTALL_JOBS[job_id]
+    log_path = Path(job["log_path"])
+    command = [
+        sys.executable,
+        str(Path(__file__).resolve().parent / "scripts" / "install_engine.py"),
+        "--uninstall",
+        engine,
+    ]
+    try:
+        with log_path.open("w", encoding="utf-8", errors="replace") as log_handle:
+            process = subprocess.Popen(
+                command,
+                cwd=str(Path(__file__).resolve().parent),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+            )
+            job["pid"] = process.pid
+            for line in process.stdout or []:
+                log_handle.write(line)
+                log_handle.flush()
+                job["output"] = (job.get("output", "") + line)[-20000:]
+            return_code = process.wait()
+        job["status"] = "complete" if return_code == 0 else "failed"
+        job["return_code"] = return_code
+        job["restart_required"] = return_code == 0
+        job["finished_at"] = datetime.now().isoformat()
+    except Exception as exc:
+        logger.exception("Optional engine removal failed: %s", engine)
+        job["status"] = "failed"
+        job["error"] = str(exc)
+        job["finished_at"] = datetime.now().isoformat()
+
+
+@app.route('/api/onboarding', methods=['GET', 'POST'])
+def onboarding_state():
+    if request.method == 'POST':
+        try:
+            FIRST_RUN_MARKER.unlink(missing_ok=True)
+        except OSError as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+    return jsonify({"success": True, "show_welcome": FIRST_RUN_MARKER.is_file()})
+
+
+@app.route('/api/engines/status', methods=['GET'])
+def engine_setup_status():
+    return jsonify({"success": True, "engines": _engine_setup_catalog()})
+
+
+@app.route('/api/system/status', methods=['GET'])
+def system_status():
+    return jsonify({"success": True, "instance_id": SERVER_INSTANCE_ID})
+
+
+def _exit_for_supervised_restart() -> None:
+    """Exit with the code understood by run.bat/run.sh after responding."""
+    try:
+        global qwen3_voice_design_process
+        if qwen3_voice_design_process and qwen3_voice_design_process.poll() is None:
+            qwen3_voice_design_process.terminate()
+    except Exception:
+        logger.warning("Unable to stop the Qwen voice-design worker before restart", exc_info=True)
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    finally:
+        os._exit(SERVER_RESTART_EXIT_CODE)
+
+
+@app.route('/api/system/restart', methods=['POST'])
+def restart_system():
+    if request.remote_addr not in {"127.0.0.1", "::1", None}:
+        return jsonify({"success": False, "error": "Backend restart is allowed only from this computer."}), 403
+    if os.environ.get("TTS_STORY_RESTARTABLE") != "1":
+        return jsonify({
+            "success": False,
+            "error": "Automatic restart is available when TTS-Story is launched with run.bat or run.sh.",
+        }), 409
+    active_engine_job = next((
+        job for job in ENGINE_INSTALL_JOBS.values() if job.get("status") == "running"
+    ), None)
+    if active_engine_job or current_job_ids or current_job_id:
+        return jsonify({
+            "success": False,
+            "error": "Wait for active audio and engine-management jobs to finish before restarting.",
+        }), 409
+    logger.info("Backend restart requested from Settings")
+    threading.Timer(0.5, _exit_for_supervised_restart).start()
+    return jsonify({
+        "success": True,
+        "message": "TTS-Story is restarting.",
+        "instance_id": SERVER_INSTANCE_ID,
+    }), 202
+
+
+@app.route('/api/engines/install', methods=['POST'])
+def install_optional_engine():
+    if request.remote_addr not in {"127.0.0.1", "::1", None}:
+        return jsonify({"success": False, "error": "Engine installation is allowed only from this computer."}), 403
+    payload = request.get_json(silent=True) or {}
+    engine = str(payload.get("engine") or "").strip().lower()
+    allowed = {
+        entry["install_target"] for entry in _engine_setup_catalog() if entry.get("install_target")
+    }
+    if engine not in allowed:
+        return jsonify({"success": False, "error": "Unknown optional engine installer."}), 400
+    with ENGINE_INSTALL_LOCK:
+        active = next((
+            existing for existing in ENGINE_INSTALL_JOBS.values()
+            if existing.get("status") == "running"
+        ), None)
+        if active:
+            return jsonify({
+                "success": False,
+                "error": f"{active.get('engine')} is already being installed.",
+                "job_id": active.get("id"),
+            }), 409
+        job_id = str(uuid.uuid4())
+        job = {
+            "id": job_id,
+            "engine": engine,
+            "action": "install",
+            "status": "running",
+            "output": "",
+            "started_at": datetime.now().isoformat(),
+            "log_path": str(ENGINE_INSTALL_LOG_DIR / f"{job_id}.log"),
+        }
+        ENGINE_INSTALL_JOBS[job_id] = job
+        threading.Thread(
+            target=_run_engine_install_job,
+            args=(job_id, engine),
+            name=f"engine-install-{engine}",
+            daemon=True,
+        ).start()
+    return jsonify({"success": True, "job_id": job_id, "engine": engine}), 202
+
+
+@app.route('/api/engines/uninstall', methods=['POST'])
+def uninstall_optional_engine():
+    if request.remote_addr not in {"127.0.0.1", "::1", None}:
+        return jsonify({"success": False, "error": "Engine removal is allowed only from this computer."}), 403
+    if current_job_ids or current_job_id:
+        return jsonify({
+            "success": False,
+            "error": "Wait for current TTS jobs to finish or cancel them before removing an engine.",
+        }), 409
+    payload = request.get_json(silent=True) or {}
+    engine = str(payload.get("engine") or "").strip().lower()
+    allowed = {
+        entry["uninstall_target"]
+        for entry in _engine_setup_catalog()
+        if entry.get("uninstall_target")
+    }
+    if engine not in allowed:
+        return jsonify({"success": False, "error": "Unknown or unavailable local engine."}), 400
+    with ENGINE_INSTALL_LOCK:
+        active = next((
+            existing for existing in ENGINE_INSTALL_JOBS.values()
+            if existing.get("status") == "running"
+        ), None)
+        if active:
+            return jsonify({
+                "success": False,
+                "error": f"{active.get('engine')} is already being managed.",
+                "job_id": active.get("id"),
+            }), 409
+        job_id = str(uuid.uuid4())
+        job = {
+            "id": job_id,
+            "engine": engine,
+            "action": "uninstall",
+            "status": "running",
+            "output": "",
+            "started_at": datetime.now().isoformat(),
+            "log_path": str(ENGINE_INSTALL_LOG_DIR / f"{job_id}.log"),
+        }
+        ENGINE_INSTALL_JOBS[job_id] = job
+        threading.Thread(
+            target=_run_engine_uninstall_job,
+            args=(job_id, engine),
+            name=f"engine-uninstall-{engine}",
+            daemon=True,
+        ).start()
+    return jsonify({"success": True, "job_id": job_id, "engine": engine}), 202
+
+
+@app.route('/api/engines/install/<job_id>', methods=['GET'])
+@app.route('/api/engines/jobs/<job_id>', methods=['GET'])
+def optional_engine_install_status(job_id: str):
+    job = ENGINE_INSTALL_JOBS.get(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Engine management job not found."}), 404
+    return jsonify({"success": True, "job": {
+        key: value for key, value in job.items() if key != "log_path"
+    }})
+
+
+@app.route('/api/engines/jobs', methods=['GET'])
+def optional_engine_install_jobs():
+    """Return discoverable engine-management jobs for page refresh recovery."""
+    with ENGINE_INSTALL_LOCK:
+        jobs = [
+            {key: value for key, value in job.items() if key != "log_path"}
+            for job in ENGINE_INSTALL_JOBS.values()
+        ]
+    jobs.sort(key=lambda job: str(job.get("started_at") or ""), reverse=True)
+    return jsonify({"success": True, "jobs": jobs[:20]})
+
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -12319,16 +12814,16 @@ def health_check():
     return jsonify({
         "success": True,
         "tts_engine": config.get('tts_engine', 'kokoro'),
-        "kokoro_available": KOKORO_AVAILABLE,
+        "kokoro_available": isolated_engine_available("kokoro"),
         "chatterbox_turbo_available": CHATTERBOX_TURBO_AVAILABLE,
         "chatterbox_turbo_unavailable_reason": (
             CHATTERBOX_TURBO_UNAVAILABLE_REASON if not CHATTERBOX_TURBO_AVAILABLE else ""
         ),
-        "qwen3_available": QWEN3_AVAILABLE,
+        "qwen3_available": isolated_engine_available("qwen3_custom"),
         "qwen3_voice_design_api_version": 2,
-        "omnivoice_available": OMNIVOICE_AVAILABLE,
-        "pocket_tts_available": POCKET_TTS_AVAILABLE,
-        "kitten_tts_available": KITTEN_TTS_AVAILABLE,
+        "omnivoice_available": omnivoice_available(),
+        "pocket_tts_available": isolated_engine_available("pocket_tts"),
+        "kitten_tts_available": isolated_engine_available("kitten_tts"),
         "index_tts_available": INDEX_TTS_AVAILABLE,
         "index_tts_unavailable_reason": INDEX_TTS_UNAVAILABLE_REASON if not INDEX_TTS_AVAILABLE else "",
         "dots_tts_available": DOTS_TTS_AVAILABLE,
@@ -12338,9 +12833,9 @@ def health_check():
             (config.get("azure_speech_key") or "").strip()
             and (config.get("azure_speech_region") or "").strip()
         ),
-        "edge_tts_available": EDGE_TTS_AVAILABLE,
+        "edge_tts_available": isolated_engine_available("edge_tts"),
         "edge_tts_unavailable_reason": (
-            EDGE_TTS_UNAVAILABLE_REASON if not EDGE_TTS_AVAILABLE else ""
+            EDGE_TTS_UNAVAILABLE_REASON if not isolated_engine_available("edge_tts") else ""
         ),
         "elevenlabs_available": True,
         "elevenlabs_configured": bool((config.get("elevenlabs_api_key") or "").strip()),
@@ -12351,7 +12846,7 @@ def health_check():
         ),
         "localai_tts_available": True,
         "localai_tts_configured": bool((config.get("localai_tts_model") or "").strip()),
-        "cuda_available": False if not KOKORO_AVAILABLE else __import__('torch').cuda.is_available(),
+        "cuda_available": bool(shutil.which("nvidia-smi")),
         "vram": vram_info,
         "loaded_engines": list(tts_engine_instances.keys()),
     })
@@ -12363,7 +12858,7 @@ def qwen3_metadata():
     
     Returns static metadata without loading the model to avoid consuming GPU memory at startup.
     """
-    if not QWEN3_AVAILABLE:
+    if not isolated_engine_available("qwen3_custom"):
         return jsonify({
             "success": False,
             "error": "qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode."
@@ -12384,7 +12879,7 @@ def qwen3_metadata():
 
 @app.route('/api/qwen3/voice-design/preview', methods=['POST'])
 def qwen3_voice_design_preview():
-    if not QWEN3_AVAILABLE:
+    if not isolated_engine_available("qwen3_custom"):
         return jsonify({
             "success": False,
             "error": "qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode."
@@ -12400,7 +12895,7 @@ def qwen3_voice_design_preview():
 
 @app.route('/api/qwen3/voice-design/save', methods=['POST'])
 def qwen3_voice_design_save():
-    if not QWEN3_AVAILABLE:
+    if not isolated_engine_available("qwen3_custom"):
         return jsonify({
             "success": False,
             "error": "qwen-tts is not installed. Run setup to enable Qwen3-TTS local mode."
@@ -12503,10 +12998,10 @@ def qwen3_voice_design_approve_candidate():
 
 @app.route('/api/omnivoice/voice-design/preview', methods=['POST'])
 def omnivoice_voice_design_preview():
-    if not OMNIVOICE_DESIGN_AVAILABLE:
+    if not omnivoice_available():
         return jsonify({
             "success": False,
-            "error": f"OmniVoice design engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment."
+            "error": f"OmniVoice design engine not available. {omnivoice_unavailable_reason()} Install OmniVoice from Settings."
         }), 400
     payload = request.get_json(silent=True) or {}
     text = (payload.get("text") or "").strip()
@@ -12521,10 +13016,10 @@ def omnivoice_voice_design_preview():
 
 @app.route('/api/omnivoice/voice-design/save', methods=['POST'])
 def omnivoice_voice_design_save():
-    if not OMNIVOICE_DESIGN_AVAILABLE:
+    if not omnivoice_available():
         return jsonify({
             "success": False,
-            "error": f"OmniVoice design engine not available. {OMNIVOICE_UNAVAILABLE_REASON} Please run setup.bat to set up the OmniVoice isolated environment."
+            "error": f"OmniVoice design engine not available. {omnivoice_unavailable_reason()} Install OmniVoice from Settings."
         }), 400
     payload = request.get_json(silent=True) or {}
     name = (payload.get("name") or "").strip()
@@ -12654,6 +13149,6 @@ if __name__ == '__main__':
     _cleanup_orphaned_chatterbox_voices()
     _auto_register_voice_prompt_files()
     _cleanup_orphaned_regen_folders()
-    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and os.environ.get("TTS_STORY_SKIP_BROWSER") != "1":
         threading.Timer(1.5, lambda: webbrowser.open("http://localhost:5000")).start()
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)

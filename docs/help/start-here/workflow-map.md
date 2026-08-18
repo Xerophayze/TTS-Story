@@ -53,7 +53,7 @@ Creating or downloading a voice does not automatically assign it to a speaker. R
 
 Analysis runs automatically after input changes. Selecting **Generate Audio** performs a final analysis and validation before the job is added to the queue.
 
-**Manage Projects** saves a reusable snapshot of much of this page, but only in the current browser's local storage. It does not save generated audio, API keys, or the actual reference-audio files. Read [Save and Restore Projects](help:projects) before relying on it.
+**Manage Projects** saves a reusable snapshot of much of this page in the backend's shared project library. Browsers and URLs connected to the same TTS-Story installation see the same list. It does not save generated audio, API keys, or the actual reference-audio files. Read [Save and Restore Projects](help:projects) before relying on it.
 
 ## Job Queue owns active processing
 
@@ -85,10 +85,10 @@ Do not confuse these:
 
 | State | Location | Purpose |
 |---|---|---|
-| **Project** | Browser `localStorage` | Resume or duplicate Generate-page preparation. |
+| **Project** | `data/projects.json` | Resume or duplicate Generate-page preparation across browsers connected to the same installation. |
 | **Job/Library item** | TTS-Story data and audio folders | Preserve submitted job metadata, chunks, and generated output. |
 
-Neither replaces an external manuscript backup. Browser data can be cleared, and generated folders can be deleted from Library or the filesystem.
+Neither replaces an external manuscript backup. Project data and generated folders can still be deleted from the application or filesystem.
 
 ## Suggested checkpoints
 

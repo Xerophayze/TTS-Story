@@ -5,8 +5,8 @@ main project dependencies.  This adapter runs OmniVoice in an isolated venv
 under engines/omnivoice/ via subprocess, exactly like the IndexTTS adapter.
 
 Setup:
-    Run setup.bat — it creates engines/omnivoice/.venv and installs omnivoice
-    with its own torch/transformers versions there.
+    Install OmniVoice from Settings. It creates engines/omnivoice/.venv and
+    installs OmniVoice with its own torch/transformers versions there.
 """
 from __future__ import annotations
 
@@ -52,16 +52,28 @@ def _find_venv_python(engine_root: Path) -> Optional[Path]:
 
 def _check_omnivoice_available(engine_root: Path) -> tuple[bool, str]:
     if not engine_root.exists():
-        return False, f"OmniVoice engine directory not found: {engine_root}. Run setup.bat."
+        return False, f"OmniVoice engine directory not found: {engine_root}. Install OmniVoice from Settings."
     if not (engine_root / "omnivoice_worker.py").exists():
-        return False, f"OmniVoice worker script missing: {engine_root / 'omnivoice_worker.py'}. Run setup.bat."
+        return False, f"OmniVoice worker script missing: {engine_root / 'omnivoice_worker.py'}. Install OmniVoice from Settings."
+    if not (engine_root / ".omnivoice_ready").is_file():
+        return False, f"OmniVoice installation marker not found under {engine_root}. Install OmniVoice from Settings."
     python = _find_venv_python(engine_root)
     if python is None:
-        return False, f"OmniVoice isolated venv not found under {engine_root}. Run setup.bat."
+        return False, f"OmniVoice isolated venv not found under {engine_root}. Install OmniVoice from Settings."
     return True, ""
 
 
 OMNIVOICE_AVAILABLE, _OMNIVOICE_UNAVAILABLE_REASON = _check_omnivoice_available(_ENGINE_ROOT)
+
+
+def omnivoice_available() -> bool:
+    """Return current install state instead of the state captured at startup."""
+    return _check_omnivoice_available(_ENGINE_ROOT)[0]
+
+
+def omnivoice_unavailable_reason() -> str:
+    """Return the current reason OmniVoice cannot be used."""
+    return _check_omnivoice_available(_ENGINE_ROOT)[1]
 
 
 class OmniVoiceCloneEngine(TtsEngineBase):
@@ -89,9 +101,10 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         post_process: bool = True,
         duration_safety_margin: float = 0.25,
     ):
-        if not OMNIVOICE_AVAILABLE:
+        available, unavailable_reason = _check_omnivoice_available(_ENGINE_ROOT)
+        if not available:
             raise ImportError(
-                f"OmniVoice is not set up. {_OMNIVOICE_UNAVAILABLE_REASON}"
+                f"OmniVoice is not set up. {unavailable_reason}"
             )
 
         self._python = _find_venv_python(_ENGINE_ROOT)

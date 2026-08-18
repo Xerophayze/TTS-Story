@@ -10,7 +10,8 @@ If you appreciate what we do and would like to support ongoing development:
 
 # Current Updates and Notes - updated 08-17-2026
 
-- **LocalAI TTS integration** - connect to an existing self-hosted LocalAI server, automatically discover TTS models and saved voice profiles, and generate through that deployment without installing duplicate model runtimes in TTS-Story.
+- **On-demand TTS engine management** - initial setup now installs the lightweight TTS-Story core; local engines can be installed, removed, repaired, and monitored from Engine Settings, with each engine kept in its own isolated environment.
+- **LocalAI TTS integration** - connect to an existing self-hosted LocalAI server, discover compatible TTS models and server voices, or use transcript-ready reference voices from TTS-Story without installing duplicate model runtimes.
 - **Improved voice casting and speaker workflows** - strengthened Qwen3 voice-design prompts, added configurable candidates per speaker, improved bulk candidate generation, and made approved voice selections easier to review, filter, save, and reuse.
 - **More consistent projects and audiobook timing** - saved projects now use shared server-side storage across localhost, IP-address, and alternate browser URLs, while configurable pause-marker timing and improved section detection provide better control over narration structure.
 
@@ -51,7 +52,7 @@ TTS-Story is a web-based, multi-voice text-to-speech application for creating na
 
 ## Highlights
 
-- Seventeen selectable TTS engine options spanning local CPU, local GPU, and cloud generation.
+- Eighteen selectable TTS engine options spanning local CPU, local GPU, self-hosted, and cloud generation.
 - Multi-speaker narration using tags such as `[narrator]...[/narrator]` and `[alice-female]...[/alice-female]`.
 - Shared reference-voice library for Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, and Dot.TTS.
 - Built-in voices, custom Kokoro blends, reference cloning, and Qwen3/OmniVoice voice-design workflows.
@@ -64,7 +65,9 @@ TTS-Story is a web-based, multi-voice text-to-speech application for creating na
 
 ## Installation
 
-Setup is automatic. It creates the required environments, selects a compatible PyTorch build, installs supported engine dependencies, and downloads required tools. Individual local engines may download their model weights on first use.
+Initial setup installs the lightweight TTS-Story application, shared audio tools, and core dependencies. It no longer downloads every local TTS engine or its model stack.
+
+On first launch, the welcome guide directs you to **Settings → Engine Settings**. Local engines can be installed individually with **Install Engine**; each local engine receives its own virtual environment and model/cache folder so its dependency versions cannot alter another engine or the TTS-Story core. Connected engines become available after their required server address, API key, model, or service settings are saved. Engine tabs are red when setup is required and green when ready. Only ready engines appear in the Generate-page engine selector. Installed local engines can also be removed from the same panel; TTS-Story warns before deleting that engine's isolated runtime and model downloads while keeping projects, generated audio, settings, and saved voices. Installation and removal logs remain visible after navigation or refresh, and TTS-Story offers an in-app backend restart when a completed engine change requires it.
 
 ### Windows
 
@@ -73,7 +76,7 @@ Setup is automatic. It creates the required environments, selects a compatible P
 3. Run `run.bat`.
 4. Open [http://localhost:5000](http://localhost:5000).
 
-The Windows installer manages the required Python 3.11 environment and automatically selects CPU or supported NVIDIA CUDA packages, including RTX 50-series/Blackwell handling.
+The Windows installer manages the required Python 3.11 core environment. When you later install a local engine from Engine Settings, its installer selects compatible CPU or NVIDIA CUDA packages where that engine supports them, including RTX 50-series/Blackwell handling.
 
 ### Linux and macOS
 
@@ -97,7 +100,7 @@ If an older Pinokio installation stopped partway through setup, use **Factory Re
 
 ### Updates and repair
 
-Run `install-update.bat` on Windows, `./install-update.sh` on Linux/macOS, or select **Update** in Pinokio. Normal updates reuse healthy environments and only reconcile dependencies when definitions changed.
+Run `install-update.bat` on Windows, `./install-update.sh` on Linux/macOS, or select **Update** in Pinokio. Normal updates reuse healthy environments and reconcile the core application without automatically installing optional engines.
 
 For a comprehensive repair:
 
@@ -120,7 +123,7 @@ The figures below are practical planning ranges for the current adapters and def
 | Local engine | Processing support | Approximate free VRAM to plan for | CPU-only use | Important notes |
 |---|---|---:|---|---|
 | **[Kokoro-82M](docs/help/engines/kokoro.md)** | CPU or NVIDIA CUDA | **0 GB required**; allow roughly **1–2 GB** when using CUDA | **Practical** | Lightweight built-in voices and local blends. |
-| **[Chatterbox Turbo](docs/help/engines/chatterbox.md)** | NVIDIA CUDA recommended | About **8 GB** | Selectable, but slow | English voice cloning and supported non-verbal tags. |
+| **[Chatterbox Turbo](docs/help/engines/chatterbox.md)** | NVIDIA CUDA recommended | About **8 GB** | Selectable, but slow | English voice cloning in an isolated environment, avoiding Qwen3 dependency conflicts. |
 | **[VoxCPM 1.5](docs/help/engines/voxcpm.md)** | NVIDIA CUDA recommended | About **6 GB** | Selectable, but impractical for long books | English/Chinese cloning; automatic transcription can add memory overhead. |
 | **[Qwen3-TTS CustomVoice / Clone](docs/help/engines/qwen3.md)** | NVIDIA CUDA recommended | Roughly **6–8 GB** in bf16/fp16; **8 GB+ recommended** | Selectable, but impractical for long books | Each mode normally loads its own 1.7B model. |
 | **[OmniVoice Clone](docs/help/engines/omnivoice.md)** | NVIDIA CUDA, Apple MPS, or CPU | Roughly **4–6 GB** in float16; **8 GB is safer** | Supported, but extremely slow | Isolated environment; transcription or float32 can increase memory use. |
@@ -158,7 +161,7 @@ For model-specific controls, languages, privacy, and limitations, see the [Engin
 7. Select **Generate Audio** and monitor the Job Queue.
 8. Use the Audio Library to listen, repair individual chunks, regenerate speakers, rebuild audio, edit metadata, and export the final result.
 
-The complete screenshot-guided workflow is available in [Generate Your First Audio](docs/help/start-here/quick-start.md).
+The complete screenshot-guided workflow is available in [Generate Your First Audio](docs/help/start-here/quick-start.md). See [Install, Remove, and Reinstall TTS Engines](docs/help/settings/engine-management.md) for optional-engine management and [LocalAI TTS](docs/help/engines/localai-tts.md) for self-hosted speech setup.
 
 ## Voice Cloning
 

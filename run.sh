@@ -148,4 +148,17 @@ echo "Press Ctrl+C to stop the server"
 echo
 
 # Start the application
-python app.py
+export TTS_STORY_RESTARTABLE=1
+while true; do
+    set +e
+    python app.py
+    SERVER_EXIT_CODE=$?
+    set -e
+    if [ "$SERVER_EXIT_CODE" -eq 75 ]; then
+        echo
+        echo "Restart requested. Relaunching TTS-Story backend..."
+        export TTS_STORY_SKIP_BROWSER=1
+        continue
+    fi
+    exit "$SERVER_EXIT_CODE"
+done

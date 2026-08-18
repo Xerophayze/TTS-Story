@@ -1,0 +1,4 @@
+qwen-tts
+huggingface-hub
+funasr
+hf_xet

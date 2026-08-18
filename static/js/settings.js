@@ -33,11 +33,465 @@ let settingsLocalAITtsVoices = [];
 let settingsLocalAITtsModels = [];
 let llmBackupProfiles = [];
 const MAX_LLM_BACKUP_PROFILES = 100;
+let engineSetupCatalog = [];
+let activeEngineInstallPoll = null;
+let activeEngineManagementJobId = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadSettings();
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadSettings();
     setupSettingsListeners();
+    await loadEngineSetupStatus();
+    await initializeFirstRunWelcome();
 });
+
+function readyEngineIds() {
+    return new Set(engineSetupCatalog.filter(engine => engine.ready).map(engine => engine.id));
+}
+
+function filterEngineSelectors() {
+    const ready = readyEngineIds();
+    ['job-tts-engine', 'settings-tts-engine'].forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        Array.from(select.options).forEach(option => {
+            if (!option.value) return;
+            const managed = engineSetupCatalog.some(engine => engine.id === option.value);
+            if (!managed) return;
+            const available = ready.has(option.value);
+            option.hidden = !available;
+            option.disabled = !available;
+        });
+        if (!ready.has(select.value)) {
+            const fallback = Array.from(select.options).find(option => option.value && !option.disabled);
+            if (fallback) {
+                select.value = fallback.value;
+                if (id === 'job-tts-engine') select.dispatchEvent(new Event('change'));
+            } else {
+                let placeholder = select.querySelector('option[data-no-engines]');
+                if (!placeholder) {
+                    placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.dataset.noEngines = 'true';
+                    placeholder.textContent = 'Configure a TTS engine in Settings';
+                    select.prepend(placeholder);
+                }
+                placeholder.hidden = false;
+                placeholder.disabled = false;
+                select.value = '';
+            }
+        }
+    });
+    const generateButton = document.getElementById('generate-btn');
+    if (generateButton) {
+        generateButton.disabled = ready.size === 0;
+        generateButton.title = ready.size ? '' : 'Install or configure a TTS engine in Settings first.';
+    }
+    window.availableTtsEngineIds = Array.from(ready);
+}
+
+function engineStatusForTab(tabName) {
+    return engineSetupCatalog.filter(engine => engine.settings_tab === tabName);
+}
+
+function renderEngineSetupStatus() {
+    document.querySelectorAll('.engine-tab-btn[data-engine-tab]').forEach(button => {
+        const entries = engineStatusForTab(button.dataset.engineTab);
+        button.classList.remove('engine-status-ready', 'engine-status-missing');
+        if (!entries.length) return;
+        button.classList.add(entries.every(engine => engine.ready)
+            ? 'engine-status-ready'
+            : 'engine-status-missing');
+    });
+
+    document.querySelectorAll('.engine-panel[id^="engine-panel-"]').forEach(panel => {
+        const tabName = panel.id.replace('engine-panel-', '');
+        const entries = engineStatusForTab(tabName);
+        panel.querySelector('.engine-setup-status')?.remove();
+        if (!entries.length) return;
+        const ready = entries.every(engine => engine.ready);
+        const installTarget = entries.find(engine => !engine.ready && engine.install_target)?.install_target;
+        const uninstallEntry = entries.find(engine => engine.ready && engine.uninstall_target);
+        const status = document.createElement('div');
+        status.className = `engine-setup-status ${ready ? 'ready' : 'missing'}`;
+        status.dataset.engineSetupTab = tabName;
+        const text = document.createElement('div');
+        text.className = 'engine-setup-status-text';
+        text.innerHTML = ready
+            ? '<strong>Ready</strong> — this engine is available on the Generate page.'
+            : (installTarget
+                ? '<strong>Not installed.</strong> Install this local engine to make it available.'
+                : '<strong>Configuration required.</strong> Complete the required connection fields and save Settings.');
+        status.appendChild(text);
+        if (installTarget) {
+            const installButton = document.createElement('button');
+            installButton.type = 'button';
+            installButton.className = 'btn btn-primary btn-sm';
+            installButton.textContent = 'Install Engine';
+            installButton.dataset.installEngine = installTarget;
+            installButton.addEventListener('click', () => startEngineInstall(installTarget, status, installButton));
+            status.appendChild(installButton);
+        }
+        if (ready && uninstallEntry) {
+            const uninstallButton = document.createElement('button');
+            uninstallButton.type = 'button';
+            uninstallButton.className = 'btn btn-danger btn-sm';
+            uninstallButton.textContent = 'Uninstall Engine';
+            uninstallButton.dataset.uninstallEngine = uninstallEntry.uninstall_target;
+            uninstallButton.addEventListener('click', () => startEngineUninstall(
+                uninstallEntry,
+                status,
+                uninstallButton,
+            ));
+            status.appendChild(uninstallButton);
+        }
+        const title = panel.querySelector('.settings-panel-title');
+        if (title) title.insertAdjacentElement('afterend', status);
+        else panel.prepend(status);
+    });
+    filterEngineSelectors();
+}
+
+async function loadEngineSetupStatus() {
+    try {
+        const response = await fetch('/api/engines/status');
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load engine status');
+        engineSetupCatalog = Array.isArray(data.engines) ? data.engines : [];
+        renderEngineSetupStatus();
+        await restoreActiveEngineManagementJob();
+    } catch (error) {
+        console.error('Unable to load TTS engine setup status', error);
+    }
+}
+
+function engineManagementUi(job) {
+    const entry = engineSetupCatalog.find(engine =>
+        engine.install_target === job.engine || engine.uninstall_target === job.engine
+    );
+    const tabName = entry?.settings_tab || '';
+    const statusElement = tabName
+        ? document.querySelector(`.engine-setup-status[data-engine-setup-tab="${CSS.escape(tabName)}"]`)
+        : null;
+    if (!statusElement) return null;
+    let button = statusElement.querySelector(
+        job.action === 'uninstall' ? '[data-uninstall-engine]' : '[data-install-engine]'
+    );
+    button ||= statusElement.querySelector('[data-install-engine], [data-uninstall-engine]');
+    let output = statusElement.querySelector('.engine-install-output');
+    if (!output) {
+        output = document.createElement('pre');
+        output.className = 'engine-install-output';
+        statusElement.appendChild(output);
+    }
+    return { entry, tabName, statusElement, button, output };
+}
+
+function setEngineManagementBusy(job, busy = true) {
+    document.querySelectorAll('[data-install-engine], [data-uninstall-engine]').forEach(button => {
+        button.disabled = busy;
+        if (busy) button.title = 'Another engine installation or removal is currently running.';
+        else button.removeAttribute('title');
+    });
+    document.querySelectorAll('.engine-tab-btn.engine-status-busy').forEach(button => {
+        button.classList.remove('engine-status-busy');
+    });
+    document.querySelectorAll('.engine-setup-status.busy').forEach(status => {
+        status.classList.remove('busy');
+    });
+    if (!busy || !job) return;
+    const ui = engineManagementUi(job);
+    if (!ui) return;
+    ui.statusElement.classList.add('busy');
+    const tabButton = document.querySelector(
+        `.engine-tab-btn[data-engine-tab="${CSS.escape(ui.tabName)}"]`
+    );
+    tabButton?.classList.add('engine-status-busy');
+    const text = ui.statusElement.querySelector('.engine-setup-status-text');
+    const verb = job.action === 'uninstall' ? 'Removing' : 'Installing';
+    if (text) {
+        text.innerHTML = `<strong>${verb} ${ui.entry?.name || job.engine}…</strong> This operation continues if you leave Settings or refresh the page.`;
+    }
+    if (ui.button) {
+        ui.button.disabled = true;
+        ui.button.textContent = job.action === 'uninstall' ? 'Removing…' : 'Installing…';
+        ui.button.title = `${verb} is currently in progress.`;
+    }
+}
+
+async function restoreActiveEngineManagementJob() {
+    try {
+        const response = await fetch('/api/engines/jobs');
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load engine operations');
+        const activeJob = (data.jobs || []).find(job => job.status === 'running');
+        if (!activeJob) {
+            if (!activeEngineManagementJobId) setEngineManagementBusy(null, false);
+            const restartJob = (data.jobs || []).find(job => {
+                if (job.status !== 'complete' || job.action !== 'install' || !job.restart_required) return false;
+                const entries = engineSetupCatalog.filter(entry =>
+                    entry.install_target === job.engine || entry.uninstall_target === job.engine
+                );
+                return entries.length > 0 && entries.some(entry => !entry.ready);
+            });
+            if (restartJob) showBackendRestartRequired(restartJob);
+            return;
+        }
+        const ui = engineManagementUi(activeJob);
+        if (!ui) return;
+        setEngineManagementBusy(activeJob, true);
+        ui.output.textContent = activeJob.output || 'Preparing engine operation…';
+        ui.output.scrollTop = ui.output.scrollHeight;
+        if (activeEngineManagementJobId !== activeJob.id || !activeEngineInstallPoll) {
+            pollEngineInstall(
+                activeJob.id,
+                ui.statusElement,
+                ui.button,
+                ui.output,
+                activeJob.action || 'install',
+                activeJob.engine || '',
+            );
+        }
+    } catch (error) {
+        console.error('Unable to restore active engine operation', error);
+    }
+}
+
+function showBackendRestartRequired(job) {
+    const ui = engineManagementUi(job);
+    if (!ui) return;
+    ui.statusElement.classList.remove('missing', 'busy');
+    ui.statusElement.classList.add('ready');
+    const text = ui.statusElement.querySelector('.engine-setup-status-text');
+    if (text) {
+        text.innerHTML = '<strong>Installed.</strong> Restart the TTS-Story backend to load this engine.';
+    }
+    if (job.output) {
+        ui.output.textContent = job.output;
+        ui.output.scrollTop = ui.output.scrollHeight;
+    }
+    const oldButton = ui.statusElement.querySelector('[data-install-engine], [data-uninstall-engine]');
+    const restartButton = document.createElement('button');
+    restartButton.type = 'button';
+    restartButton.className = 'btn btn-primary btn-sm';
+    restartButton.textContent = 'Restart TTS-Story';
+    restartButton.dataset.restartBackend = 'true';
+    restartButton.addEventListener('click', () => restartTtsStoryBackend(restartButton));
+    if (oldButton) oldButton.replaceWith(restartButton);
+    else ui.statusElement.insertBefore(restartButton, ui.output);
+}
+
+async function restartTtsStoryBackend(button) {
+    if (!button || !confirm('Restart the TTS-Story backend now?')) return;
+    const statusElement = button.closest('.engine-setup-status');
+    const statusText = statusElement?.querySelector('.engine-setup-status-text');
+    button.disabled = true;
+    button.textContent = 'Restarting…';
+    if (statusText) {
+        statusText.innerHTML = '<strong>Restarting TTS-Story…</strong> Waiting for the backend to return.';
+    }
+    try {
+        const response = await fetch('/api/system/restart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to restart TTS-Story.');
+        const previousInstance = data.instance_id || '';
+        const deadline = Date.now() + 90000;
+        while (Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, 750));
+            try {
+                const probe = await fetch(`/api/system/status?restart=${Date.now()}`, {
+                    cache: 'no-store',
+                });
+                if (!probe.ok) continue;
+                const current = await probe.json();
+                if (current.success && current.instance_id && current.instance_id !== previousInstance) {
+                    window.location.reload();
+                    return;
+                }
+            } catch (_error) {
+                // A refused request is expected while the backend is between processes.
+            }
+        }
+        throw new Error('The backend did not return within 90 seconds. Check the TTS-Story terminal.');
+    } catch (error) {
+        button.disabled = false;
+        button.textContent = 'Retry Restart';
+        if (statusText) {
+            statusText.innerHTML = `<strong>Restart failed.</strong> ${error.message || 'Check the TTS-Story terminal.'}`;
+        }
+    }
+}
+
+async function startEngineInstall(engine, statusElement, button) {
+    if (!engine || !statusElement || !button) return;
+    button.disabled = true;
+    button.textContent = 'Starting...';
+    let output = statusElement.querySelector('.engine-install-output');
+    if (!output) {
+        output = document.createElement('pre');
+        output.className = 'engine-install-output';
+        statusElement.appendChild(output);
+    }
+    output.textContent = 'Starting installer...';
+    try {
+        const response = await fetch('/api/engines/install', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ engine }),
+        });
+        const data = await response.json();
+        if (response.status === 409 && data.job_id) {
+            await restoreActiveEngineManagementJob();
+            return;
+        }
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to start installation');
+        setEngineManagementBusy({ id: data.job_id, engine, action: 'install' }, true);
+        pollEngineInstall(data.job_id, statusElement, button, output, 'install', engine);
+    } catch (error) {
+        button.disabled = false;
+        button.textContent = 'Install Engine';
+        output.textContent = error.message || 'Installation could not be started.';
+    }
+}
+
+async function startEngineUninstall(engineEntry, statusElement, button) {
+    const engine = engineEntry?.uninstall_target;
+    if (!engine || !statusElement || !button) return;
+    const warning = engineEntry.uninstall_warning
+        || 'This removes the local engine runtime and downloaded models. Reinstalling later requires downloading them again.';
+    if (!confirm(`${warning}\n\nDo you want to uninstall this engine?`)) return;
+    button.disabled = true;
+    button.textContent = 'Starting removal...';
+    let output = statusElement.querySelector('.engine-install-output');
+    if (!output) {
+        output = document.createElement('pre');
+        output.className = 'engine-install-output';
+        statusElement.appendChild(output);
+    }
+    output.textContent = 'Preparing safe engine removal...';
+    try {
+        const response = await fetch('/api/engines/uninstall', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ engine }),
+        });
+        const data = await response.json();
+        if (response.status === 409 && data.job_id) {
+            await restoreActiveEngineManagementJob();
+            return;
+        }
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to start engine removal');
+        setEngineManagementBusy({ id: data.job_id, engine, action: 'uninstall' }, true);
+        pollEngineInstall(data.job_id, statusElement, button, output, 'uninstall', engine);
+    } catch (error) {
+        button.disabled = false;
+        button.textContent = 'Uninstall Engine';
+        output.textContent = error.message || 'Engine removal could not be started.';
+    }
+}
+
+function pollEngineInstall(jobId, statusElement, button, output, action = 'install', engine = '') {
+    if (activeEngineInstallPoll) clearTimeout(activeEngineInstallPoll);
+    activeEngineManagementJobId = jobId;
+    const poll = async () => {
+        try {
+            const response = await fetch(`/api/engines/jobs/${encodeURIComponent(jobId)}`);
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'Unable to read installation progress');
+            const job = data.job || {};
+            action = job.action || action;
+            engine = job.engine || engine;
+            const currentUi = engineManagementUi(job) || { statusElement, button, output };
+            statusElement = currentUi.statusElement;
+            button = currentUi.button || button;
+            output = currentUi.output;
+            setEngineManagementBusy(job, true);
+            output.textContent = job.output || 'Installer is running...';
+            output.scrollTop = output.scrollHeight;
+            if (job.status === 'running') {
+                button.textContent = action === 'uninstall' ? 'Removing...' : 'Installing...';
+                activeEngineInstallPoll = setTimeout(poll, 1000);
+                return;
+            }
+            activeEngineInstallPoll = null;
+            activeEngineManagementJobId = null;
+            setEngineManagementBusy(null, false);
+            if (job.status === 'complete') {
+                if (action === 'uninstall') {
+                    engineSetupCatalog.forEach(entry => {
+                        if (entry.uninstall_target === engine || entry.install_target === engine) {
+                            entry.ready = false;
+                            entry.action = 'install';
+                            entry.uninstall_target = null;
+                        }
+                    });
+                    renderEngineSetupStatus();
+                    alert('The engine runtime and its downloaded models were removed. Restart TTS-Story to finish unloading it. Your projects, generated audio, and saved voice samples were kept.');
+                    return;
+                }
+                const settingsTab = statusElement.dataset.engineSetupTab || '';
+                await loadEngineSetupStatus();
+                const installedEntries = engineSetupCatalog.filter(entry =>
+                    entry.install_target === engine || entry.uninstall_target === engine
+                );
+                if (installedEntries.length && installedEntries.every(entry => entry.ready)) {
+                    return;
+                }
+
+                // A few legacy in-process engines cannot refresh their imported
+                // availability flags until the backend restarts. Keep that case
+                // explicit without forcing isolated engines such as Pocket TTS
+                // to wait for a page refresh.
+                showBackendRestartRequired({ ...job, settings_tab: settingsTab });
+            } else {
+                button.textContent = action === 'uninstall' ? 'Retry Removal' : 'Retry Install';
+                button.disabled = false;
+            }
+        } catch (error) {
+            output.textContent += `\n${error.message || 'Installation status temporarily unavailable.'}\nReconnecting…`;
+            output.scrollTop = output.scrollHeight;
+            activeEngineInstallPoll = setTimeout(poll, 2000);
+        }
+    };
+    poll();
+}
+
+async function dismissFirstRunWelcome(openSettings = false) {
+    try {
+        await fetch('/api/onboarding', { method: 'POST' });
+    } catch (error) {
+        console.warn('Unable to save onboarding state', error);
+    }
+    document.getElementById('first-run-welcome-overlay')?.classList.add('hidden');
+    document.getElementById('first-run-welcome-modal')?.classList.add('hidden');
+    if (!openSettings) return;
+    document.querySelector('.tab-button[data-tab="settings"]')?.click();
+    document.getElementById('engine-settings-group')?.classList.remove('collapsed');
+    const firstMissing = document.querySelector('.engine-tab-btn.engine-status-missing[data-engine-tab]');
+    firstMissing?.click();
+    document.getElementById('engine-settings-group')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function initializeFirstRunWelcome() {
+    const overlay = document.getElementById('first-run-welcome-overlay');
+    const modal = document.getElementById('first-run-welcome-modal');
+    if (!overlay || !modal) return;
+    document.getElementById('first-run-close-btn')?.addEventListener('click', () => dismissFirstRunWelcome(false));
+    document.getElementById('first-run-settings-btn')?.addEventListener('click', () => dismissFirstRunWelcome(true));
+    try {
+        const response = await fetch('/api/onboarding');
+        const data = await response.json();
+        if (data.success && data.show_welcome) {
+            overlay.classList.remove('hidden');
+            modal.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.warn('Unable to load first-run welcome state', error);
+    }
+}
 
 function updateLLMSettingsUI(provider = 'gemini') {
     const geminiCredentials = document.getElementById('gemini-credentials');
@@ -687,7 +1141,7 @@ function toggleEngineSettingsSections(engineName) {
     // With the new tabbed UI, we auto-switch to the relevant engine tab when the default engine changes
     const engineTabMap = {
         'kokoro': 'kokoro',
-        'kokoro_replicate': 'kokoro',
+        'kokoro_replicate': 'kokoro-replicate',
         'chatterbox_turbo_local': 'chatterbox-local',
         'chatterbox_turbo_replicate': 'chatterbox-replicate',
         'voxcpm_local': 'voxcpm',
@@ -704,8 +1158,7 @@ function toggleEngineSettingsSections(engineName) {
         'edge_tts': 'edge-tts',
         'elevenlabs': 'elevenlabs',
         'openai_tts': 'openai-tts',
-        'localai_tts': 'localai-tts',
-        'api_keys': 'api-keys'
+        'localai_tts': 'localai-tts'
     };
     
     const targetTab = engineTabMap[engineName];
@@ -789,6 +1242,11 @@ function setupSettingsListeners() {
         azureDefaultVoice.addEventListener('change', () => updateAzureDefaultExpressionOptions());
     }
 
+    const pocketHuggingFaceVerifyButton = document.getElementById('pocket-tts-verify-huggingface-btn');
+    if (pocketHuggingFaceVerifyButton) {
+        pocketHuggingFaceVerifyButton.addEventListener('click', verifyPocketTtsHuggingFaceAccess);
+    }
+
     const ttsEngineSelect = document.getElementById('settings-tts-engine');
     if (ttsEngineSelect) {
         ttsEngineSelect.addEventListener('change', (event) => {
@@ -826,6 +1284,7 @@ function setupSettingsListeners() {
     
     // Engine sub-tabs within Engine Settings
     setupEngineTabSwitching();
+    setupSharedReplicateSettings();
     setupLlmProviderHandlers();
 }
 
@@ -979,6 +1438,58 @@ function populateAzureDefaultVoiceSelect(voices, preferredVoice = '') {
     }
     select.value = selected;
     updateAzureDefaultExpressionOptions();
+}
+
+async function verifyPocketTtsHuggingFaceAccess() {
+    const tokenInput = document.getElementById('pocket-tts-huggingface-token');
+    const button = document.getElementById('pocket-tts-verify-huggingface-btn');
+    const status = document.getElementById('pocket-tts-huggingface-status');
+    if (!tokenInput || !button || !status) return;
+    const token = tokenInput.value.trim();
+    if (!token) {
+        status.textContent = 'Enter a token before checking access.';
+        status.style.color = 'var(--danger-color, #ef4444)';
+        return;
+    }
+    button.disabled = true;
+    button.textContent = 'Checking...';
+    status.textContent = 'Contacting Hugging Face...';
+    status.style.color = '';
+    try {
+        const response = await fetch('/api/pocket-tts/huggingface-access', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Access could not be verified.');
+        status.textContent = data.message || 'Voice-cloning access confirmed.';
+        status.style.color = 'var(--success-color, #34d399)';
+    } catch (error) {
+        status.textContent = error.message || 'Access could not be verified.';
+        status.style.color = 'var(--danger-color, #ef4444)';
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Verify Voice-Cloning Access';
+    }
+}
+
+function setupSharedReplicateSettings() {
+    const keyInputs = [
+        document.getElementById('kokoro-replicate-api-key'),
+        document.getElementById('chatterbox-replicate-api-key'),
+    ].filter(Boolean);
+    const concurrencyInputs = [
+        document.getElementById('kokoro-replicate-max-parallel'),
+        document.getElementById('chatterbox-replicate-max-parallel'),
+    ].filter(Boolean);
+    const synchronize = (inputs, source) => {
+        inputs.forEach(input => {
+            if (input !== source) input.value = source.value;
+        });
+    };
+    keyInputs.forEach(input => input.addEventListener('input', () => synchronize(keyInputs, input)));
+    concurrencyInputs.forEach(input => input.addEventListener('input', () => synchronize(concurrencyInputs, input)));
 }
 
 function populateAzureExpressionSelect(select, values, emptyLabel, preferredValue = '') {
@@ -1368,10 +1879,11 @@ function populateOpenAITtsSettingsOptions(settings) {
 
 // Apply settings to UI
 function applySettings(settings) {
-    // Kokoro Replicate API Key
-    if (settings.replicate_api_key) {
-        setElementValue('kokoro-replicate-api-key', settings.replicate_api_key);
-    }
+    // Replicate-hosted TTS engines share one provider token and request limit.
+    setElementValue('kokoro-replicate-api-key', settings.replicate_api_key || '');
+    setElementValue('chatterbox-replicate-api-key', settings.replicate_api_key || '');
+    setElementValue('kokoro-replicate-max-parallel', settings.replicate_max_parallel ?? settings.parallel_chunks ?? 3, 3);
+    setElementValue('chatterbox-replicate-max-parallel', settings.replicate_max_parallel ?? settings.parallel_chunks ?? 3, 3);
     
     // Chunk size
     setElementValue('chunk-size', settings.chunk_size ?? 500, 500);
@@ -1744,6 +2256,7 @@ function applySettings(settings) {
     if (pocketVariant) {
         pocketVariant.value = settings.pocket_tts_model_variant || 'b6369a24';
     }
+    setElementValue('pocket-tts-huggingface-token', settings.huggingface_token || '');
     const pocketChunkSize = document.getElementById('pocket-tts-chunk-size');
     if (pocketChunkSize) {
         pocketChunkSize.value = settings.pocket_tts_chunk_size ?? 450;
@@ -1978,7 +2491,8 @@ async function saveSettings() {
         return Math.max(minimum, Math.min(maximum, value));
     };
 
-    const kokoroReplicateKeyEl = document.getElementById('kokoro-replicate-api-key');
+    const kokoroReplicateKeyEl = document.getElementById('kokoro-replicate-api-key')
+        || document.getElementById('chatterbox-replicate-api-key');
     syncLLMBackupProfilesFromRows();
     const settings = {
         replicate_api_key: kokoroReplicateKeyEl ? kokoroReplicateKeyEl.value : '',
@@ -1991,7 +2505,15 @@ async function saveSettings() {
         inter_chunk_silence_ms: parseSilenceInput('inter-silence'),
         pause_marker_three_seconds: parseClampedFloat('pause-marker-three-seconds', 0.25, 0, 30),
         pause_marker_six_seconds: parseClampedFloat('pause-marker-six-seconds', 0.5, 0, 30),
-        parallel_chunks: Math.min(8, Math.max(1, parseInt(document.getElementById('parallel-chunks')?.value, 10) || 3)),
+        replicate_max_parallel: Math.min(8, Math.max(1, parseInt(
+            document.getElementById('kokoro-replicate-max-parallel')?.value
+            || document.getElementById('chatterbox-replicate-max-parallel')?.value,
+            10
+        ) || 3)),
+        parallel_chunks: Math.min(8, Math.max(1, parseInt(
+            document.getElementById('parallel-chunks')?.value,
+            10
+        ) || 3)),
         group_chunks_by_speaker: document.getElementById('group-chunks-by-speaker')?.checked ?? false,
         cleanup_vram_after_job: document.getElementById('cleanup-vram-after-job')?.checked ?? false,
         gemini_api_key: document.getElementById('gemini-api-key').value,
@@ -2128,6 +2650,7 @@ async function saveSettings() {
             return Number.isFinite(value) ? Math.max(0, Math.min(value, 2)) : 0.25;
         })(),
         pocket_tts_model_variant: document.getElementById('pocket-tts-model-variant')?.value || 'b6369a24',
+        huggingface_token: document.getElementById('pocket-tts-huggingface-token')?.value?.trim() || '',
         pocket_tts_chunk_size: parseInt(document.getElementById('pocket-tts-chunk-size')?.value, 10) || 450,
         pocket_tts_temp: parseFloat(document.getElementById('pocket-tts-temp')?.value) || 0.7,
         pocket_tts_lsd_decode_steps: parseInt(document.getElementById('pocket-tts-steps')?.value, 10) || 1,
@@ -2235,6 +2758,7 @@ async function saveSettings() {
                 console.warn('loadHealthStatus not available, reloading page');
                 location.reload();
             }
+            await loadEngineSetupStatus();
         } else {
             alert('Error saving settings: ' + data.error);
         }
@@ -2265,6 +2789,7 @@ async function resetSettings() {
         inter_chunk_silence_ms: 0,
         pause_marker_three_seconds: 0.25,
         pause_marker_six_seconds: 0.5,
+        replicate_max_parallel: 3,
         parallel_chunks: 3,
         group_chunks_by_speaker: false,
         cleanup_vram_after_job: false,
@@ -2373,6 +2898,7 @@ async function resetSettings() {
         omnivoice_post_process: true,
         omnivoice_duration_safety_margin: 0.25,
         pocket_tts_model_variant: 'b6369a24',
+        huggingface_token: '',
         pocket_tts_temp: 0.7,
         pocket_tts_lsd_decode_steps: 1,
         pocket_tts_noise_clamp: null,

@@ -29,6 +29,8 @@ static/samples/*
 # IDE
 .vscode/
 .idea/
+.codex/
+.codex-remote-attachments/
 *.swp
 *.swo
 *~
@@ -73,6 +75,8 @@ data/custom_voices.json
 data/external_voice_archives.json
 data/llm_profile_usage.json
 data/projects.json
+data/engine-first-run.json
+data/engine-installs/
 data/*.db
 
 # External voices cache
@@ -98,6 +102,12 @@ tools/ffmpeg/
 tools/rubberband/
 
 # Third-party engine repos (cloned locally, not tracked in this repo)
+engines/*/.venv/
+engines/*/.ready
+engines/*/.*_ready
+engines/*/cache/
+engines/*/models/
+engines/chatterbox/.chatterbox_ready
 engines/index-tts/*
 !engines/index-tts/tts_worker.py
 engines/omnivoice/.venv
@@ -107,3 +117,6 @@ engines/dots-tts/.dots_tts_ready
 engines/dots-tts/repo/
 engines/dots-tts/models/
 engines/dots-tts/hf-cache/
+
+# Temporary local dependency/debug artifacts
+/temp_requirements_filtered*.txt

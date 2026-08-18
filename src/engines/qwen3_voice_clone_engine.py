@@ -12,7 +12,10 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import soundfile as sf
-import torch
+try:
+    import torch
+except ImportError:  # Core-only installs do not include local engine runtimes.
+    torch = None  # type: ignore[assignment]
 
 from .base import EngineCapabilities, TtsEngineBase, VoiceAssignment
 from ..audio_effects import AudioPostProcessor, VoiceFXSettings
@@ -26,7 +29,7 @@ try:
     from huggingface_hub import snapshot_download
     from qwen_tts import Qwen3TTSModel  # type: ignore
 
-    QWEN3_AVAILABLE = True
+    QWEN3_AVAILABLE = torch is not None
 except ImportError:  # pragma: no cover - optional dependency
     Qwen3TTSModel = None  # type: ignore[assignment]
     snapshot_download = None  # type: ignore[assignment]
@@ -399,7 +402,10 @@ class Qwen3VoiceCloneEngine(TtsEngineBase):
         return None
 
     def _ensure_model(self, model_id: str) -> Path:
-        local_model_dir = Path(__file__).parent.parent.parent / "models" / "qwen3"
+        local_model_dir = Path(
+            os.environ.get("TTS_STORY_ENGINE_MODEL_ROOT")
+            or Path(__file__).parent.parent.parent / "models" / "qwen3"
+        )
         local_model_dir.mkdir(parents=True, exist_ok=True)
         model_path = local_model_dir / model_id.replace("/", "_")
 

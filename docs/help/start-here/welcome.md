@@ -46,7 +46,7 @@ See [Choose the Right Engine](help:choose-engine) and [Configure Online Services
 
 ## Three ideas that prevent most mistakes
 
-> **Protect the source.** **Prep Text** replaces the text currently in the input field. Document imports append to existing input. Projects are browser-local snapshots, not portable backup files.
+> **Protect the source.** **Prep Text** replaces the text currently in the input field. Document imports append to existing input. Projects are shared within one TTS-Story installation, but they are not portable backup files.
 
 > **Test small.** A few paragraphs containing narration, dialogue, difficult names, and chapter headings reveal more than a generic one-line sample.
 

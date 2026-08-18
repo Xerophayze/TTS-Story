@@ -19,6 +19,9 @@ echo "  - GPU users: update to the latest NVIDIA drivers"
 
 UPDATE_MODE=0
 REPAIR_MODE=0
+CORE_ONLY=1
+FRESH_INSTALL=0
+[ -f ".setup_complete" ] || FRESH_INSTALL=1
 PINOKIO_MODE="${TTS_STORY_PINOKIO:-0}"
 if [ "$PINOKIO_MODE" = "1" ]; then
     echo "Pinokio managed-environment mode enabled (no sudo prompts)."
@@ -48,9 +51,9 @@ PLATFORM="$(uname -s)"
 ARCHITECTURE="$(uname -m)"
 SETUP_PLATFORM_ID="$(printf '%s-%s' "$PLATFORM" "$ARCHITECTURE" | tr '[:upper:]' '[:lower:]')"
 
-# 1/12 Check Python installation
+# 1/10 Check Python installation
 echo
-echo "[1/12] Checking Python installation..."
+echo "[1/10] Checking Python installation..."
 PYTHON_BIN="$(tts_story_find_compatible_python || true)"
 if [ -z "$PYTHON_BIN" ]; then
     DEFAULT_PYTHON_VERSION="not found"
@@ -65,9 +68,9 @@ fi
 PYTHON_VERSION="$("$PYTHON_BIN" --version 2>&1)"
 echo "Using $PYTHON_VERSION at $PYTHON_BIN"
 
-# 1b/12 Check and install git if not present
+# 2/10 Check and install git if not present
 echo
-echo "[1b/12] Checking Git installation..."
+echo "[2/10] Checking Git installation..."
 if ! command -v git >/dev/null 2>&1; then
     if [ "$PINOKIO_MODE" = "1" ]; then
         echo "ERROR: Git is missing from the Pinokio managed environment."
@@ -98,7 +101,7 @@ git config --global --add safe.directory "*" 2>/dev/null || true
 
 # Check and install python3-venv if not present
 echo
-echo "[1c/12] Checking python3-venv installation..."
+echo "[3/10] Checking python3-venv installation..."
 if ! "$PYTHON_BIN" -m venv --help >/dev/null 2>&1; then
     if [ "$PINOKIO_MODE" = "1" ]; then
         echo "ERROR: Python venv support is missing from the Pinokio managed environment."
@@ -127,9 +130,9 @@ if [ -z "$PYTHON_BIN" ] || ! "$PYTHON_BIN" -m venv --help >/dev/null 2>&1; then
 fi
 echo "Python venv support is available through $PYTHON_BIN."
 
-# 2/12 Create virtual environment
+# 4/10 Create virtual environment
 echo
-echo "[2/12] Creating virtual environment..."
+echo "[4/10] Creating virtual environment..."
 if [ -d "venv" ] && [ -f "venv/bin/activate" ]; then
     VENV_MM="$(venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
     if [ -z "$VENV_MM" ]; then
@@ -149,7 +152,7 @@ fi
 
 # 3/12 Activate virtual environment
 echo
-echo "[3/12] Activating virtual environment..."
+echo "[5/10] Activating virtual environment..."
 # shellcheck disable=SC1091
 source venv/bin/activate
 if ! tts_story_python_supported python; then
@@ -160,7 +163,7 @@ fi
 
 if [ "$UPDATE_MODE" -eq 1 ] && [ "$REPAIR_MODE" -eq 0 ] && [ -f ".setup_complete" ]; then
     if python scripts/setup_state.py matches --platform "$SETUP_PLATFORM_ID" >/dev/null 2>&1; then
-        if python -c "import flask, soundfile, torch" >/dev/null 2>&1; then
+        if python -c "import flask, soundfile" >/dev/null 2>&1; then
             echo
             echo "Dependency definitions are unchanged and the existing environment passed its health check."
             echo "No setup work is required for this update."
@@ -179,20 +182,21 @@ rm -f .setup_complete
 
 # 4/12 Upgrade pip
 echo
-echo "[4/12] Upgrading pip..."
+echo "[6/10] Upgrading pip..."
 python -m pip install --upgrade pip --quiet
 
 # 5/12 Install PyTorch
-echo
-echo "[5/12] Installing PyTorch..."
-echo "This may take several minutes..."
-echo
-
-# Detect NVIDIA GPU
 HAS_NVIDIA=0
 GPU_NAME=""
 GPU_COMPUTE_CAP=""
 NEEDS_BLACKWELL_TORCH=0
+if [ "$CORE_ONLY" -eq 0 ]; then
+echo
+echo "[Optional engine support] Installing PyTorch..."
+echo "This may take several minutes..."
+echo
+
+# Detect NVIDIA GPU
 if command -v nvidia-smi >/dev/null 2>&1; then
     GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "")
     GPU_COMPUTE_CAP=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 || echo "")
@@ -315,10 +319,14 @@ else
         pip install --upgrade "numpy<1.26.0" "pillow<12.0" "fsspec<=2025.3.0" "filelock>=3.20.1,<4"
     fi
 fi
+else
+    echo
+    echo "Core-only setup: PyTorch will be installed with the first compatible local TTS engine."
+fi
 
 # 6/12 Install other dependencies
 echo
-echo "[6/12] Installing other Python dependencies..."
+echo "[7/10] Installing core Python dependencies..."
 MAIN_DEPS_STAMP="venv/.main_deps_stamp"
 MAIN_DEPS_SIGNATURE="$(python - <<'PY'
 import hashlib
@@ -334,11 +342,6 @@ fi
 if [ "$SKIP_MAIN_DEPS" -eq 1 ]; then
     echo "Main Python dependencies are unchanged. Skipping dependency reinstall for update."
 else
-# Add scipy if not in requirements (needed for pocket-tts)
-if ! grep -qi "^scipy" requirements.txt 2>/dev/null; then
-    echo "Adding scipy to requirements..."
-    echo "scipy>=1.11.0" >> requirements.txt
-fi
 # Filter out torch packages (already installed) and pyopenjtalk (needs special handling)
 grep -vi "^torch" requirements.txt > temp_requirements.txt 2>/dev/null || true
 grep -vi "^pyopenjtalk" temp_requirements.txt > temp_requirements_filtered.txt 2>/dev/null || true
@@ -347,6 +350,7 @@ rm -f temp_requirements.txt temp_requirements_filtered.txt
 echo "$MAIN_DEPS_SIGNATURE" > "$MAIN_DEPS_STAMP"
 fi
 
+if [ "$CORE_ONLY" -eq 0 ]; then
 # Install pyopenjtalk if possible (requires compile tools)
 echo
 echo "Checking for pyopenjtalk (Japanese text support)..."
@@ -360,7 +364,7 @@ fi
 
 # 7/12 Install Chatterbox Turbo runtime
 echo
-echo "[7/12] Installing Chatterbox Turbo runtime..."
+echo "[Optional engine] Installing Chatterbox Turbo runtime..."
 # Core dependencies are managed by requirements.txt/PyTorch setup. Avoid
 # allowing chatterbox-tts to silently replace shared engine dependencies.
 if pip install "chatterbox-tts==${CHATTERBOX_TTS_VERSION}" --no-deps; then
@@ -387,7 +391,7 @@ pip install scipy --quiet || echo "WARNING: scipy install failed"
 
 # 8/12 Install Pocket TTS runtime
 echo
-echo "[8/12] Installing Pocket TTS runtime..."
+echo "[Optional engine] Installing Pocket TTS runtime..."
 # Install pocket-tts with deps to get all required packages
 if pip install "pocket-tts==${POCKET_TTS_VERSION}"; then
     if python -c "from pocket_tts import TTSModel; import importlib.metadata as m; print('Pocket TTS import OK; package version:', m.version('pocket-tts'))"; then
@@ -401,7 +405,7 @@ fi
 
 # 8b/12 Install VoxCPM runtime (after pocket-tts so numpy version is set)
 echo
-echo "[8b/12] Installing VoxCPM 1.5 runtime..."
+echo "[Optional engine] Installing VoxCPM 1.5 runtime..."
 pip install voxcpm --no-deps || echo "WARNING: Failed to install voxcpm - VoxCPM engine will not be available"
 
 # Ensure numpy is at a compatible version for all TTS engines
@@ -417,7 +421,7 @@ fi
 
 # 9/12 Install optional performance extras
 echo
-echo "[9/12] Installing optional performance extras..."
+echo "[Optional engine] Installing performance extras..."
 echo "- hf_xet (faster Hugging Face downloads)"
 
 pip install hf_xet || echo "WARNING: hf_xet install failed. Hugging Face downloads may be slower."
@@ -433,7 +437,7 @@ fi
 
 # 9a/12 Install KittenTTS runtime (optional, CPU-only)
 echo
-echo "[9a/12] Installing KittenTTS runtime (optional, CPU-only)..."
+echo "[Optional engine] Installing KittenTTS runtime (CPU-only)..."
 if pip install https://github.com/KittenML/KittenTTS/releases/download/0.8/kittentts-0.8.0-py3-none-any.whl; then
     if [ "${PREFETCH_KITTEN_TTS_MODEL:-1}" != "0" ]; then
         echo "Prefetching KittenTTS model cache (set PREFETCH_KITTEN_TTS_MODEL=0 to skip)..."
@@ -451,7 +455,7 @@ fi
 
 # 9b/12 Setup OmniVoice isolated environment
 echo
-echo "[9b/12] Setting up OmniVoice isolated environment..."
+echo "[Optional engine] Setting up OmniVoice isolated environment..."
 echo "OmniVoice requires torch 2.8, so it runs in its own isolated venv."
 OMNIVOICE_DIR="$(pwd)/engines/omnivoice"
 OMNIVOICE_PYTHON="$OMNIVOICE_DIR/.venv/bin/python"
@@ -527,7 +531,7 @@ fi
 
 # 9c/12 Setup IndexTTS isolated environment (optional)
 echo
-echo "[9c/12] Setting up IndexTTS isolated environment (optional)..."
+echo "[Optional engine] Setting up IndexTTS isolated environment..."
 echo "IndexTTS uses its own isolated venv to avoid dependency conflicts."
 INDEX_TTS_DIR="$(pwd)/engines/index-tts"
 INDEX_TTS_READY=0
@@ -600,7 +604,7 @@ else
 fi
 
 echo
-echo "[9d/12] Setting up Dot.TTS isolated environment (optional)..."
+echo "[Optional engine] Setting up Dot.TTS isolated environment..."
 echo "Dot.TTS pins newer torch/transformers versions, so it runs in its own venv."
 DOTS_TTS_DIR="$(pwd)/engines/dots-tts"
 DOTS_TTS_REPO="$DOTS_TTS_DIR/repo"
@@ -709,14 +713,19 @@ else
     fi
 fi
 
+else
+    echo
+    echo "Core dependencies are ready. Optional TTS engines are installed from Settings."
+fi
+
 # Ensure voice prompts directory exists
 echo
-echo "[10/12] Creating data directories..."
+echo "[8/10] Creating data directories..."
 mkdir -p data/voice_prompts
 
-# 11/12 Install system tools (espeak-ng, sox, ffmpeg)
+# 9/10 Install system tools (espeak-ng, sox, ffmpeg)
 echo
-echo "[11/12] Checking system dependencies..."
+echo "[9/10] Checking system dependencies..."
 
 # Check for apt (Debian/Ubuntu)
 install_apt() {
@@ -790,13 +799,15 @@ else
     echo "WARNING: ffmpeg not found!"
 fi
 
-# 12/12 Verify installation
+# 10/10 Verify installation
 echo
-echo "[12/12] Verifying Installation..."
+echo "[10/10] Verifying Installation..."
 echo "========================================"
 echo
 
-if [ "$NEEDS_BLACKWELL_TORCH" -eq 1 ]; then
+if ! python -c "import torch" >/dev/null 2>&1; then
+    echo "Core installation verified. No local PyTorch engine is installed yet."
+elif [ "$NEEDS_BLACKWELL_TORCH" -eq 1 ]; then
     python scripts/torch_cuda_probe.py --require-arch sm_120 --test-cuda
 elif [ "$HAS_NVIDIA" -eq 1 ]; then
     python scripts/torch_cuda_probe.py --test-cuda
@@ -804,17 +815,22 @@ else
     python scripts/torch_cuda_probe.py
 fi
 
-python scripts/flash_attention_setup.py diagnose
+if python -c "import torch" >/dev/null 2>&1; then
+    python scripts/flash_attention_setup.py diagnose
+fi
 
 python scripts/setup_state.py write --platform "$SETUP_PLATFORM_ID"
 touch .setup_complete
+if [ "$FRESH_INSTALL" -eq 1 ]; then
+    touch .first_run_pending
+fi
 echo
 echo "========================================"
 echo "Setup Complete!"
 echo "========================================"
 echo
 echo "Next steps:"
-echo "  1. If espeak-ng is not installed, install it now"
-echo "  2. Run: ./run.sh"
-echo "  3. Open browser to: http://localhost:5000"
+echo "  1. Run: ./run.sh"
+echo "  2. Open browser to: http://localhost:5000"
+echo "  3. Choose and install or configure a TTS engine in Settings"
 echo

@@ -193,7 +193,7 @@ const HELP_TOPICS = {
             <p>Configure the behavior of each TTS engine and related cloud services.</p>
             <ul>
                 <li>Select a tab to edit its engine-specific parameters.</li>
-                <li>Use API Keys for cloud-hosted engines.</li>
+                <li>Cloud credentials and per-provider request limits are configured inside each cloud engine's tab.</li>
             </ul>
         `
     },
@@ -227,7 +227,8 @@ const HELP_TOPICS = {
                 <li><strong>Model Version:</strong> Exact Replicate model tag.</li>
                 <li><strong>Default Voice:</strong> Default voice name for cloud runs.</li>
                 <li><strong>Generation Parameters:</strong> Temperature, top-p, top-k, etc.</li>
-                <li>Requires a Replicate API key.</li>
+                <li><strong>Replicate API Token:</strong> Shared with Kokoro Cloud.</li>
+                <li><strong>Maximum Parallel Requests:</strong> Limits simultaneous Replicate chunks within one job.</li>
             </ul>
         `
     },
@@ -265,13 +266,13 @@ const HELP_TOPICS = {
             </ul>
         `
     },
-    'engine-api-keys': {
-        title: 'API Keys',
+    'engine-kokoro-cloud': {
+        title: 'Kokoro Cloud',
         body: `
-            <p>Store credentials for cloud engines.</p>
+            <p>Run Kokoro through the Replicate cloud service.</p>
             <ul>
-                <li>Replicate API token is used by Kokoro and Chatterbox cloud engines.</li>
-                <li>Keys are saved locally in your settings.</li>
+                <li><strong>Replicate API Token:</strong> Shared with Chatterbox Cloud and saved locally.</li>
+                <li><strong>Maximum Parallel Requests:</strong> Limits simultaneous Replicate chunks within one job.</li>
             </ul>
         `
     },
@@ -282,7 +283,8 @@ const HELP_TOPICS = {
             <ul>
                 <li><strong>Chunk Size:</strong> Words per chunk.</li>
                 <li><strong>Crossfade / Silence:</strong> Smooths transitions.</li>
-                <li><strong>Parallel Chunks:</strong> Cloud concurrency.</li>
+                <li><strong>Simultaneous Cloud Projects:</strong> Global safety limit for separate cloud jobs running at once.</li>
+                <li><strong>Local Parallel Chunks:</strong> Parallelism for local engines that support it.</li>
                 <li><strong>Group by Speaker:</strong> Optimizes speaker switching.</li>
                 <li><strong>Speech Speed:</strong> Overall rate adjustment.</li>
                 <li><strong>Unload GPU:</strong> Saves VRAM after each job.</li>
@@ -650,10 +652,10 @@ const HELP_SECTIONS = [
             'engine-kokoro',
             'engine-chatterbox-local',
             'engine-chatterbox-cloud',
+            'engine-kokoro-cloud',
             'engine-voxcpm',
             'engine-qwen3',
             'engine-azure-speech',
-            'engine-api-keys',
             'settings-audio',
             'settings-llm'
         ]
@@ -3690,6 +3692,9 @@ function initTabs() {
 function setupEventListeners() {
     const analyzeBtn = document.getElementById('analyze-btn');
     const generateBtn = document.getElementById('generate-btn');
+    const engineFirstRunOverlay = document.getElementById('engine-first-run-overlay');
+    const engineFirstRunClose = document.getElementById('engine-first-run-close');
+    const engineFirstRunOk = document.getElementById('engine-first-run-ok');
     const geminiBtn = document.getElementById('gemini-process-btn');
     const downloadBtn = document.getElementById('download-btn');
     const newGenerationBtn = document.getElementById('new-generation-btn');
@@ -3738,6 +3743,12 @@ function setupEventListeners() {
     const projectList = document.getElementById('project-list');
     const projectNameInput = document.getElementById('project-name-input');
     const projectStatus = document.getElementById('project-status');
+
+    engineFirstRunClose?.addEventListener('click', closeEngineFirstRunNotice);
+    engineFirstRunOk?.addEventListener('click', closeEngineFirstRunNotice);
+    engineFirstRunOverlay?.addEventListener('click', event => {
+        if (event.target === engineFirstRunOverlay) closeEngineFirstRunNotice();
+    });
 
     if (analyzeBtn) {
         analyzeBtn.addEventListener('click', analyzeText);
@@ -6188,6 +6199,29 @@ function populateVoiceSelects() {
 }
 
 // Generate audio
+function closeEngineFirstRunNotice() {
+    document.getElementById('engine-first-run-overlay')?.classList.add('hidden');
+    document.getElementById('engine-first-run-modal')?.classList.add('hidden');
+}
+
+function showEngineFirstRunNotice(engineName) {
+    const overlay = document.getElementById('engine-first-run-overlay');
+    const modal = document.getElementById('engine-first-run-modal');
+    if (!overlay || !modal) return;
+    const engineSelect = document.getElementById('job-tts-engine');
+    const selectedOption = Array.from(engineSelect?.options || []).find(option =>
+        option.value === engineName
+    );
+    const displayName = selectedOption?.textContent?.trim() || engineName || 'This TTS engine';
+    const message = document.getElementById('engine-first-run-message');
+    if (message) {
+        message.textContent = `${displayName} may need to download additional model files and prepare its runtime before generating its first audio.`;
+    }
+    overlay.classList.remove('hidden');
+    modal.classList.remove('hidden');
+    document.getElementById('engine-first-run-ok')?.focus();
+}
+
 async function generateAudio() {
     const text = document.getElementById('input-text').value;
     
@@ -6281,6 +6315,10 @@ async function generateAudio() {
         if (data.success) {
             // Show success notification
             showNotification(`Job queued! Position: ${data.queue_position}`, 'success');
+
+            if (data.first_run_notice) {
+                showEngineFirstRunNotice(data.engine || selectedEngine);
+            }
             
             // Update queue indicator
             updateQueueIndicator();

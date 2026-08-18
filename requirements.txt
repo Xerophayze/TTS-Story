@@ -1,3 +1,4 @@
+# TTS-Story core runtime. Local TTS engines are installed on demand from Settings.
 flask>=3.0.0
 flask-cors>=4.0.0
 python-docx>=1.1.0
@@ -7,7 +8,6 @@ beautifulsoup4>=4.12.0
 striprtf>=0.0.26
 odfpy>=1.4.1
 markdown>=3.5.0
-kokoro>=0.9.4
 soundfile>=0.12.1
 numpy>=2.0.0
 pydub>=0.25.1
@@ -15,51 +15,10 @@ librosa==0.11.0
 resampy>=0.4.2
 soxr>=0.3.0
 pyrubberband>=0.4.0
-replicate>=0.25.0
+pyloudnorm>=0.1.0
 requests>=2.31.0
-edge-tts>=7.2.8,<8
 python-dotenv>=1.0.0
 google-genai>=1.0.0
+replicate>=0.25.0
 pandas==2.2.3
-
-# Chatterbox Turbo local runtime dependencies
-s3tokenizer
-transformers==4.57.3
-diffusers==0.29.0
-resemble-perth==1.0.1
-conformer==0.3.2
-safetensors==0.5.3
-spacy-pkuseg
-pykakasi==2.3.0
-gradio==5.44.1
-pyloudnorm>=0.1.0
-omegaconf>=2.3.0
-
-# Note: torch, torchvision, torchaudio, and chatterbox-tts==0.1.6 are installed by setup scripts
-
-# VoxCPM 1.5 local runtime
-voxcpm
-funasr
-
-# Qwen3-TTS local runtime
-qwen-tts
-huggingface-hub
-
-# OmniVoice runtime runs in an isolated venv (engines/omnivoice/.venv) managed by setup.bat
-# It cannot be installed here due to torch/transformers version conflicts with other engines.
-
-# Pocket TTS runtime
-pocket-tts==1.0.3
-
-# KittenTTS runtime (CPU-only; default mini model ~80MB, nano-int8 ~25MB)
-# Installed automatically by setup.bat from the pinned 0.8.0 wheel.
-
-# Extra language-specific dependencies
-pyopenjtalk
-ordered-set
-fugashi[unidic-lite]
-pypinyin
-jaconv
-cn2an
-mojimoji
-jieba
+scipy>=1.11.0

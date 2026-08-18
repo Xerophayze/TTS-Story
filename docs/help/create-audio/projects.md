@@ -42,7 +42,7 @@ Loading the project analyzes the restored text and then reapplies saved assignme
 
 ## What it does not contain
 
-A browser project does not embed or back up:
+A saved project does not embed or back up:
 
 - Generated audio or Library items
 - Job Queue history
@@ -54,18 +54,19 @@ A browser project does not embed or back up:
 
 If a saved assignment refers to a voice, prompt, or cloud catalog entry that no longer exists, choose a replacement after loading.
 
-## Projects live in browser localStorage
+## Projects use the shared TTS-Story project library
 
-> **Important:** Projects are stored in `localStorage` for the current browser profile and site origin.
+> **Important:** Projects are stored by the TTS-Story backend in `data/projects.json`.
 
 This means:
 
-- Another browser will not see them.
-- Private/incognito browsing may discard them.
-- Clearing site data removes them.
-- `localhost:5000` and `127.0.0.1:5000` can have separate project storage.
+- Browsers and devices connected to the same running TTS-Story installation see the same project list.
+- `localhost:5000`, `127.0.0.1:5000`, and a LAN address for that installation use the same projects.
+- Clearing browser site data does not delete the backend project library.
 - Moving TTS-Story to another computer does not transfer them.
-- Browser reset, profile deletion, or storage-cleaning software can remove them.
+- Deleting or losing `data/projects.json` removes the saved project snapshots.
+
+When an upgraded browser still contains projects from the older browser-local system, TTS-Story imports them into the shared library and removes the legacy browser copy only after the server confirms the import.
 
 Keep the original manuscript and critical prepared versions in normal backed-up files. See [Local Data, API Keys, and Backups](help:data-storage).
 
@@ -83,7 +84,7 @@ After loading, wait for automatic analysis and verify the engine, voices, sectio
 
 ## Delete carefully
 
-The project list offers **Delete**. Deletion is immediate in the current interface and has no recovery or confirmation step. It removes only the browser snapshot; it does not delete a separately submitted Library job or the external manuscript.
+The project list offers **Delete**. Deletion is immediate in the current interface and has no recovery or confirmation step. It removes only the saved project snapshot; it does not delete a separately submitted Library job or the external manuscript.
 
 ## Recommended checkpoint strategy
 

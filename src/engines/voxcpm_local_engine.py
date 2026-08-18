@@ -12,7 +12,10 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import soundfile as sf
-import torch
+try:
+    import torch
+except ImportError:  # Core-only installs do not include local engine runtimes.
+    torch = None  # type: ignore[assignment]
 
 from .base import EngineCapabilities, TtsEngineBase, VoiceAssignment
 from ..audio_effects import AudioPostProcessor, VoiceFXSettings
@@ -26,7 +29,7 @@ try:
     from huggingface_hub import snapshot_download
     from voxcpm import VoxCPM  # type: ignore
 
-    VOXCPM_AVAILABLE = True
+    VOXCPM_AVAILABLE = torch is not None
 except ImportError:  # pragma: no cover - optional dependency
     VoxCPM = None  # type: ignore[assignment]
     snapshot_download = None  # type: ignore[assignment]
@@ -74,7 +77,10 @@ class VoxCPMLocalEngine(TtsEngineBase):
 
         # Download model to local directory to avoid Windows symlink issues
         # Use a local cache directory within the project to bypass HF Hub symlink requirements
-        local_model_dir = Path(__file__).parent.parent.parent / "models" / "voxcpm"
+        local_model_dir = Path(
+            os.environ.get("TTS_STORY_ENGINE_MODEL_ROOT")
+            or Path(__file__).parent.parent.parent / "models" / "voxcpm"
+        )
         local_model_dir.mkdir(parents=True, exist_ok=True)
         model_path = local_model_dir / model_id.replace("/", "_")
 

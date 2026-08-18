@@ -259,7 +259,7 @@ def test_speaker_properties_offers_single_profile_generation():
 def test_main_bundle_cache_key_includes_profile_migration_release():
     template = (PROJECT_ROOT / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert '/static/js/main.js?v=59' in template
+    assert '/static/js/main.js?v=61' in template
 
 
 def test_voice_sample_assignments_survive_compatible_engine_switches():
@@ -328,11 +328,12 @@ def test_bulk_voice_generation_is_locked_to_qwen3():
 
 def test_qwen_candidates_are_seeded_and_cleanup_is_not_reapplied():
     source = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
+    worker_source = (PROJECT_ROOT / "engines" / "qwen3_voice_design_worker.py").read_text(encoding="utf-8")
     cleanup_source = source.split("def _apply_voice_design_cleanup", 1)[1].split(
         "def _clean_voice_design_instruction", 1
     )[0]
 
-    assert "with torch.random.fork_rng" in source
+    assert "with torch.random.fork_rng" in worker_source
     assert '"seed": seed' in source
     assert '"cleanup_applied": True' in source
     assert 'if not payload.get("cleanup_applied")' in source
@@ -455,12 +456,12 @@ def test_batch_voice_generation_clears_stale_candidates_and_reports_failures():
 def test_voice_design_casting_uses_conservative_sampling(monkeypatch):
     captured = {}
 
-    class FakeModel:
-        def generate_voice_design(self, **kwargs):
-            captured.update(kwargs)
-            return [[0.0] * (24_000 * 11)], 24_000
+    def fake_worker(payload):
+        captured.update(payload["generation_kwargs"])
+        app_module.sf.write(payload["output_path"], [0.0] * (24_000 * 11), 24_000)
+        return {"sample_rate": 24_000, "elapsed_seconds": 0.1}
 
-    monkeypatch.setattr(app_module, "_get_qwen3_voice_design_model", lambda _config: FakeModel())
+    monkeypatch.setattr(app_module, "_run_isolated_qwen_voice_design", fake_worker)
     monkeypatch.setattr(app_module, "_apply_voice_design_cleanup", lambda audio, _rate: audio)
 
     result = app_module._generate_voice_design_preview(

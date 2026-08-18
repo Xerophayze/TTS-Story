@@ -7,7 +7,7 @@ Chatterbox Turbo is TTS-Story's expressive English option for reference cloning 
 - Expressive English dialogue and narration
 - Reusing a clean reference voice prompt
 - Text that deliberately uses Chatterbox's supported paralinguistic tags
-- A default voice when no reference prompt is assigned
+- A reusable default reference prompt when one voice should be the fallback
 
 This integration is English-only. Do not assume capabilities from other Chatterbox models are present in the Turbo adapter.
 
@@ -17,13 +17,13 @@ This integration is English-only. Do not assume capabilities from other Chatterb
 
 *Add and review Chatterbox reference recordings in Voice Prompts before assigning them to speakers.*
 
-The normal setup installs `chatterbox-tts` and its pinned dependencies. The Turbo model downloads on first use. TTS-Story presents the local engine as requiring roughly 8 GB of VRAM; a supported NVIDIA CUDA GPU is strongly recommended. Although the Device field accepts `cpu`, long CPU jobs can be very slow.
+Install Chatterbox Local from **Settings → Engine Settings**. TTS-Story creates a dedicated `engines/chatterbox/.venv` environment because Chatterbox requires an older Transformers version than Qwen3. The Turbo model downloads on first use. TTS-Story presents the local engine as requiring roughly 8 GB of VRAM; a supported NVIDIA CUDA GPU is strongly recommended. Although the Device field accepts `cpu`, long CPU jobs can be very slow. Uninstalling Chatterbox removes this isolated environment and its model cache without changing Qwen3 or other local engines.
 
 Under [Settings → Engine Settings](app:settings/chatterbox-local), leave **Device** at `auto`, assign a Default Prompt only if one voice should be the fallback, and test the defaults before tuning. A clean reference of roughly ten seconds is a sensible starting point: one speaker, steady volume, no music, and little room echo.
 
 ## Replicate requirements and setup
 
-Enter a Replicate token under **Engine Settings → API Keys**. The cloud adapter uses a pinned `resemble-ai/chatterbox-turbo` version. It can use the configured provider voice, or upload the assigned reference prompt for cloning.
+Enter a Replicate token directly under **Engine Settings → Chatterbox Cloud**. The token and Replicate parallel-request limit are shared with Kokoro Cloud. The cloud adapter uses a pinned `resemble-ai/chatterbox-turbo` version. It can use the configured provider voice, or upload the assigned reference prompt for cloning.
 
 Do not replace the pinned model string casually. A different Replicate version may expose a different input schema and fail even when it belongs to the same model page.
 

@@ -1,8 +1,12 @@
 # Engine Reference and Comparison
 
-TTS-Story offers sixteen engines in the Generate list. A seventeenth registered workflow, OmniVoice Design, is used by Voice Creation and Library tools rather than as a normal full-job engine.
+TTS-Story offers eighteen normal generation choices. Qwen3 VoiceDesign and OmniVoice Design are additional Voice Creation workflows rather than full-job engines.
 
 Choose an engine for the voice source you need first, then consider hardware, language, privacy, and cost. A fast engine with the wrong voice is rarely the best choice for a long project.
+
+The initial installer now installs only TTS-Story's core application and shared audio tools. Open **Settings → Engine Settings** to install individual local engines or configure hosted services. Every installed local engine receives a dedicated virtual environment plus an engine-owned model/cache folder, preventing one engine's PyTorch, Transformers, or other package versions from changing another engine. Red tabs require attention; green tabs are ready. Only ready engines are listed on the Generate page, so unused models and isolated environments no longer consume installation time or disk space.
+
+Ready local engines can be removed from the same panel. **Uninstall Engine** removes only that engine's isolated environment and downloaded models. It retains the core application along with every project, setting, generated audio file, and saved reference voice. Reinstallation recreates a compatible environment and requires downloading the removed runtime and models again. See [Install, Remove, and Reinstall TTS Engines](help:engine-management) for the complete workflow.
 
 ## Quick comparison
 
@@ -10,7 +14,7 @@ Choose an engine for the voice source you need first, then consider hardware, la
 |---|---|---|---|---|
 | Kokoro | Local, CPU or GPU | Built-in voices and local blends | Lightweight narration and repeatable character voices | No reference-audio cloning |
 | Kokoro Replicate | Cloud | Provider's Kokoro voices | Kokoro without local inference | Replicate token, network, and usage cost |
-| Chatterbox Turbo | Local CUDA recommended | Default voice or reference clone | Expressive English and supported non-verbal tags | Large model and substantial VRAM |
+| Chatterbox Turbo | Local CUDA recommended | Default voice or reference clone | Expressive English and supported non-verbal tags | Isolated runtime, large model, and substantial VRAM |
 | Chatterbox Turbo Replicate | Cloud | Provider voice or reference clone | Expressive English without local GPU work | Reference text/audio leave the computer; billed by Replicate |
 | VoxCPM 1.5 | Local CUDA recommended | Reference clone | Expressive English or Chinese cloning | Large first download and slower local inference |
 | Pocket TTS Clone | Local CPU | Reference audio or saved voice state | CPU-only English cloning | Older, English-only adapter; cloning is slower than presets |
@@ -24,6 +28,8 @@ Choose an engine for the voice source you need first, then consider hardware, la
 | Azure AI Speech | Cloud | Voices discovered from an Azure region | Supported production cloud speech, styles, roles, and SSML prosody | Azure account, key, region, and usage billing |
 | Edge TTS | Cloud, experimental | Microsoft's current consumer voice catalog | No-key testing and personal use | Unofficial service with no availability guarantee |
 | ElevenLabs | Cloud | Voices and models available to the account | Polished hosted voices and continuity | API key, quota, subscription limits, and character cost |
+| OpenAI-compatible TTS | Cloud or compatible endpoint | Provider voice IDs | OpenAI speech models or another compatible service | Voice cloning is not part of the standard OpenAI speech request |
+| LocalAI TTS | Self-hosted service | LocalAI voices, saved profiles, or transcript-ready TTS-Story prompts when supported | Reuse models already deployed in LocalAI without a duplicate TTS-Story install | Hardware, model support, and reliability belong to the LocalAI host |
 
 OmniVoice Design is available through [Voice Creation](help:voice-creation). It turns an instruction into speech locally, but it is not in the normal Generate engine list.
 
@@ -31,7 +37,7 @@ OmniVoice Design is available through [Voice Creation](help:voice-creation). It 
 
 - **Easiest CPU choices:** KittenTTS, Pocket TTS Preset, and Kokoro. Kokoro can also use CUDA.
 - **GPU-focused local choices:** Chatterbox Turbo, VoxCPM 1.5, Qwen3-TTS, OmniVoice, IndexTTS, and Dot.TTS. Some adapters permit CPU selection, but large-model generation can be impractically slow.
-- **Cloud choices:** the two Replicate engines, Azure Speech, Edge TTS, and ElevenLabs need a working internet connection. No local inference GPU is required.
+- **Cloud and remote choices:** the two Replicate engines, Azure Speech, Edge TTS, ElevenLabs, OpenAI-compatible TTS, and LocalAI use another service endpoint. No TTS inference GPU is required on the TTS-Story host, although a LocalAI server on the same computer still shares that computer's resources.
 - **Private after download:** local engines keep manuscript and generated speech on this computer. Initial installation, model downloads, and optional model updates still contact package or model hosts.
 - **Cloud boundary:** cloud engines send the text being spoken to the provider. Cloning engines also send their reference audio when the provider performs synthesis.
 
@@ -55,4 +61,4 @@ Start with defaults and a short representative passage. Change one setting at a 
 
 ## First-run expectations
 
-Cloud engines normally start after credentials and catalog discovery, although provider queues and rate limits can delay individual requests. Local engines may download anything from tens of megabytes to several gigabytes. Large engines also spend time loading weights, warming kernels, or compiling on their first request. A first test is therefore not a reliable speed benchmark; compare later chunks from the same passage.
+Cloud engines normally start after credentials and catalog discovery, although provider queues and rate limits can delay individual requests. Local engines may download anything from tens of megabytes to several gigabytes. Large engines also spend time loading weights, warming kernels, or compiling on their first request. After the first job is submitted for an engine, TTS-Story displays a one-time reminder about this preparation. A first test is therefore not a reliable speed benchmark; compare later chunks from the same passage.

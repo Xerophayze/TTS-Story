@@ -21,11 +21,10 @@ import soundfile as sf
 from .base import EngineCapabilities, TtsEngineBase, VoiceAssignment
 from ..audio_effects import AudioPostProcessor, VoiceFXSettings
 from .omnivoice_clone_engine import (
-    OMNIVOICE_AVAILABLE,
-    _OMNIVOICE_UNAVAILABLE_REASON,
     _ENGINE_ROOT,
     _WORKER,
     OMNIVOICE_SAMPLE_RATE,
+    _check_omnivoice_available,
     _find_venv_python,
 )
 
@@ -57,9 +56,10 @@ class OmniVoiceDesignEngine(TtsEngineBase):
         post_process: bool = True,
         duration_safety_margin: float = 0.25,
     ):
-        if not OMNIVOICE_AVAILABLE:
+        available, unavailable_reason = _check_omnivoice_available(_ENGINE_ROOT)
+        if not available:
             raise ImportError(
-                f"OmniVoice is not set up. {_OMNIVOICE_UNAVAILABLE_REASON}"
+                f"OmniVoice is not set up. {unavailable_reason}"
             )
 
         self._python = _find_venv_python(_ENGINE_ROOT)

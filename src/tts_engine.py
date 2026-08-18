@@ -22,6 +22,7 @@ from .engines.edge_tts_engine import EdgeTTSEngine
 from .engines.elevenlabs_engine import ElevenLabsEngine
 from .engines.openai_tts_engine import OpenAITTSEngine
 from .engines.localai_tts_engine import LocalAITTSEngine
+from .engines.isolated_proxy import ENGINE_DIRS, IsolatedEngineProxy
 from .engines.kokoro_engine import (
     DEFAULT_SAMPLE_RATE,
     KOKORO_AVAILABLE,
@@ -53,7 +54,7 @@ EngineRegistry: Dict[str, Type[TtsEngineBase]] = {
 AVAILABLE_ENGINES = tuple(EngineRegistry.keys())
 
 
-class TTSEngine(KokoroEngine):
+class TTSEngine(IsolatedEngineProxy):
     """
     Temporary wrapper preserving the previous class name.
 
@@ -61,13 +62,16 @@ class TTSEngine(KokoroEngine):
     desired engine explicitly or use a factory exposed by this module.
     """
 
-    pass
+    def __init__(self, **kwargs):
+        super().__init__("kokoro", **kwargs)
 
 
 def get_engine(engine_name: str = "kokoro", **kwargs) -> TtsEngineBase:
     """
     Factory helper to instantiate a specific engine implementation.
     """
+    if engine_name in ENGINE_DIRS:
+        return IsolatedEngineProxy(engine_name, **kwargs)
     engine_cls = EngineRegistry.get(engine_name)
     if not engine_cls:
         raise ValueError(f"Unknown TTS engine: {engine_name}")

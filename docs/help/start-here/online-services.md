@@ -12,6 +12,8 @@ Open [Settings](app:settings) to manage credentials.
 - Microsoft Azure AI Speech
 - Microsoft Edge TTS (no API key, experimental consumer service)
 - ElevenLabs
+- OpenAI-compatible TTS
+- LocalAI TTS (self-hosted or remotely hosted)
 
 **LLM providers** receive manuscript text and return prepared text:
 
@@ -20,6 +22,8 @@ Open [Settings](app:settings) to manage credentials.
 - OpenRouter
 
 LM Studio and Ollama are supported local LLM options. Selecting an LLM provider does not select the TTS engine, and selecting a cloud TTS engine does not require using **Prep Text**.
+
+LocalAI TTS is also separate from local LLM preparation. It connects the speech-generation workflow to a running LocalAI server and does not use LM Studio or Ollama to synthesize audio.
 
 ## Safe setup procedure
 
@@ -61,7 +65,7 @@ HTTP `401` or `403` usually indicates authentication or permission trouble. `402
 
 ### Replicate
 
-Enter the Replicate API token in the API-key area used by the Replicate engines. The same token supports Kokoro and Chatterbox Replicate modes, while model and generation controls remain engine-specific.
+Enter the Replicate API token under **Engine Settings → Kokoro Cloud** or **Engine Settings → Chatterbox Cloud**. The token and maximum parallel-request setting are shared between those two Replicate engines, while their model and generation controls remain engine-specific.
 
 ### Azure Speech
 
@@ -74,6 +78,10 @@ No key is required. Use **Test Connection & Load Voices** to retrieve the curren
 ### ElevenLabs
 
 Enter the account API key and choose **Test Connection & Load Catalog**. TTS-Story loads the voices and models permitted for that key and may show character usage when the key can access subscription information. See [ElevenLabs](help:engine-elevenlabs).
+
+### LocalAI TTS
+
+Start the LocalAI server and its TTS model first. Under **Engine Settings → LocalAI TTS**, enter the reachable `/v1` address, add a key only when that server requires one, and select **Test Connection & Load Catalog**. TTS-Story discovers speech-capable models and saved voice profiles rather than installing a second runtime. Transcript-ready TTS-Story prompts can also be offered when the selected model advertises compatible voice cloning. See [LocalAI TTS](help:engine-localai-tts).
 
 ### Gemini, Atlas Cloud, and OpenRouter
 

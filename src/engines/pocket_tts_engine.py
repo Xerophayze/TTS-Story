@@ -11,7 +11,10 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import soundfile as sf
-import torch
+try:
+    import torch
+except ImportError:  # Core-only installs do not include local engine runtimes.
+    torch = None  # type: ignore[assignment]
 
 from .base import EngineCapabilities, TtsEngineBase, VoiceAssignment
 from ..audio_effects import AudioPostProcessor, VoiceFXSettings
@@ -21,7 +24,7 @@ logger = logging.getLogger(__name__)
 try:
     from pocket_tts import TTSModel  # type: ignore
 
-    POCKET_TTS_AVAILABLE = True
+    POCKET_TTS_AVAILABLE = torch is not None
 except ImportError:  # pragma: no cover - optional dependency
     TTSModel = None  # type: ignore[assignment]
     POCKET_TTS_AVAILABLE = False

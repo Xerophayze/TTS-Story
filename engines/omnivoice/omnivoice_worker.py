@@ -54,37 +54,53 @@ DEFAULT_MODEL_ID = "k2-fsa/OmniVoice"
 
 
 def _fade_in_and_pad_audio(
-    audio: torch.Tensor,
+    audio,
     pad_duration: float = 0.1,
     fade_duration: float = 0.1,
     sample_rate: int = 24000,
-) -> torch.Tensor:
-    """Keep OmniVoice edge padding without fading out active final speech."""
+):
+    """Keep edge padding without fading final speech, for tensors or arrays."""
     if audio.shape[-1] == 0:
         return audio
 
-    processed = audio.clone()
+    is_tensor = torch.is_tensor(audio)
+    processed = audio.clone() if is_tensor else np.array(audio, copy=True)
     fade_samples = int(fade_duration * sample_rate)
     if fade_samples > 0:
         fade_length = min(fade_samples, processed.shape[-1] // 2)
         if fade_length > 0:
-            fade_in = torch.linspace(
-                0,
-                1,
-                fade_length,
-                device=processed.device,
-                dtype=processed.dtype,
-            )[None, :]
+            fade_shape = [1] * (processed.ndim - 1) + [fade_length]
+            if is_tensor:
+                fade_in = torch.linspace(
+                    0,
+                    1,
+                    fade_length,
+                    device=processed.device,
+                    dtype=processed.dtype,
+                ).reshape(fade_shape)
+            else:
+                fade_in = np.linspace(
+                    0,
+                    1,
+                    fade_length,
+                    dtype=processed.dtype,
+                ).reshape(fade_shape)
             processed[..., :fade_length] *= fade_in
 
     pad_samples = int(pad_duration * sample_rate)
     if pad_samples > 0:
-        silence = torch.zeros(
-            (processed.shape[0], pad_samples),
-            dtype=processed.dtype,
-            device=processed.device,
-        )
-        processed = torch.cat([silence, processed, silence], dim=-1)
+        pad_shape = list(processed.shape)
+        pad_shape[-1] = pad_samples
+        if is_tensor:
+            silence = torch.zeros(
+                tuple(pad_shape),
+                dtype=processed.dtype,
+                device=processed.device,
+            )
+            processed = torch.cat([silence, processed, silence], dim=-1)
+        else:
+            silence = np.zeros(tuple(pad_shape), dtype=processed.dtype)
+            processed = np.concatenate([silence, processed, silence], axis=-1)
 
     return processed
 

@@ -1,6 +1,6 @@
 # Local Data, API Keys, and Backups
 
-TTS-Story stores configuration, generated audio, jobs, prompts, models, and browser Projects in different locations. Backing up only the source repository does not preserve all user data.
+TTS-Story stores configuration, generated audio, jobs, projects, prompts, and models in different locations. Backing up only the source repository does not preserve all user data.
 
 ## Main local data
 
@@ -9,6 +9,7 @@ TTS-Story stores configuration, generated audio, jobs, prompts, models, and brow
 | `config.json` | Saved engine, audio, LLM, provider, and API-key settings |
 | `static/audio/<job-id>/` | Generated chunks, chapters, combined audio, metadata, and per-job `job.log` |
 | `data/jobs/` | Job database, job payload/metadata, and older job archive data |
+| `data/projects.json` | Shared Generate-page project snapshots |
 | `data/voice_prompts/` | Uploaded, downloaded, and designed reference clips plus cached transcripts |
 | `data/chatterbox_voices.json` | Friendly voice registry and prompt metadata |
 | `data/custom_voices.json` | Custom Kokoro blend definitions |
@@ -18,17 +19,17 @@ TTS-Story stores configuration, generated audio, jobs, prompts, models, and brow
 | `static/samples/` | Generated catalog preview audio |
 | `models/` and engine-specific model/cache directories | Downloaded local model data |
 
-Some engines also maintain isolated environments or repositories under `engines/index-tts`, `engines/omnivoice`, and `engines/dots-tts`. Setup can rebuild those dependencies, but model downloads can be large.
+Optional local engines maintain their own virtual environments and model/cache data below their engine-owned folders. Engine Settings can rebuild those dependencies, but model downloads can be large.
 
-## Browser Projects are separate
+## Saved Projects are separate
 
-Generate-page Projects are stored in the browser's local storage under `tts-story-projects`. They preserve editor text, assignments, chapter/output choices, alternate words, speaker profiles, and related per-project state.
+Generate-page Projects are stored in `data/projects.json`. They preserve editor text, assignments, chapter/output choices, alternate words, speaker profiles, and related per-project state.
 
 ![Project Manager showing locally saved browser projects and project actions](../../../static/help/screenshots/project-manager.png)
 
-*Projects are browser-local working snapshots; they are separate from generated Library audio, global Settings, and filesystem backups.*
+*Projects are shared working snapshots for one TTS-Story installation; they are separate from generated Library audio, global Settings, and external backups.*
 
-They do not contain global Settings or API keys, and they are not stored in the `data` directory. They can disappear if browser site data/profile storage is cleared or if TTS-Story is opened from a different browser profile or origin. There is no Project export/import action in the current interface.
+They do not contain global Settings or API keys. Every browser or LAN URL connected to the same backend sees the same project list. Legacy browser-local projects are imported automatically when possible. There is no manual Project export/import action in the current interface.
 
 Always keep the original manuscript as a normal file. Treat Projects as convenient working snapshots, not the only backup.
 
@@ -67,7 +68,7 @@ This is why cloning the repository onto another computer does not restore your L
 1. Stop TTS-Story so databases and audio files are not changing.
 2. Back up `static/audio` and the relevant `data` folders together.
 3. Back up `config.json` only to encrypted/private storage, or remove all keys first.
-4. Preserve original manuscript files separately because browser Projects are not portable exports.
+4. Preserve original manuscript files separately because saved Projects are not portable exports.
 5. Record the application revision and engine versions needed to reproduce the environment.
 
 When restoring to another computer, install/update TTS-Story first, stop it, restore user-data folders to the same relative locations, and then start the application. Keep an untouched copy until the Library and prompt catalog have been verified.

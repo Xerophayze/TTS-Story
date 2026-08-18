@@ -8,7 +8,7 @@ Local engines depend on the main Python environment, engine-specific isolated en
 
 ## Confirm installation and health
 
-After moving the project to another computer or updating dependencies, run the platform setup script and allow it to finish. On Windows, `setup.bat` installs the main requirements, including the Edge TTS client, and prepares supported tools/environments. Large optional engines may require substantial downloads and may report a warning if their isolated setup fails.
+After moving the project to another computer or updating dependencies, run the platform setup script and allow it to finish. Core setup installs TTS-Story and shared tools; it does not force every optional engine onto the computer. Open **Settings → Engine Settings** to install or repair the affected local engine.
 
 Restart TTS-Story after setup. Then inspect `http://localhost:5000/api/health` and run:
 
@@ -20,19 +20,19 @@ The health response includes availability and unavailable-reason fields for engi
 
 ## First-run model downloads
 
-Qwen3, OmniVoice, IndexTTS, Dot.TTS, and other local engines can download gigabytes of model data. The first request may appear slow while the model is fetched or loaded.
+Qwen3, OmniVoice, IndexTTS, Dot.TTS, and other local engines can download gigabytes of model data. The first request may appear slow while the model is fetched or loaded. TTS-Story displays a one-time first-job notice for each engine; keep the backend running and watch Job Queue and the terminal.
 
-Check free disk space, internet access, the terminal, and engine-specific cache directories. Do not terminate setup merely because a large download pauses briefly. If a download is incomplete, rerun setup/update rather than copying a partial cache into source control.
+Check free disk space, internet access, the terminal, and engine-specific cache directories. Do not terminate the job merely because a large download pauses briefly. If a download is incomplete or the worker no longer starts, use that engine panel's uninstall/reinstall workflow rather than copying a partial cache into source control.
 
 ## Isolated engines
 
-OmniVoice, IndexTTS, and Dot.TTS use environments under their `engines` directories to avoid dependency conflicts. Installing a package only into the main `venv` may not fix their worker.
+Supported local engines use engine-owned environments under their `engines` directories to avoid dependency conflicts. Installing a package only into the main `venv` may not fix their worker.
 
 - OmniVoice uses `engines/omnivoice/.venv`.
 - Dot.TTS uses `engines/dots-tts/.venv` and an upstream repository/model cache.
 - IndexTTS uses its own environment/checkpoint layout under `engines/index-tts`.
 
-Use the setup output and health unavailable reason before modifying those environments manually.
+Use the live engine-management log and health unavailable reason before modifying those environments manually. The normal repair path is [Install, Remove, and Reinstall TTS Engines](help:engine-management).
 
 ## CUDA out of memory
 

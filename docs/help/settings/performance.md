@@ -32,7 +32,7 @@ For CUDA out-of-memory errors:
 
 FP16 or another lower-precision option can reduce memory on supporting GPUs, but use only values offered by that engine tab. Do not apply IndexTTS, Dot.TTS, Qwen3, or OmniVoice advice to a different model.
 
-IndexTTS, Dot.TTS, and OmniVoice use isolated runtimes. Their dependencies and models are not represented solely by the main Python environment.
+Every optional local engine uses an engine-owned isolated runtime. Its dependencies and models are not represented solely by the main Python environment. Install, repair, or remove it through [Engine Settings](help:engine-management) instead of modifying the core `venv`.
 
 ## CPU engines
 
@@ -44,9 +44,10 @@ Use smaller character chunks when memory is limited, but avoid extremely small c
 
 Cloud speed depends on network latency, service load, quota, request size, and provider concurrency. Increasing parallelism can produce 429 throttling instead of a speedup.
 
-- Replicate uses the shared Parallel Chunks value, effectively 1–8.
-- Edge TTS and ElevenLabs have provider-specific maximum-parallel controls.
+- **Simultaneous Cloud Projects** limits how many cloud-backed projects can run together.
+- Each supporting cloud provider has its own request-concurrency control in that provider's settings.
 - Azure also exposes requests per minute.
+- LocalAI is self-hosted and uses the local worker queue; begin with one job unless the LocalAI host and selected model are known to support more.
 
 Start with defaults, watch the first complete chapter, and reduce concurrency after rate-limit or intermittent timeout errors.
 

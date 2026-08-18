@@ -40,14 +40,14 @@ If a representative 1,500-word chapter takes 12 minutes after the model is alrea
 - Provider rate limits, network latency, or account concurrency limits
 - Very small text chunks, which increase request and merge overhead
 
-TTS-Story processes separate jobs serially. Submitting several jobs is useful for unattended work, but it does not make them run simultaneously.
+Local GPU/CPU engines and LocalAI normally process through the local worker queue so large models do not compete unpredictably for the same hardware. Supported cloud providers can process more than one project or request concurrently when their saved concurrency controls allow it. Higher concurrency is not always faster because provider throttling, connection limits, and retries can become the bottleneck.
 
 ## Improve throughput safely
 
 - Start from the engine defaults.
 - Test with effects disabled, then add only the needed effects.
 - Keep chunks near the engine's recommended range.
-- Use Replicate parallelism only within account and provider limits.
+- Use cloud-provider concurrency only within account and provider limits.
 - For CPU engines, adjust documented thread controls rather than running multiple application instances.
 - Enable **Unload GPU model after job** only when reclaiming VRAM matters more than the next job's model-load delay.
 - Keep TTS-Story, the output directory, and model cache on responsive storage.

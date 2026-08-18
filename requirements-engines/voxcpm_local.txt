@@ -1,0 +1,3 @@
+voxcpm
+funasr
+huggingface-hub

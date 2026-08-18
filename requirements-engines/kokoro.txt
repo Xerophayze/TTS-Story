@@ -1,0 +1,8 @@
+kokoro>=0.9.4
+ordered-set
+fugashi[unidic-lite]
+pypinyin
+jaconv
+cn2an
+mojimoji
+jieba
