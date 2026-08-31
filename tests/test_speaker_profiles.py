@@ -259,7 +259,7 @@ def test_speaker_properties_offers_single_profile_generation():
 def test_main_bundle_cache_key_includes_profile_migration_release():
     template = (PROJECT_ROOT / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert '/static/js/main.js?v=63' in template
+    assert '/static/js/main.js?v=64' in template
 
 
 def test_qwen_voice_generation_controls_require_optional_engine_installation(monkeypatch):

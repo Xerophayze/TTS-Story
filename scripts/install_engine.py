@@ -21,8 +21,9 @@ ISOLATED_ENGINES = {
     "qwen3": "qwen3.txt",
     "kitten_tts": "kitten_tts.txt",
     "edge_tts": "edge_tts.txt",
+    "audio8_tts": "audio8_tts.txt",
 }
-TORCH_ENGINES = {"kokoro", "voxcpm_local", "pocket_tts", "qwen3"}
+TORCH_ENGINES = {"kokoro", "voxcpm_local", "pocket_tts", "qwen3", "audio8_tts"}
 ISOLATED_AUDIO_RUNTIME = [
     "numpy", "soundfile>=0.12.1", "pydub>=0.25.1", "librosa==0.11.0",
     "resampy>=0.4.2", "pyrubberband>=0.4.0", "scipy>=1.11.0",
@@ -41,6 +42,7 @@ MAIN_ENV_PACKAGES = {
     "qwen3": ["qwen-tts"],
     "kitten_tts": ["kittentts"],
     "edge_tts": ["edge-tts"],
+    "audio8_tts": [],
 }
 ENGINE_MODEL_PATHS = {
     "voxcpm_local": [ROOT / "models" / "voxcpm"],
@@ -121,6 +123,7 @@ def remove_isolated_runtime(engine: str, *, dry_run: bool = False) -> None:
         "qwen3": "qwen3",
         "kitten_tts": "kitten_tts",
         "edge_tts": "edge_tts",
+        "audio8_tts": "audio8_tts",
     }
     engine_dir = ROOT / "engines" / directories[engine]
     preserved_by_engine = {
@@ -155,7 +158,7 @@ def uninstall(engine: str, *, dry_run: bool = False) -> None:
         packages = MAIN_ENV_PACKAGES[engine]
         if dry_run:
             print("Would remove isolated runtime and legacy main package(s): " + ", ".join(packages), flush=True)
-        else:
+        elif packages:
             run([sys.executable, "-m", "pip", "uninstall", "-y", *packages])
         remove_isolated_runtime(engine, dry_run=dry_run)
     else:

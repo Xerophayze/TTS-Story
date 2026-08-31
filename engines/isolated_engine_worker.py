@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import inspect
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -64,6 +65,9 @@ def engine_class(engine: str):
     if engine == "edge_tts":
         from src.engines.edge_tts_engine import EdgeTTSEngine
         return EdgeTTSEngine
+    if engine == "audio8_tts":
+        from src.engines.audio8_tts_engine import Audio8TTSEngine
+        return Audio8TTSEngine
     raise ValueError(f"Unsupported isolated engine: {engine}")
 
 
@@ -78,6 +82,11 @@ def run_job(job: dict) -> None:
     engine_name = str(job["engine"])
     configure_cache(engine_name)
     engine = engine_class(engine_name)(**(job.get("constructor") or {}))
+    emit({
+        "event": "engine_ready",
+        "device": getattr(engine, "device", "unknown"),
+        "dtype": getattr(engine, "dtype", "unknown"),
+    })
     operation = job.get("operation")
     try:
         if operation == "batch":
@@ -128,6 +137,7 @@ def run_job(job: dict) -> None:
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", required=True)
     parser.add_argument("--job-file")

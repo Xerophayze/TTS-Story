@@ -1566,7 +1566,8 @@ function isTurboEngine(engineName) {
         || value === 'voxcpm_local'
         || value === 'qwen3_clone'
         || value === 'omnivoice_clone'
-        || value === 'dots_tts';
+        || value === 'dots_tts'
+        || value === 'audio8_tts';
 }
 
 function isPromptEngine(engineName) {
@@ -1785,6 +1786,7 @@ const ENGINE_MIN_DURATION = {
     'omnivoice_clone': 0,
     'omnivoice_design': 0,
     'dots_tts': 0,
+    'audio8_tts': 0.5,
     'kokoro': 0,
     'kokoro_replicate': 0,
 };
@@ -1875,6 +1877,12 @@ function populateReferenceDropdown(selectEl, placeholderText = 'Use preset voice
             option.disabled = true;
             option.style.color = '#ff6b6b';
             option.textContent = `${entry?.name || promptPath}${metaLabel}${durationLabel} (too short)`;
+        }
+        if ((currentEngine || '').toLowerCase() === 'audio8_tts' && !entry?.transcript) {
+            option.disabled = true;
+            option.style.color = '#ff6b6b';
+            option.textContent = `${entry?.name || promptPath}${metaLabel}${durationLabel} (transcript required)`;
+            option.title = 'Generate or enter this sample\'s exact transcript in Available Voices first.';
         }
         
         selectEl.appendChild(option);
@@ -4531,6 +4539,7 @@ const engineDisplayNames = {
     'kitten_tts': 'KittenTTS',
     'index_tts': 'IndexTTS',
     'dots_tts': 'Dot.TTS · Voice Clone',
+    'audio8_tts': 'Audio8 TTS · Voice Clone',
     'omnivoice_clone': 'OmniVoice · Clone',
     'omnivoice_design': 'OmniVoice · Design',
     'azure_speech': 'Microsoft Azure Speech · Cloud',
@@ -4546,7 +4555,7 @@ function updateModeIndicator(engineName) {
     if (!modeEl) return;
 
     const normalizedEngine = (engineName || 'kokoro').toLowerCase();
-    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone', 'pocket_tts', 'pocket_tts_preset', 'kitten_tts', 'index_tts', 'dots_tts', 'localai_tts']
+    const isLocal = ['kokoro', 'chatterbox_turbo_local', 'voxcpm_local', 'qwen3_custom', 'qwen3_clone', 'pocket_tts', 'pocket_tts_preset', 'kitten_tts', 'index_tts', 'dots_tts', 'audio8_tts', 'localai_tts']
         .includes(normalizedEngine);
 
     modeEl.textContent = engineDisplayNames[normalizedEngine] || normalizedEngine;

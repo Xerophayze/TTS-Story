@@ -475,6 +475,7 @@ function formatEngineName(engine) {
         'omnivoice_clone': 'OmniVoice (Voice Clone)',
         'omnivoice_design': 'OmniVoice (Voice Design)',
         'dots_tts': 'Dot.TTS (Voice Clone)',
+        'audio8_tts': 'Audio8 TTS (Voice Clone)',
         'azure_speech': 'Microsoft Azure Speech',
         'edge_tts': 'Microsoft Edge TTS (Experimental)',
         'elevenlabs': 'ElevenLabs',
@@ -3515,6 +3516,7 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="kitten_tts">KittenTTS</option>
             <option value="index_tts">IndexTTS</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
+            <option value="audio8_tts">Audio8 TTS · Voice Clone</option>
             <option value="azure_speech">Microsoft Azure Speech</option>
             <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
             <option value="elevenlabs">ElevenLabs</option>
@@ -3660,6 +3662,7 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="kitten_tts">KittenTTS</option>
             <option value="index_tts">IndexTTS</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
+            <option value="audio8_tts">Audio8 TTS · Voice Clone</option>
             <option value="azure_speech">Microsoft Azure Speech</option>
             <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
             <option value="elevenlabs">ElevenLabs</option>
@@ -5060,6 +5063,7 @@ function _ensureLibraryAwrEntryModal() {
                                     <option value="kitten_tts">KittenTTS</option>
                                     <option value="index_tts">IndexTTS</option>
                                     <option value="dots_tts">Dot.TTS</option>
+                                    <option value="audio8_tts">Audio8 TTS</option>
                                     <option value="azure_speech">Microsoft Azure Speech</option>
                                     <option value="edge_tts">Microsoft Edge TTS</option>
                                     <option value="elevenlabs">ElevenLabs</option>

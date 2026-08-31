@@ -9,6 +9,19 @@ from src.pause_markers import pause_seconds_for_text, split_text_and_pause_marke
 
 class TextProcessor:
     """Processes text for TTS generation"""
+
+    # Titles and other abbreviations that almost never terminate a sentence.
+    # Contextual abbreviations (for example ``etc.``) are handled separately so
+    # they can still end a sentence when followed by a new capitalized clause.
+    NON_TERMINAL_ABBREVIATIONS = {
+        "mr.", "mrs.", "ms.", "dr.", "prof.", "sr.", "jr.", "st.",
+        "vs.", "fig.", "no.", "dept.", "gen.", "rep.", "sen.", "gov.",
+        "lt.", "col.", "sgt.", "capt.", "cmdr.",
+    }
+    CONTEXTUAL_ABBREVIATIONS = {
+        "e.g.", "i.e.", "etc.", "approx.", "misc.", "inc.", "ltd.",
+        "u.s.", "u.k.", "a.i.",
+    }
     
     def __init__(
         self,
@@ -224,10 +237,63 @@ class TextProcessor:
             chunks.append(current.strip())
         return chunks
 
-    @staticmethod
-    def _split_into_sentences(text: str) -> List[str]:
-        pattern = re.compile(r'.*?(?:[.!?]+["\')\]]*(?=\s|$)|$)', re.DOTALL)
-        return [match.group(0) for match in pattern.finditer(text) if match.group(0).strip()]
+    @classmethod
+    def _split_into_sentences(cls, text: str) -> List[str]:
+        """Split at real sentence endings without treating abbreviations as endings."""
+        content = str(text or "")
+        if not content.strip():
+            return []
+        boundaries = cls._sentence_boundaries(content)
+        sentences: List[str] = []
+        start = 0
+        for end in boundaries:
+            value = content[start:end].strip()
+            if value:
+                sentences.append(value)
+            start = end
+        remainder = content[start:].strip()
+        if remainder:
+            sentences.append(remainder)
+        return sentences
+
+    @classmethod
+    def _sentence_boundaries(cls, text: str) -> List[int]:
+        boundaries: List[int] = []
+        for match in re.finditer(r'[.!?]+["\')\]]*(?=\s|$)', text):
+            punctuation = re.match(r'[.!?]+', match.group(0)).group(0)
+            if "!" in punctuation or "?" in punctuation:
+                boundaries.append(match.end())
+                continue
+            if cls._period_is_abbreviation(text, match.start(), match.end()):
+                continue
+            boundaries.append(match.end())
+        return boundaries
+
+    @classmethod
+    def _period_is_abbreviation(cls, text: str, start: int, end: int) -> bool:
+        # Decimal numbers are not sentence endings (for example 3.14).
+        if start > 0 and end < len(text) and text[start - 1].isdigit() and text[end].isdigit():
+            return True
+
+        prefix = text[:start + 1]
+        token_match = re.search(r'([A-Za-z](?:[A-Za-z.]*)\.)$', prefix)
+        token = token_match.group(1).lower() if token_match else ""
+        if token in cls.NON_TERMINAL_ABBREVIATIONS:
+            return True
+
+        next_match = re.search(r'\S', text[end:])
+        next_char = text[end + next_match.start()] if next_match else ""
+        if token in cls.CONTEXTUAL_ABBREVIATIONS:
+            return bool(next_char and next_char.islower())
+
+        # Initials and dotted initialisms are commonly embedded in names or
+        # phrases. Preserve them when the following word clearly continues the
+        # same sentence, while still allowing ``U.S. However`` to end one.
+        if re.fullmatch(r'(?:[a-z]\.){2,}', token):
+            return bool(next_char and next_char.islower())
+        if re.fullmatch(r'[a-z]\.', token):
+            return True
+        return False
 
     def _smart_split_long_sentence(self, text: str) -> List[str]:
         """
@@ -262,23 +328,23 @@ class TextProcessor:
             chunks.append(remaining.strip())
         return chunks
 
-    @staticmethod
-    def _find_next_sentence_boundary(text: str, start: int) -> int:
+    @classmethod
+    def _find_next_sentence_boundary(cls, text: str, start: int) -> int:
         """
         Search for the first sentence-ending punctuation at or after `start`.
         Returns the index just after the terminator, or None if not found.
         """
-        pattern = re.compile(r'[.!?]+["\')\]]*')
-        match = pattern.search(text, start)
-        return match.end() if match else None
+        for boundary in cls._sentence_boundaries(text):
+            if boundary >= start:
+                return boundary
+        return None
 
-    @staticmethod
-    def _find_sentence_boundary_before_limit(text: str, limit: int) -> int:
-        pattern = re.compile(r'[.!?]+["\')\]]*')
+    @classmethod
+    def _find_sentence_boundary_before_limit(cls, text: str, limit: int) -> int:
         boundary_idx = None
-        for match in pattern.finditer(text):
-            if match.end() <= limit:
-                boundary_idx = match.end()
+        for boundary in cls._sentence_boundaries(text):
+            if boundary <= limit:
+                boundary_idx = boundary
             else:
                 break
         return boundary_idx

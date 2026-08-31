@@ -36,6 +36,7 @@ MODEL_DEFAULTS = {
     "OmniVoice (isolated)": "k2-fsa/OmniVoice",
     "IndexTTS (isolated)": "IndexTTS-2",
     "Dot.TTS (isolated)": "rednote-hilab/dots.tts-soar",
+    "Audio8 TTS (isolated)": "Audio8/Audio8-TTS-Preview-0.6b",
 }
 
 

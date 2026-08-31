@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import tempfile
@@ -16,6 +17,9 @@ import soundfile as sf
 from .base import EngineCapabilities, TtsEngineBase
 
 
+logger = logging.getLogger(__name__)
+
+
 ROOT = Path(__file__).resolve().parents[2]
 WORKER = ROOT / "engines" / "isolated_engine_worker.py"
 ENGINE_DIRS = {
@@ -27,6 +31,7 @@ ENGINE_DIRS = {
     "qwen3_clone": "qwen3",
     "kitten_tts": "kitten_tts",
     "edge_tts": "edge_tts",
+    "audio8_tts": "audio8_tts",
 }
 SAMPLE_RATES = {
     "kokoro": 24000,
@@ -37,6 +42,7 @@ SAMPLE_RATES = {
     "qwen3_clone": 24000,
     "kitten_tts": 24000,
     "edge_tts": 24000,
+    "audio8_tts": 44100,
 }
 
 
@@ -115,6 +121,8 @@ class IsolatedEngineProxy(TtsEngineBase):
                 line = raw.rstrip()
                 output.append(line)
                 if not line.startswith("TTS_STORY_EVENT "):
+                    if line:
+                        logger.info("[%s worker] %s", self.name, line)
                     continue
                 event = json.loads(line[len("TTS_STORY_EVENT "):])
                 if event.get("event") == "progress" and callable(progress_cb):
@@ -123,6 +131,11 @@ class IsolatedEngineProxy(TtsEngineBase):
                     chunk_cb(event.get("chunk_index"), event.get("metadata") or {}, event.get("path"))
                 elif event.get("event") == "complete":
                     complete = event
+                elif event.get("event") == "engine_ready":
+                    logger.info(
+                        "[%s worker] engine ready device=%s dtype=%s",
+                        self.name, event.get("device", "unknown"), event.get("dtype", "unknown"),
+                    )
             code = process.wait()
             if code != 0:
                 raise RuntimeError("Isolated engine failed:\n" + "\n".join(output[-40:]))

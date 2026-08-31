@@ -232,6 +232,7 @@
                                                 <option value="kitten_tts">KittenTTS · CPU Lightweight</option>
                                                 <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
                                                 <option value="dots_tts">Dot.TTS · Voice Clone</option>
+                                                <option value="audio8_tts">Audio8 TTS · Voice Clone</option>
                                                 <option value="azure_speech">Microsoft Azure Speech · Cloud</option>
                                                 <option value="edge_tts">Microsoft Edge TTS · Experimental Cloud</option>
                                                 <option value="elevenlabs">ElevenLabs · Cloud</option>
@@ -775,6 +776,7 @@
                                     <option value="kitten_tts">KittenTTS · CPU Lightweight</option>
                                     <option value="index_tts">IndexTTS · Zero-Shot Clone</option>
                                     <option value="dots_tts">Dot.TTS · Voice Clone</option>
+                                    <option value="audio8_tts">Audio8 TTS · Voice Clone</option>
                                     <option value="azure_speech">Microsoft Azure Speech · Cloud</option>
                                     <option value="edge_tts">Microsoft Edge TTS · Experimental Cloud</option>
                                     <option value="elevenlabs">ElevenLabs · Cloud</option>
@@ -832,6 +834,7 @@
                                     <button type="button" class="engine-tab-btn" data-engine-tab="kitten-tts">KittenTTS</button>
                                     <button type="button" class="engine-tab-btn" data-engine-tab="index-tts">IndexTTS</button>
                                     <button type="button" class="engine-tab-btn" data-engine-tab="dots-tts">Dot.TTS</button>
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="audio8-tts">Audio8 TTS</button>
                                 </div>
                             </section>
                             <section class="engine-tab-group engine-tab-group-remote" aria-labelledby="remote-engine-tabs-label">
@@ -849,6 +852,30 @@
                                     <button type="button" class="engine-tab-btn" data-engine-tab="localai-tts">LocalAI TTS</button>
                                 </div>
                             </section>
+                        </div>
+
+                        <div class="engine-panel" id="engine-panel-audio8-tts">
+                            <div class="section-title-inline settings-panel-title">
+                                <h4>Audio8 TTS · Voice Clone</h4>
+                                <button type="button" class="help-icon" data-help-id="engine-audio8-tts" aria-label="Help: Audio8 TTS">?</button>
+                            </div>
+                            <p class="help-text" style="margin-top:0;">Compact multilingual 44.1 kHz generation with zero-shot voice cloning. A selected reference voice must have an exact transcript in Available Voices.</p>
+                            <div class="settings-form-grid">
+                                <div class="form-group"><label for="audio8-tts-model-id">Model</label><input type="text" id="audio8-tts-model-id" value="Audio8/Audio8-TTS-Preview-0.6b"></div>
+                                <div class="form-group"><label for="audio8-tts-device">Device</label><select id="audio8-tts-device"><option value="auto">Auto</option><option value="cuda">CUDA</option><option value="cpu">CPU</option></select></div>
+                                <div class="form-group"><label for="audio8-tts-dtype">Precision</label><select id="audio8-tts-dtype"><option value="auto">Auto</option><option value="bfloat16">BF16</option><option value="float16">FP16</option><option value="float32">FP32</option></select></div>
+                                <div class="form-group"><label for="audio8-tts-chunk-size">Preferred Chunk Size (chars)</label><input type="number" id="audio8-tts-chunk-size" min="40" max="150" step="5" value="140"><small>Audio8 recommends about 150 characters for best quality. Complete sentences may exceed this target.</small></div>
+                                <div class="form-group"><label for="audio8-tts-hard-chunk-size">Sentence Hard Limit (chars)</label><input type="number" id="audio8-tts-hard-chunk-size" min="150" max="1000" step="25" value="400"><small>Sentences up to this size stay intact. Longer sentences split at clause boundaries when possible.</small></div>
+                                <div class="form-group"><label for="audio8-tts-temperature">Temperature</label><input type="number" id="audio8-tts-temperature" min="0.01" max="2" step="0.05" value="0.8"></div>
+                                <div class="form-group"><label for="audio8-tts-top-p">Top P</label><input type="number" id="audio8-tts-top-p" min="0.01" max="1" step="0.01" value="0.95"></div>
+                                <div class="form-group"><label for="audio8-tts-top-k">Top K</label><input type="number" id="audio8-tts-top-k" min="0" max="1000" step="1" value="50"></div>
+                                <div class="form-group"><label for="audio8-tts-seed">Base Seed</label><input type="number" id="audio8-tts-seed" min="0" step="1" value="42"><small>Chunk order is added for reproducible resumed jobs.</small></div>
+                                <div class="form-group"><label for="audio8-tts-max-new-tokens">Maximum Output Tokens</label><input type="number" id="audio8-tts-max-new-tokens" min="64" max="4000" step="64" value="1024"></div>
+                                <div class="form-group"><label for="audio8-tts-retry-max-new-tokens">Retry Output Tokens</label><input type="number" id="audio8-tts-retry-max-new-tokens" min="64" max="4000" step="64" value="2000"><small>Used once when Audio8 does not emit an end marker.</small></div>
+                                <div class="form-group"><label for="audio8-tts-default-prompt">Default Reference Voice (optional)</label><input type="text" id="audio8-tts-default-prompt" placeholder="data/voice_prompts/voice.wav"></div>
+                                <div class="form-group"><label for="audio8-tts-default-prompt-text">Default Reference Transcript</label><textarea id="audio8-tts-default-prompt-text" rows="3" placeholder="Exact words spoken in the reference sample"></textarea></div>
+                            </div>
+                            <p class="help-text">The Apache-2.0 0.6B model downloads on first use. Initial loading can take several minutes.</p>
                         </div>
 
                         <!-- Kokoro Panel -->
@@ -1809,9 +1836,24 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
+                                    <label for="omnivoice-performance-preset">Performance Preset</label>
+                                    <select id="omnivoice-performance-preset">
+                                        <option value="fast">Fast (16 steps)</option>
+                                        <option value="balanced">Balanced (32 steps)</option>
+                                        <option value="quality">High Quality (48 steps)</option>
+                                        <option value="custom">Custom</option>
+                                    </select>
+                                    <small>Fast is recommended for long audiobooks. Changing this updates Diffusion Steps below.</small>
+                                </div>
+                                <div class="form-group">
                                     <label for="omnivoice-num-step">Diffusion Steps</label>
                                     <input type="number" id="omnivoice-num-step" min="8" max="64" step="8" value="32">
-                                    <small>32 = quality, 16 = faster inference</small>
+                                    <small>16 = fast, 32 = balanced, 48 = high quality. Custom values remain supported.</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="omnivoice-batch-size">Inference Batch Size</label>
+                                    <input type="number" id="omnivoice-batch-size" min="1" max="8" step="1" value="1">
+                                    <small>1 uses the least VRAM. Try 2 for faster multi-chunk jobs; use larger values only with ample VRAM.</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="omnivoice-duration-safety-margin">Ending Duration Buffer (seconds)</label>
@@ -2700,6 +2742,7 @@
                                     <option value="kitten_tts">KittenTTS</option>
                                     <option value="index_tts">IndexTTS</option>
                                     <option value="dots_tts">Dot.TTS</option>
+                                    <option value="audio8_tts">Audio8 TTS</option>
                                     <option value="azure_speech">Microsoft Azure Speech</option>
                                     <option value="edge_tts">Microsoft Edge TTS</option>
                                     <option value="elevenlabs">ElevenLabs</option>
@@ -2730,10 +2773,10 @@
     </div>
 
     <script src="/static/js/help.js?v=3"></script>
-<script src="/static/js/main.js?v=63"></script>
-    <script src="/static/js/queue.js?v=4"></script>
-<script src="/static/js/library.js?v=46"></script>
+    <script src="/static/js/main.js?v=64"></script>
+    <script src="/static/js/queue.js?v=5"></script>
+<script src="/static/js/library.js?v=47"></script>
     <script src="/static/js/voice-manager.js?v=16"></script>
-<script src="/static/js/settings.js?v=27"></script>
+<script src="/static/js/settings.js?v=30"></script>
 </body>
 </html>

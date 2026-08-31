@@ -47,6 +47,7 @@
         "engine-kitten-tts",
         "engine-index-tts",
         "engine-dots-tts",
+        "engine-audio8-tts",
         "engine-azure-speech",
         "engine-edge-tts",
         "engine-elevenlabs",
@@ -347,6 +348,15 @@
       "keywords": ["Dot.TTS", "dots.tts", "48 kHz", "clone", "transcript", "SOAR", "MeanFlow"],
       "related": ["voice-prompts", "gpu-cpu-errors", "audio-quality"],
       "engine_ids": ["dots_tts"]
+    },
+    {
+      "id": "engine-audio8-tts",
+      "file": "engines/audio8-tts.md",
+      "title": "Audio8 TTS",
+      "summary": "Run the compact multilingual Audio8 0.6B model with transcript-conditioned zero-shot voice cloning.",
+      "keywords": ["Audio8", "0.6B", "voice clone", "transcript", "44.1 kHz", "multilingual"],
+      "related": ["voice-prompts", "gpu-cpu-errors", "performance-tuning"],
+      "engine_ids": ["audio8_tts"]
     },
     {
       "id": "engine-azure-speech",

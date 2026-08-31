@@ -8,8 +8,9 @@ If you appreciate what we do and would like to support ongoing development:
 
 ---
 
-# Current Updates and Notes - updated 08-17-2026
+# Current Updates and Notes - updated 08-23-2026
 
+- **Audio8 TTS integration** - added the compact multilingual Audio8 0.6B engine with isolated installation, 44.1 kHz output, transcript-conditioned voice cloning, safe chunk limits, and reproducible retry handling.
 - **On-demand TTS engine management** - initial setup now installs the lightweight TTS-Story core; local engines can be installed, removed, repaired, and monitored from Engine Settings, with each engine kept in its own isolated environment.
 - **LocalAI TTS integration** - connect to an existing self-hosted LocalAI server, discover compatible TTS models and server voices, or use transcript-ready reference voices from TTS-Story without installing duplicate model runtimes.
 - **Improved voice casting and speaker workflows** - strengthened Qwen3 voice-design prompts, added configurable candidates per speaker, improved bulk candidate generation, and made approved voice selections easier to review, filter, save, and reuse.
@@ -52,9 +53,9 @@ TTS-Story is a web-based, multi-voice text-to-speech application for creating na
 
 ## Highlights
 
-- Eighteen selectable TTS engine options spanning local CPU, local GPU, self-hosted, and cloud generation.
+- Nineteen selectable TTS engine options spanning local CPU, local GPU, self-hosted, and cloud generation.
 - Multi-speaker narration using tags such as `[narrator]...[/narrator]` and `[alice-female]...[/alice-female]`.
-- Shared reference-voice library for Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, and Dot.TTS.
+- Shared reference-voice library for Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, Dot.TTS, and Audio8 TTS.
 - Built-in voices, custom Kokoro blends, reference cloning, and Qwen3/OmniVoice voice-design workflows.
 - Optional text preparation with Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama, including configurable backup profiles.
 - Automatic chapter/section detection, separate chapter exports, and optional combined Full Story output.
@@ -114,7 +115,7 @@ setup.bat --repair
 
 ## Supported Engines and Hardware
 
-TTS-Story exposes eighteen normal generation choices. Qwen3 VoiceDesign and OmniVoice Design are additional Voice Creation workflows rather than full-job engines.
+TTS-Story exposes nineteen normal generation choices. Qwen3 VoiceDesign and OmniVoice Design are additional Voice Creation workflows rather than full-job engines.
 
 ### Local engine hardware guide
 
@@ -131,6 +132,7 @@ The figures below are practical planning ranges for the current adapters and def
 | **[KittenTTS](docs/help/engines/kitten-tts.md)** | CPU only | **0 GB** | **Designed for CPU** | Eight English voices; model variants are approximately 25–80 MB. |
 | **[IndexTTS](docs/help/engines/index-tts.md)** | NVIDIA CUDA strongly recommended | Roughly **6–8 GB with FP16**; allow **10–12 GB** for FP32 | Selectable, but very slow | English/Chinese zero-shot cloning in an isolated environment. |
 | **[Dot.TTS](docs/help/engines/dots-tts.md)** | NVIDIA CUDA strongly recommended | Plan for roughly **10–12 GB** | Installation may work, but inference can be impractical | 2B-parameter, 48 kHz cloning model with multi-GB downloads. |
+| **[Audio8 TTS 0.6B](docs/help/engines/audio8-tts.md)** | NVIDIA CUDA recommended; CPU fallback | Benchmark pending; the BF16 model is compact but codec and generation state add overhead | Available in FP32, but potentially slow | 44.1 kHz multilingual cloning; exact reference transcript required; sentence-preserving soft and hard chunk limits. |
 
 ### Cloud engine requirements
 

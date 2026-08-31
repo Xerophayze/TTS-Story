@@ -50,6 +50,7 @@ EngineRegistry: Dict[str, Type[TtsEngineBase]] = {
     "elevenlabs": ElevenLabsEngine,
     "openai_tts": OpenAITTSEngine,
     "localai_tts": LocalAITTSEngine,
+    "audio8_tts": IsolatedEngineProxy,
 }
 AVAILABLE_ENGINES = tuple(EngineRegistry.keys())
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import signal
 import subprocess
 import tempfile
 import threading
@@ -96,6 +97,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         model_id: str = "k2-fsa/OmniVoice",
         dtype: str = "float16",
         num_step: int = 32,
+        batch_size: int = 1,
         default_prompt: Optional[str] = None,
         default_prompt_text: Optional[str] = None,
         post_process: bool = True,
@@ -113,6 +115,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         self.model_id = model_id
         self.dtype = dtype
         self.num_step = num_step
+        self.batch_size = max(1, min(int(batch_size), 8))
         self.default_prompt = default_prompt
         self.default_prompt_text = default_prompt_text
         self.post_process = post_process
@@ -183,6 +186,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                     "device": self.device,
                     "dtype": self.dtype,
                     "num_step": self.num_step,
+                    "batch_size": self.batch_size,
                     # Speaker speed is encoded into the temporary reference
                     # prompt above. Keep model output speed neutral so the
                     # requested adjustment is not applied twice.
@@ -351,6 +355,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
             "device": self.device,
             "dtype": self.dtype,
             "num_step": self.num_step,
+            "batch_size": self.batch_size,
             "speed": speed,
             "post_process": self.post_process,
             "duration_safety_margin": self.duration_safety_margin,
@@ -361,33 +366,45 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         _pending_exception: List[BaseException] = []  # shared across threads
 
         def _on_chunk_done(done_path: str) -> None:
-            idx = len(completed_paths)
-            completed_paths.append(done_path)
-            if idx < len(chunk_meta_list):
-                meta = chunk_meta_list[idx]
-                fx = meta.get("fx_settings")
-                if fx:
-                    audio, sr = sf.read(done_path, dtype="float32")
-                    audio = self.post_processor.apply_post_pipeline(audio, self.sample_rate, fx)
-                    sf.write(done_path, audio, self.sample_rate)
-                if callable(progress_cb):
-                    try:
+            try:
+                idx = len(completed_paths)
+                completed_paths.append(done_path)
+                if idx < len(chunk_meta_list):
+                    meta = chunk_meta_list[idx]
+                    fx = meta.get("fx_settings")
+                    if fx:
+                        audio, sr = sf.read(done_path, dtype="float32")
+                        audio = self.post_processor.apply_post_pipeline(
+                            audio,
+                            self.sample_rate,
+                            fx,
+                        )
+                        sf.write(done_path, audio, self.sample_rate)
+                    if callable(progress_cb):
                         progress_cb()
-                    except Exception as _exc:
-                        # JobPaused or other cancellation - capture and signal subprocess to stop
-                        _pending_exception.append(_exc)
-                        raise  # propagates up into _read_stderr which will exit its loop
-                if callable(chunk_cb):
-                    chunk_cb(
-                        meta["chunk_index"],
-                        {"speaker": meta["speaker"], "text": meta["text"],
-                         "segment_index": meta["segment_index"],
-                         "chunk_index": meta["chunk_index"]},
-                        done_path,
-                    )
+                    if callable(chunk_cb):
+                        chunk_cb(
+                            meta["chunk_index"],
+                            {
+                                "speaker": meta["speaker"],
+                                "text": meta["text"],
+                                "segment_index": meta["segment_index"],
+                                "chunk_index": meta["chunk_index"],
+                            },
+                            done_path,
+                        )
+            except Exception as exc:
+                # Pause/cancel can be raised by either callback. Preserve it so
+                # the main job handler records the correct resumable checkpoint.
+                _pending_exception.append(exc)
+                raise
 
         def _cancel_or_pause_cb() -> bool:
-            return bool(_pending_exception) or (callable(cancel_cb) and cancel_cb())
+            return (
+                bool(_pending_exception)
+                or (callable(pause_cb) and pause_cb())
+                or (callable(cancel_cb) and cancel_cb())
+            )
 
         try:
             try:
@@ -404,6 +421,12 @@ class OmniVoiceCloneEngine(TtsEngineBase):
         # Re-raise any exception captured from the stderr thread (e.g. JobPaused)
         if _pending_exception:
             raise _pending_exception[0]
+
+        # An immediate pause can terminate the worker between chunk markers,
+        # before a callback has an exception to propagate. Ask the app-level
+        # progress callback to convert the flag into its JobPaused exception.
+        if callable(pause_cb) and pause_cb() and callable(progress_cb):
+            progress_cb(0)
 
         files: List[Optional[str]] = [None] * total_chunks_count
         for path in completed_paths:
@@ -481,6 +504,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                 text=True,
                 cwd=str(_ENGINE_ROOT),
                 env=env,
+                start_new_session=(os.name != "nt"),
             )
             stderr_lines: List[str] = []
 
@@ -500,7 +524,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
             def _poll_cancel() -> None:
                 while proc.poll() is None:
                     if callable(cancel_cb) and cancel_cb():
-                        proc.terminate()
+                        self._terminate_worker_process(proc)
                         return
                     threading.Event().wait(0.5)
 
@@ -519,6 +543,29 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                 )
         finally:
             Path(job_file).unlink(missing_ok=True)
+
+    @staticmethod
+    def _terminate_worker_process(proc: subprocess.Popen) -> None:
+        """Stop the isolated worker and any interpreter child it launched."""
+        if proc.poll() is not None:
+            return
+        try:
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                    timeout=5,
+                )
+            else:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            proc.wait(timeout=3)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
 
     def _get_ref_text(self, prompt_path: str) -> Optional[str]:
         import hashlib

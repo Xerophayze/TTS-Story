@@ -231,6 +231,7 @@ ENGINE_INSTALL_GENERATION_IDS = {
     "index_tts": {"index_tts"},
     "dots_tts": {"dots_tts"},
     "edge_tts": {"edge_tts"},
+    "audio8_tts": {"audio8_tts"},
 }
 PROJECTS_LOCK = threading.RLock()
 JOB_METADATA_FILENAME = "metadata.json"
@@ -343,6 +344,19 @@ DEFAULT_CONFIG = {
     "localai_tts_max_parallel": 1,
     "localai_tts_max_retries": 4,
     "localai_tts_chunk_size": 1000,
+    "audio8_tts_model_id": "Audio8/Audio8-TTS-Preview-0.6b",
+    "audio8_tts_device": "auto",
+    "audio8_tts_dtype": "auto",
+    "audio8_tts_temperature": 0.8,
+    "audio8_tts_top_p": 0.95,
+    "audio8_tts_top_k": 50,
+    "audio8_tts_max_new_tokens": 1024,
+    "audio8_tts_retry_max_new_tokens": 2000,
+    "audio8_tts_seed": 42,
+    "audio8_tts_default_prompt": "",
+    "audio8_tts_default_prompt_text": "",
+    "audio8_tts_chunk_size": 140,
+    "audio8_tts_hard_chunk_size": 400,
     "localai_tts_voice_profile_consent_confirmed": False,
     "cloud_tts_concurrent_jobs": 2,
     "llm_local_provider": LLM_PROVIDER_LMSTUDIO,
@@ -401,7 +415,21 @@ DEFAULT_CONFIG = {
     "qwen3_clone_default_prompt": "",
     "qwen3_clone_default_prompt_text": "",
     "qwen3_voice_design_model_id": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+    "omnivoice_clone_model_id": "k2-fsa/OmniVoice",
+    "omnivoice_clone_device": "auto",
+    "omnivoice_clone_dtype": "float16",
+    "omnivoice_clone_num_step": 32,
+    "omnivoice_clone_default_prompt": "",
+    "omnivoice_clone_default_prompt_text": "",
+    "omnivoice_design_model_id": "k2-fsa/OmniVoice",
+    "omnivoice_design_device": "auto",
+    "omnivoice_design_dtype": "float16",
+    "omnivoice_design_num_step": 32,
+    "omnivoice_design_default_instruct": "",
+    "omnivoice_chunk_size": 500,
+    "omnivoice_post_process": True,
     "omnivoice_duration_safety_margin": 0.25,
+    "omnivoice_batch_size": 1,
     "pocket_tts_model_variant": "b6369a24",
     "pocket_tts_temp": 0.7,
     "pocket_tts_lsd_decode_steps": 1,
@@ -545,6 +573,13 @@ DOTS_TTS_SETTING_KEYS = {
     "dots_tts_default_prompt_text",
     "dots_tts_allow_xvector_only",
     "dots_tts_chunk_size",
+}
+AUDIO8_TTS_SETTING_KEYS = {
+    "audio8_tts_model_id", "audio8_tts_device", "audio8_tts_dtype",
+    "audio8_tts_temperature", "audio8_tts_top_p", "audio8_tts_top_k",
+    "audio8_tts_max_new_tokens", "audio8_tts_retry_max_new_tokens",
+    "audio8_tts_seed", "audio8_tts_default_prompt",
+    "audio8_tts_default_prompt_text", "audio8_tts_chunk_size", "audio8_tts_hard_chunk_size",
 }
 CHATTERBOX_TURBO_LOCAL_OPTION_ALIASES = {
     "default_prompt": "chatterbox_turbo_local_default_prompt",
@@ -749,6 +784,9 @@ def _coerce_float(
         parsed = fallback
     if parsed < minimum:
         parsed = minimum
+    if parsed > maximum:
+        parsed = maximum
+    return parsed
 
 
 def _normalize_engine_options(engine_name: str, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -774,7 +812,44 @@ def _normalize_engine_options(engine_name: str, options: Dict[str, Any]) -> Dict
         return _normalize_index_tts_options(options)
     if engine_name == "dots_tts":
         return _normalize_dots_tts_options(options)
+    if engine_name == "audio8_tts":
+        return _normalize_audio8_tts_options(options)
     return {}
+
+
+def _normalize_audio8_tts_options(options: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = {
+        str(key).strip().lower(): value for key, value in (options or {}).items()
+        if key is not None and str(key).strip().lower() in AUDIO8_TTS_SETTING_KEYS
+    }
+    result: Dict[str, Any] = {}
+    for key, value in normalized.items():
+        if key in {"audio8_tts_temperature", "audio8_tts_top_p"}:
+            maximum = 2.0 if key.endswith("temperature") else 1.0
+            result[key] = _coerce_float(value, minimum=0.01, maximum=maximum,
+                                        fallback=float(DEFAULT_CONFIG[key]))
+        elif key in {"audio8_tts_top_k", "audio8_tts_max_new_tokens",
+                     "audio8_tts_retry_max_new_tokens", "audio8_tts_seed",
+                     "audio8_tts_chunk_size", "audio8_tts_hard_chunk_size"}:
+            limits = {
+                "audio8_tts_top_k": (0, 1000), "audio8_tts_max_new_tokens": (64, 4000),
+                "audio8_tts_retry_max_new_tokens": (64, 4000), "audio8_tts_seed": (0, 2147483647),
+                "audio8_tts_chunk_size": (40, 150), "audio8_tts_hard_chunk_size": (150, 1000),
+            }[key]
+            result[key] = _coerce_int(value, minimum=limits[0], maximum=limits[1],
+                                      fallback=int(DEFAULT_CONFIG[key]))
+        else:
+            result[key] = str(value or "").strip()
+    if "audio8_tts_retry_max_new_tokens" in result:
+        result["audio8_tts_retry_max_new_tokens"] = max(
+            int(result.get("audio8_tts_max_new_tokens", DEFAULT_CONFIG["audio8_tts_max_new_tokens"])),
+            int(result["audio8_tts_retry_max_new_tokens"]),
+        )
+    if "audio8_tts_hard_chunk_size" in result or "audio8_tts_chunk_size" in result:
+        soft_limit = int(result.get("audio8_tts_chunk_size", DEFAULT_CONFIG["audio8_tts_chunk_size"]))
+        hard_limit = int(result.get("audio8_tts_hard_chunk_size", DEFAULT_CONFIG["audio8_tts_hard_chunk_size"]))
+        result["audio8_tts_hard_chunk_size"] = max(soft_limit, hard_limit)
+    return result
 
 
 def _normalize_chatterbox_turbo_local_options(options: Dict[str, Any]) -> Dict[str, Any]:
@@ -951,6 +1026,7 @@ OMNIVOICE_CLONE_SETTING_KEYS = {
     "omnivoice_chunk_size",
     "omnivoice_post_process",
     "omnivoice_duration_safety_margin",
+    "omnivoice_batch_size",
 }
 
 OMNIVOICE_DESIGN_SETTING_KEYS = {
@@ -962,6 +1038,7 @@ OMNIVOICE_DESIGN_SETTING_KEYS = {
     "omnivoice_chunk_size",
     "omnivoice_post_process",
     "omnivoice_duration_safety_margin",
+    "omnivoice_batch_size",
 }
 
 
@@ -974,6 +1051,8 @@ def _normalize_omnivoice_clone_options(options: Dict[str, Any]) -> Dict[str, Any
         if key in OMNIVOICE_CLONE_SETTING_KEYS:
             if key == "omnivoice_duration_safety_margin":
                 result[key] = _coerce_float(value, minimum=0.0, maximum=2.0, fallback=0.25)
+            elif key == "omnivoice_batch_size":
+                result[key] = _coerce_int(value, minimum=1, maximum=8, fallback=1)
             else:
                 result[key] = (value or "").strip() if isinstance(value, str) else value
     return result
@@ -988,6 +1067,8 @@ def _normalize_omnivoice_design_options(options: Dict[str, Any]) -> Dict[str, An
         if key in OMNIVOICE_DESIGN_SETTING_KEYS:
             if key == "omnivoice_duration_safety_margin":
                 result[key] = _coerce_float(value, minimum=0.0, maximum=2.0, fallback=0.25)
+            elif key == "omnivoice_batch_size":
+                result[key] = _coerce_int(value, minimum=1, maximum=8, fallback=1)
             else:
                 result[key] = (value or "").strip() if isinstance(value, str) else value
     return result
@@ -2481,6 +2562,7 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             (config.get("omnivoice_clone_device") or "").strip(),
             (config.get("omnivoice_clone_dtype") or "").strip(),
             str(config.get("omnivoice_clone_num_step") or 32),
+            str(config.get("omnivoice_batch_size") or 1),
             (config.get("omnivoice_clone_default_prompt") or "").strip(),
             (config.get("omnivoice_clone_default_prompt_text") or "").strip(),
             str(config.get("omnivoice_post_process", True)),
@@ -2497,6 +2579,15 @@ def _engine_signature(engine_name: str, config: Dict) -> str:
             str(config.get("omnivoice_post_process", True)),
             str(config.get("omnivoice_duration_safety_margin", 0.25)),
         )
+        return f"{engine_name}::{'|'.join(parts)}"
+    if engine_name == "audio8_tts":
+        parts = tuple(str(config.get(key, "")) for key in (
+            "audio8_tts_model_id", "audio8_tts_device", "audio8_tts_dtype",
+            "audio8_tts_temperature", "audio8_tts_top_p", "audio8_tts_top_k",
+            "audio8_tts_max_new_tokens", "audio8_tts_retry_max_new_tokens",
+            "audio8_tts_seed", "audio8_tts_default_prompt", "audio8_tts_default_prompt_text",
+            "audio8_tts_chunk_size", "audio8_tts_hard_chunk_size",
+        ))
         return f"{engine_name}::{'|'.join(parts)}"
     if engine_name == "dots_tts":
         parts = (
@@ -2706,6 +2797,25 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             default_prompt_text=(config.get("qwen3_clone_default_prompt_text") or "").strip() or None,
         )
 
+    if engine_name == "audio8_tts":
+        if not isolated_engine_available("audio8_tts"):
+            raise ImportError("Audio8 TTS is not installed. Install it from Settings → Engine Settings.")
+        return get_engine(
+            "audio8_tts",
+            device=(config.get("audio8_tts_device") or "auto").strip(),
+            model_id=(config.get("audio8_tts_model_id") or "Audio8/Audio8-TTS-Preview-0.6b").strip(),
+            dtype=(config.get("audio8_tts_dtype") or "auto").strip(),
+            temperature=float(config.get("audio8_tts_temperature") or 0.8),
+            top_p=float(config.get("audio8_tts_top_p") or 0.95),
+            top_k=int(config.get("audio8_tts_top_k") if config.get("audio8_tts_top_k") is not None else 50),
+            max_new_tokens=int(config.get("audio8_tts_max_new_tokens") or 1024),
+            retry_max_new_tokens=int(config.get("audio8_tts_retry_max_new_tokens") or 2000),
+            max_input_chars=int(config.get("audio8_tts_hard_chunk_size") or 400),
+            seed=int(config.get("audio8_tts_seed") if config.get("audio8_tts_seed") is not None else 42),
+            default_prompt=(config.get("audio8_tts_default_prompt") or "").strip() or None,
+            default_prompt_text=(config.get("audio8_tts_default_prompt_text") or "").strip() or None,
+        )
+
     if engine_name == "omnivoice_clone":
         if not omnivoice_available():
             raise ImportError(f"OmniVoice engine not available. {omnivoice_unavailable_reason()} Install OmniVoice from Settings.")
@@ -2715,6 +2825,7 @@ def _create_engine(engine_name: str, config: Dict) -> TtsEngineBase:
             model_id=(config.get("omnivoice_clone_model_id") or "k2-fsa/OmniVoice").strip(),
             dtype=(config.get("omnivoice_clone_dtype") or "float16").strip(),
             num_step=int(config.get("omnivoice_clone_num_step") or 32),
+            batch_size=int(config.get("omnivoice_batch_size") or 1),
             default_prompt=(config.get("omnivoice_clone_default_prompt") or "").strip() or None,
             default_prompt_text=(config.get("omnivoice_clone_default_prompt_text") or "").strip() or None,
             post_process=bool(config.get("omnivoice_post_process", True)),
@@ -4329,6 +4440,18 @@ def _create_text_processor_for_engine(engine_name: str, chunk_size: int, config:
             chunk_strategy="characters",
             char_soft_limit=index_chunk_size,
             char_hard_limit=index_chunk_size + 100,
+        )
+    if engine_name == "audio8_tts":
+        audio8_chunk_size = int((config or {}).get("audio8_tts_chunk_size", 140))
+        audio8_chunk_size = max(40, min(150, audio8_chunk_size))
+        audio8_hard_limit = int((config or {}).get("audio8_tts_hard_chunk_size", 400))
+        audio8_hard_limit = max(audio8_chunk_size, min(1000, audio8_hard_limit))
+        return TextProcessor(
+            chunk_size=audio8_chunk_size,
+            chunk_strategy="characters",
+            char_soft_limit=audio8_chunk_size,
+            char_hard_limit=audio8_hard_limit,
+            allow_sentence_overflow=False,
         )
     return TextProcessor(chunk_size=chunk_size)
 
@@ -8744,6 +8867,7 @@ def preview_audio():
         "chatterbox_turbo_local", "chatterbox_turbo_replicate",
         "voxcpm_local", "pocket_tts", "qwen3_clone", "omnivoice_clone",
         "dots_tts",
+        "audio8_tts",
     }
     audio_prompt_path = data.get('audio_prompt_path') or None
     if engine_name in _PROMPT_ENGINES and voice and not audio_prompt_path:
@@ -8756,7 +8880,7 @@ def preview_audio():
     if engine_name in _QWEN3_ENGINES and lang_code in _KOKORO_LANG_CODES:
         lang_code = 'auto'
 
-    if not voice and not audio_prompt_path:
+    if not voice and not audio_prompt_path and engine_name != "audio8_tts":
         return jsonify({"success": False, "error": "Voice is required for preview."}), 400
 
     try:
@@ -12534,6 +12658,7 @@ def _engine_setup_catalog(config: Optional[Dict[str, Any]] = None) -> List[Dict[
         ("kitten_tts", "KittenTTS", "local", isolated_engine_available("kitten_tts"), "kitten-tts"),
         ("index_tts", "IndexTTS", "local", INDEX_TTS_AVAILABLE, "index-tts"),
         ("dots_tts", "Dot.TTS", "local", DOTS_TTS_AVAILABLE, "dots-tts"),
+        ("audio8_tts", "Audio8 TTS · Voice Clone", "local", isolated_engine_available("audio8_tts"), "audio8-tts"),
         ("azure_speech", "Microsoft Azure Speech", "cloud", bool(
             (config.get("azure_speech_key") or "").strip()
             and (config.get("azure_speech_region") or "").strip()
@@ -12559,6 +12684,7 @@ def _engine_setup_catalog(config: Optional[Dict[str, Any]] = None) -> List[Dict[
         "kitten_tts": "kitten_tts",
         "index_tts": "index_tts",
         "dots_tts": "dots_tts",
+        "audio8_tts": "audio8_tts",
         "edge_tts": "edge_tts",
     }
     return [{

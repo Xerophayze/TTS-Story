@@ -29,6 +29,7 @@ Job file schema
   "device": "auto",   // auto | cuda | cpu
   "dtype": "float16", // float16 | bfloat16 | float32
   "num_step": 32,
+  "batch_size": 1, // 1 is safest; 2-4 can improve throughput with enough VRAM
   "speed": 1.0,
   "duration_safety_margin": 0.25, // extra generation time; 0 disables
   "post_process": true   // set to false to disable silence-trimming post-processing
@@ -37,9 +38,11 @@ Job file schema
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
@@ -51,6 +54,71 @@ from omnivoice import OmniVoice  # type: ignore
 from omnivoice.models import omnivoice as omnivoice_model_module  # type: ignore
 
 DEFAULT_MODEL_ID = "k2-fsa/OmniVoice"
+VOICE_PROMPT_CACHE_DIR = Path(__file__).resolve().parent / "cache" / "voice_prompts"
+
+
+def _voice_prompt_cache_key(
+    ref_audio: str,
+    ref_text: str | None,
+    model_id: str,
+) -> str:
+    """Hash everything that can change OmniVoice's encoded clone prompt."""
+    digest = hashlib.sha256()
+    digest.update(str(model_id).encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(str(ref_text or "").strip().encode("utf-8"))
+    digest.update(b"\0")
+    with open(ref_audio, "rb") as audio_file:
+        for block in iter(lambda: audio_file.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _create_or_load_voice_prompt(
+    model: OmniVoice,
+    ref_audio: str,
+    ref_text: str | None,
+    model_id: str,
+):
+    """Reuse encoded reference audio within and across generation jobs."""
+    cache_key = _voice_prompt_cache_key(ref_audio, ref_text, model_id)
+    cache_path = VOICE_PROMPT_CACHE_DIR / f"{cache_key}.pt"
+    started = time.perf_counter()
+
+    if cache_path.is_file():
+        try:
+            prompt = omnivoice_model_module.VoiceClonePrompt.load(str(cache_path))
+            print(
+                "[omnivoice_worker] Loaded cached voice prompt "
+                f"{cache_key[:12]} in {time.perf_counter() - started:.2f}s",
+                file=sys.stderr,
+            )
+            return prompt, cache_key
+        except Exception as exc:
+            print(
+                "[omnivoice_worker] Cached voice prompt could not be loaded; "
+                f"rebuilding it ({type(exc).__name__}: {exc})",
+                file=sys.stderr,
+            )
+            cache_path.unlink(missing_ok=True)
+
+    prompt = model.create_voice_clone_prompt(
+        ref_audio=ref_audio,
+        ref_text=ref_text,
+    )
+    VOICE_PROMPT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    temporary_path = cache_path.with_suffix(".tmp")
+    try:
+        prompt.save(str(temporary_path))
+        temporary_path.replace(cache_path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+    print(
+        "[omnivoice_worker] Encoded and cached voice prompt "
+        f"{cache_key[:12]} in {time.perf_counter() - started:.2f}s",
+        file=sys.stderr,
+    )
+    return prompt, cache_key
 
 
 def _fade_in_and_pad_audio(
@@ -201,6 +269,7 @@ def main() -> None:
     device = _resolve_device(job.get("device") or "auto")
     dtype = _resolve_dtype(job.get("dtype") or "float16")
     num_step = int(job.get("num_step") or 32)
+    batch_size = max(1, min(int(job.get("batch_size") or 1), 8))
     speed = float(job.get("speed") or 1.0)
     try:
         duration_safety_margin = max(
@@ -211,18 +280,30 @@ def main() -> None:
         duration_safety_margin = 0.25
     post_process = job.get("post_process", True)
     mode = job.get("mode") or "clone"
+    print(
+        "[omnivoice_worker] Configuration: "
+        f"mode={mode} steps={num_step} batch_size={batch_size} "
+        f"speed={speed:.2f} dtype={str(dtype).replace('torch.', '')} device={device}",
+        file=sys.stderr,
+    )
 
     try:
         model_path = _ensure_model(model_id)
     except Exception as exc:
         print(_friendly_download_error(model_id, exc), file=sys.stderr)
         sys.exit(2)
+    worker_started = time.perf_counter()
+    model_load_started = time.perf_counter()
     print(f"[omnivoice_worker] Loading model from {model_path} (device={device})", file=sys.stderr)
 
     model = OmniVoice.from_pretrained(
         model_path,
         device_map=device,
         dtype=dtype,
+    )
+    print(
+        f"[omnivoice_worker] Model loaded in {time.perf_counter() - model_load_started:.2f}s",
+        file=sys.stderr,
     )
     margin_tokens = _apply_duration_safety_margin(model, duration_safety_margin)
     if margin_tokens:
@@ -237,30 +318,97 @@ def main() -> None:
 
     if mode == "clone":
         chunks = job.get("chunks") or []
-        for chunk in chunks:
-            text = chunk["text"]
-            ref_audio = chunk["ref_audio"]
-            ref_text = chunk.get("ref_text") or None
-            output_path = chunk["output_path"]
+        prompt_cache = {}
+        generated_audio_seconds = 0.0
+        generation_seconds = 0.0
+        for batch_start in range(0, len(chunks), batch_size):
+            batch_chunks = chunks[batch_start:batch_start + batch_size]
+            batch_texts = []
+            batch_prompts = []
+            batch_prompt_keys = []
+            for chunk in batch_chunks:
+                ref_audio = chunk["ref_audio"]
+                ref_text = chunk.get("ref_text") or None
+                in_job_key = (
+                    str(Path(ref_audio).resolve()),
+                    str(ref_text or "").strip(),
+                )
+                prompt_entry = prompt_cache.get(in_job_key)
+                if prompt_entry is None:
+                    prompt_entry = _create_or_load_voice_prompt(
+                        model,
+                        ref_audio,
+                        ref_text,
+                        model_id,
+                    )
+                    prompt_cache[in_job_key] = prompt_entry
+                voice_clone_prompt, prompt_key = prompt_entry
+                batch_texts.append(chunk["text"])
+                batch_prompts.append(voice_clone_prompt)
+                batch_prompt_keys.append(prompt_key)
 
+            use_batch = len(batch_chunks) > 1
             kwargs = dict(
-                text=text,
-                ref_audio=ref_audio,
+                text=batch_texts if use_batch else batch_texts[0],
+                voice_clone_prompt=batch_prompts if use_batch else batch_prompts[0],
                 num_step=num_step,
                 speed=speed,
                 postprocess_output=bool(post_process),
             )
-            if ref_text:
-                kwargs["ref_text"] = ref_text
 
+            generation_started = time.perf_counter()
             audio_list = model.generate(**kwargs)
-            audio = np.asarray(audio_list[0], dtype=np.float32)
-            if audio.ndim > 1:
-                audio = audio.squeeze()
+            batch_generation_seconds = time.perf_counter() - generation_started
+            generation_seconds += batch_generation_seconds
+            if len(audio_list) != len(batch_chunks):
+                raise RuntimeError(
+                    "OmniVoice returned "
+                    f"{len(audio_list)} audio result(s) for {len(batch_chunks)} input chunk(s)."
+                )
+            batch_audio_seconds = 0.0
+            prepared_audio = []
+            for chunk, generated_audio in zip(batch_chunks, audio_list):
+                audio = np.asarray(generated_audio, dtype=np.float32)
+                if audio.ndim > 1:
+                    audio = audio.squeeze()
+                audio_seconds = float(audio.shape[-1]) / sample_rate
+                batch_audio_seconds += audio_seconds
+                prepared_audio.append((chunk, audio, audio_seconds))
+            generated_audio_seconds += batch_audio_seconds
+            batch_rtf = (
+                batch_generation_seconds / batch_audio_seconds
+                if batch_audio_seconds else 0.0
+            )
+            print(
+                "[omnivoice_worker] Generated batch "
+                f"{batch_start // batch_size + 1}/"
+                f"{(len(chunks) + batch_size - 1) // batch_size} "
+                f"size={len(batch_chunks)} audio={batch_audio_seconds:.2f}s "
+                f"inference={batch_generation_seconds:.2f}s rtf={batch_rtf:.3f}",
+                file=sys.stderr,
+            )
+            for offset, (chunk, audio, audio_seconds) in enumerate(prepared_audio):
+                output_path = chunk["output_path"]
+                chunk_number = batch_start + offset + 1
+                Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+                sf.write(output_path, audio, sample_rate)
+                print(
+                    "[omnivoice_worker] Completed chunk "
+                    f"{chunk_number}/{len(chunks)} "
+                    f"prompt={batch_prompt_keys[offset][:12]} audio={audio_seconds:.2f}s",
+                    file=sys.stderr,
+                )
+                print(f"[CHUNK_DONE] {output_path}", file=sys.stderr)
 
-            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-            sf.write(output_path, audio, sample_rate)
-            print(f"[CHUNK_DONE] {output_path}", file=sys.stderr)
+        overall_rtf = generation_seconds / generated_audio_seconds if generated_audio_seconds else 0.0
+        print(
+            "[omnivoice_worker] Clone job complete: "
+            f"chunks={len(chunks)} unique_prompts={len(prompt_cache)} "
+            f"batch_size={batch_size} "
+            f"audio={generated_audio_seconds:.2f}s inference={generation_seconds:.2f}s "
+            f"rtf={overall_rtf:.3f} total={time.perf_counter() - worker_started:.2f}s",
+            file=sys.stderr,
+        )
 
     elif mode == "design":
         text = job["text"]
@@ -274,13 +422,23 @@ def main() -> None:
             speed=speed,
             postprocess_output=bool(post_process),
         )
+        generation_started = time.perf_counter()
         audio_list = model.generate(**design_kwargs)
+        generation_seconds = time.perf_counter() - generation_started
         audio = np.asarray(audio_list[0], dtype=np.float32)
         if audio.ndim > 1:
             audio = audio.squeeze()
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         sf.write(output_path, audio, sample_rate)
+        audio_seconds = float(audio.shape[-1]) / sample_rate
+        rtf = generation_seconds / audio_seconds if audio_seconds else 0.0
+        print(
+            "[omnivoice_worker] Voice design complete: "
+            f"audio={audio_seconds:.2f}s inference={generation_seconds:.2f}s "
+            f"rtf={rtf:.3f} total={time.perf_counter() - worker_started:.2f}s",
+            file=sys.stderr,
+        )
         # Print the output path as the result
         print(output_path)
         print(f"[DESIGN_DONE] {output_path}", file=sys.stderr)
