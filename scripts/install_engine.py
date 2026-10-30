@@ -23,6 +23,7 @@ ISOLATED_ENGINES = {
     "edge_tts": "edge_tts.txt",
     "audio8_tts": "audio8_tts.txt",
     "breeze_tts_2": "breeze_tts_2.txt",
+    "voice_transcription": "voice_transcription.txt",
 }
 TORCH_ENGINES = {"kokoro", "voxcpm_local", "pocket_tts", "qwen3", "audio8_tts"}
 ISOLATED_AUDIO_RUNTIME = [
@@ -45,6 +46,7 @@ MAIN_ENV_PACKAGES = {
     "edge_tts": ["edge-tts"],
     "audio8_tts": [],
     "breeze_tts_2": [],
+    "voice_transcription": [],
 }
 ENGINE_MODEL_PATHS = {
     "voxcpm_local": [ROOT / "models" / "voxcpm"],
@@ -128,6 +130,7 @@ def remove_isolated_runtime(engine: str, *, dry_run: bool = False) -> None:
         "edge_tts": "edge_tts",
         "audio8_tts": "audio8_tts",
         "breeze_tts_2": "breeze_tts_2",
+        "voice_transcription": "voice_transcription",
     }
     engine_dir = ROOT / "engines" / directories[engine]
     preserved_by_engine = {
@@ -226,7 +229,7 @@ def torch_works(python: Path = Path(sys.executable)) -> bool:
     ).returncode == 0
 
 
-def install_torch(python: Path = Path(sys.executable), *, isolated_28: bool = False) -> None:
+def install_torch(python: Path = Path(sys.executable), *, isolated_28: bool = False, cpu_only: bool = False) -> None:
     if torch_works(python) and not isolated_28:
         print("A working PyTorch installation is already available; keeping it.", flush=True)
         return
@@ -234,7 +237,7 @@ def install_torch(python: Path = Path(sys.executable), *, isolated_28: bool = Fa
     if sys.platform == "darwin":
         version = "2.8.0" if isolated_28 else "2.6.0"
         run([*pip, f"torch=={version}", f"torchaudio=={version}"])
-    elif has_nvidia():
+    elif not cpu_only and has_nvidia():
         use_28 = isolated_28 or is_blackwell()
         version = "2.8.0" if use_28 else "2.6.0"
         index = "https://download.pytorch.org/whl/cu128" if use_28 else "https://download.pytorch.org/whl/cu124"
@@ -249,6 +252,23 @@ def install_torch(python: Path = Path(sys.executable), *, isolated_28: bool = Fa
 
 def install_isolated_engine(engine: str) -> None:
     engine_dir = ROOT / "engines" / engine
+    if engine == "voice_transcription":
+        # Invalidate stale readiness before repair. This utility cannot modify
+        # the core or any TTS runtime, and intentionally has no CUDA wheel.
+        (engine_dir / ".ready").unlink(missing_ok=True)
+        python = ensure_venv(engine_dir / ".venv")
+        pip = [str(python), "-m", "pip", "install", "--upgrade"]
+        torch_command = [*pip, "torch==2.6.0", "torchaudio==2.6.0"]
+        if sys.platform != "darwin":
+            torch_command += ["--index-url", "https://download.pytorch.org/whl/cpu"]
+        run(torch_command)
+        run([*pip, "-r", str(ENGINE_REQUIREMENTS / ISOLATED_ENGINES[engine])])
+        worker = ROOT / "engines" / "transcription_worker.py"
+        run([str(python), str(worker), "--check-env"])
+        run([str(python), str(worker), "--download-model"])
+        (engine_dir / ".ready").touch()
+        print("Voice transcription is ready. It runs on CPU in a short-lived worker; no backend restart is needed.", flush=True)
+        return
     if engine == "breeze_tts_2":
         if not (engine_dir / ".license_accepted").is_file():
             raise RuntimeError(
@@ -289,7 +309,7 @@ def install_isolated_engine(engine: str) -> None:
         return
     python = ensure_venv(engine_dir / ".venv")
     if engine in TORCH_ENGINES:
-        install_torch(python)
+        install_torch(python, cpu_only=engine == "pocket_tts")
     run([str(python), "-m", "pip", "install", *ISOLATED_AUDIO_RUNTIME])
     requirement = ENGINE_REQUIREMENTS / ISOLATED_ENGINES[engine]
     run([str(python), "-m", "pip", "install", "-r", str(requirement)])

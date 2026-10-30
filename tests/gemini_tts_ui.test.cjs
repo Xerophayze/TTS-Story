@@ -12,13 +12,17 @@ test('candidate assignment uses the active speaker dropdown and survives a catal
         add(option) {this.options.push(option);}, dispatchEvent() {}});
     const selected = makeSelect('maya-female');
     const other = makeSelect('narrator');
+    const profiles = {};
     const context = vm.createContext({window: {isGeminiTtsEngine: () => true, geminiTtsVoices: []},
         getSelectedJobEngine: () => 'gemini_tts', document: {querySelectorAll: () => [selected, other]},
+        updateSpeakerProfileEntry: (speaker, values) => {profiles[speaker] = {...profiles[speaker], ...values};},
         Option: function(label, value) {this.textContent = label; this.value = value;}, Event: function() {}});
     vm.runInContext(main.slice(main.indexOf('async function assignGeminiSpeakerVoice('), main.indexOf('function renderSpeakerProfileSummary(')), context);
     await context.assignGeminiSpeakerVoice('maya-female', 'voice_maya', 'Maya');
     assert.equal(selected.value, 'voice_maya');
     assert.equal(other.value, '');
+    assert.equal(profiles['maya-female'].selected_voice_name, 'Maya');
+    assert.equal(profiles['maya-female'].selected_voice_path, '');
     selected.value = ''; selected.options = [];
     await context.assignGeminiSpeakerVoice('maya-female', 'voice_maya', 'Maya');
     assert.equal(selected.value, 'voice_maya');
@@ -30,12 +34,14 @@ test('using a Gemini candidate offers a safe engine switch without racing Analyz
     const engine = {value: 'breeze_api', dispatchEvent() { throw Error('Must not trigger asynchronous reanalysis'); }};
     const select = {dataset: {speaker: 'actor'}, value: '', options: [], add(v) {this.options.push(v);}, dispatchEvent() {}};
     let consent = false, captured = 0, updates = 0, catalogs = 0;
+    const profiles = {};
     const context = vm.createContext({window: {
         isGeminiTtsEngine: v => ['gemini_tts', 'gemini_tts_lite'].includes(v), geminiTtsVoices: [],
         confirm: () => consent, loadGeminiTtsCatalog: async () => { catalogs++; }},
         getSelectedJobEngine: () => engine.value, captureCompatibleVoiceSamples: () => {captured++;},
         updateEngineUI: value => { assert.equal(value, 'gemini_tts_lite'); updates++; },
         updateModeIndicator() {}, populateDefaultVoiceSelect() {},
+        updateSpeakerProfileEntry: (speaker, values) => {profiles[speaker] = {...profiles[speaker], ...values};},
         document: {getElementById: () => engine, querySelectorAll: () => [select]},
         Option: function(label, value) {this.value = value;}, Event: function() {}});
     vm.runInContext(main.slice(main.indexOf('async function assignGeminiSpeakerVoice('), main.indexOf('function renderSpeakerProfileSummary(')), context);
@@ -45,6 +51,7 @@ test('using a Gemini candidate offers a safe engine switch without racing Analyz
     assert.equal(await context.assignGeminiSpeakerVoice('actor', 'voice_a', 'Actor', 'gemini_tts_lite'), true);
     assert.equal(engine.value, 'gemini_tts_lite'); assert.equal(select.value, 'voice_a');
     assert.equal(captured, 1); assert.equal(updates, 1); assert.equal(catalogs, 1);
+    assert.equal(profiles.actor.selected_voice_id, 'voice_a');
 });
 
 test('speaker Gemini design is embedded and retains audition after selection', () => {

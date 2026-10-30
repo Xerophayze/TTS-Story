@@ -109,9 +109,8 @@ function castCatalogDisplayName(select, value) {
     return name && name !== value ? name : '';
 }
 
-function castVoiceInfo(speaker) {
+function castVoiceInfo(speaker, row = castAssignmentRow(speaker)) {
     const engine = castEngineName();
-    const row = castAssignmentRow(speaker);
     const settings = typeof runtimeSettings !== 'undefined' ? runtimeSettings : null;
     const selections = typeof turboSelectionState !== 'undefined' ? turboSelectionState : {};
     const select = row?.querySelector('.voice-select');
@@ -132,7 +131,9 @@ function castVoiceInfo(speaker) {
             }
         }
         if (typeof isOmniVoiceCloneEngine === 'function' && isOmniVoiceCloneEngine(engine)) {
-            return { primary: 'Default prompt', secondary: '', state: 'default' };
+            const fallback = (typeof getGlobalReferenceSelection === 'function' ? getGlobalReferenceSelection() : '')
+                || settings?.omnivoice_clone_default_prompt;
+            if (fallback) return { primary: castSampleName(fallback), secondary: 'default sample', state: 'default' };
         }
         if (engine !== 'breeze_api') return { primary: 'No voice', secondary: '', state: 'missing' };
     }
@@ -169,8 +170,14 @@ function castVoiceLabel(info) {
 
 function castEntries() {
     const readyState = typeof speakerReadyState !== 'undefined' ? speakerReadyState : {};
+    // Index once per render instead of querying/scanning the whole cast for
+    // every speaker. An open drawer's edited row overrides its hidden copy.
+    const rows = new Map((typeof getAssignmentRows === 'function' ? getAssignmentRows() : [])
+        .map(row => [row.dataset.speaker, row]));
+    document.querySelectorAll('#speaker-edit-modal-body .voice-assignment-row')
+        .forEach(row => rows.set(row.dataset.speaker, row));
     return castSpeakerNames.map(name => {
-        const voice = castVoiceInfo(name);
+        const voice = castVoiceInfo(name, rows.get(name) || null);
         const fx = castFxValues(name);
         return {
             name,
@@ -183,6 +190,21 @@ function castEntries() {
             chunks: castChunkCount(name)
         };
     });
+}
+
+function castNextToReview(entries) {
+    return entries.find(entry => entry.voice.state === 'missing') || entries.find(entry => !entry.ready) || null;
+}
+
+function castUpdateWorkflow(entries) {
+    const missing = entries.filter(entry => entry.voice.state === 'missing').length;
+    const ready = entries.filter(entry => entry.ready && entry.voice.state !== 'missing').length;
+    const summary = document.getElementById('cast-assignment-summary');
+    if (summary) summary.textContent = `${ready}/${entries.length} ready · ${missing} need a voice`;
+    const next = document.getElementById('cast-review-next');
+    if (next) next.disabled = !castNextToReview(entries);
+    const engineLink = document.getElementById('cast-choose-engine');
+    if (engineLink) engineLink.title = `Current engine: ${castEngineLabel() || 'not selected'}`;
 }
 
 /** Called by main.js displayStatistics after the per-speaker rows are built. */
@@ -316,13 +338,14 @@ function castRenderNow(options = {}) {
     const emotionSegments = stats?.has_emotion_tags ? Number(stats.segments_with_emotion) || 0 : 0;
     const details = castViewMode === 'details';
     const signature = JSON.stringify([
-        active, castViewMode, emotionSegments, stats?.total_chunks, stats?.estimated_duration,
+        active, castViewMode, castEngineName(), emotionSegments, stats?.total_chunks, stats?.estimated_duration,
         entries.map(entry => [entry.name, entry.color, entry.ready, entry.voiceLabel, entry.voice.state,
             details ? entry.pitch : 0, details ? entry.speed : 0, entry.chunks])
     ]);
     castSyncDrawer();
     if (signature === castLastSignature && list.childElementCount) return;
     castLastSignature = signature;
+    castUpdateWorkflow(active ? entries : []);
 
     section?.classList.toggle('has-cast', active);
     const count = section?.querySelector('.cast-count');
@@ -555,6 +578,17 @@ function castViewInit() {
     const section = document.getElementById('cast-section');
     const list = document.getElementById('speakers-list');
     if (!section || !list) return;
+
+    document.getElementById('cast-choose-engine')?.addEventListener('click', event => {
+        event.preventDefault();
+        const engine = document.getElementById('job-tts-engine');
+        engine?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+        engine?.focus({preventScroll: true});
+    });
+    document.getElementById('cast-review-next')?.addEventListener('click', () => {
+        const next = castNextToReview(castEntries());
+        if (next && typeof openSpeakerEditModal === 'function') openSpeakerEditModal(next.name);
+    });
 
     section.querySelector('.cast-view-toggle')?.addEventListener('click', event => {
         const button = event.target instanceof Element ? event.target.closest('[data-cast-view]') : null;

@@ -1,7 +1,7 @@
 {
   "title": "TTS-Story User Guide",
   "subtitle": "From first launch to a finished, reviewed audiobook",
-  "version": "2026.10.20.1",
+  "version": "2026.10.29.1",
   "categories": [
     {
       "id": "start-here",
@@ -54,7 +54,8 @@
         "engine-elevenlabs",
         "engine-openai-tts",
         "engine-localai-tts",
-        "engine-breeze-api"
+        "engine-breeze-api",
+        "engine-gemini-tts"
       ]
     },
     {
@@ -425,6 +426,15 @@
     },
 
     {
+      "id": "engine-gemini-tts",
+      "file": "engines/gemini-tts.md",
+      "title": "Gemini TTS: Hosted Voices and Direction",
+      "summary": "Configure a separate TTS API key, assign Google preset or custom voices, and review hosted voice auditions.",
+      "keywords": ["Gemini TTS", "Flash", "Flash-Lite", "Google", "cloud", "voice design", "candidates", "direction"],
+      "related": ["assign-voices", "auto-assign-voices", "cloud-errors", "engine-breeze-api"],
+      "engine_ids": ["gemini_tts", "gemini_tts_lite"]
+    },
+    {
       "id": "llm-overview",
       "file": "llm/overview.md",
       "title": "LLM Preparation Overview",
@@ -568,8 +578,8 @@
       "id": "engine-management",
       "file": "settings/engine-management.md",
       "title": "Install, Remove, and Reinstall TTS Engines",
-      "summary": "Manage optional local engines, isolated environments, first-run downloads, live progress, restarts, and safe removal.",
-      "keywords": ["install engine", "remove engine", "uninstall engine", "repair", "reinstall", "isolated environment", "venv", "model download", "restart", "status dot", "remote admin", "needs setup", "not installed"],
+      "summary": "Manage optional local engines and the transcription utility, isolated environments, downloads, live progress, restarts, and safe removal.",
+      "keywords": ["install engine", "remove engine", "uninstall engine", "repair", "reinstall", "isolated environment", "venv", "model download", "restart", "status dot", "remote admin", "needs setup", "not installed", "voice transcription", "SenseVoice", "FunASR"],
       "related": ["engine-overview", "first-run", "gpu-cpu-errors", "engine-localai-tts"]
     },
     {

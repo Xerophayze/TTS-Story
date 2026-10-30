@@ -95,7 +95,20 @@ def _engine_registry_ids() -> set[str]:
         if not isinstance(value, ast.Dict):
             raise AssertionError("EngineRegistry must remain a literal dictionary")
         keys = []
-        for key in value.keys:
+        for key, entry in zip(value.keys, value.values):
+            if key is None:
+                # Hosted Gemini engines share one adapter. Read only their
+                # constant model map; do not import optional local engines.
+                assert isinstance(entry, ast.DictComp)
+                assert isinstance(entry.key, ast.Name)
+                assert entry.generators[0].iter.id == "GEMINI_TTS_MODELS"
+                gemini_path = PROJECT_ROOT / "src" / "engines" / "gemini_tts_engine.py"
+                gemini_tree = ast.parse(gemini_path.read_text(encoding="utf-8"))
+                mapping = next(node.value for node in gemini_tree.body
+                    if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+                    and target.id == "GEMINI_TTS_MODELS" for target in node.targets))
+                keys.extend(ast.literal_eval(mapping))
+                continue
             if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
                 raise AssertionError("EngineRegistry keys must be literal strings")
             keys.append(key.value)

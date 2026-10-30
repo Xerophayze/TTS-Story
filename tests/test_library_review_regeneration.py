@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from src.library_metadata import can_reuse_active_review_job
 
@@ -135,8 +136,8 @@ def test_bulk_regeneration_uses_one_aggregate_watcher_and_cleans_it_up():
 def test_library_progress_assets_have_fresh_cache_versions():
     template = INDEX_TEMPLATE.read_text(encoding="utf-8")
 
-    assert "/static/css/style.css?v=47" in template
-    assert "/static/js/library.js?v=63" in template
+    assert int(re.search(r'/static/css/style\.css\?v=(\d+)', template).group(1)) >= 48
+    assert int(re.search(r'/static/js/library\.js\?v=(\d+)', template).group(1)) >= 64
 
 
 def test_full_story_pill_loads_combined_audio_and_busts_rebuild_cache():

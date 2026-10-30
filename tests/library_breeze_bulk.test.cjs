@@ -11,6 +11,27 @@ test('speaker regeneration menu includes both Breeze engines', () => {
     assert.match(menu, /normalizedSelectedEngine.includes\('breeze'\)/);
 });
 
+test('chunk regeneration and alternate-word preview menus also include both Breeze engines', () => {
+    const chunkMenu = source.slice(source.indexOf('// Populate chunk engine selects'), source.indexOf('// Populate bulk speaker engine selects'));
+    const alternateWordMenu = source.slice(source.indexOf('id="lib-awr-preview-engine"'), source.indexOf('</select>', source.indexOf('id="lib-awr-preview-engine"')));
+    for (const menu of [chunkMenu, alternateWordMenu]) {
+        assert.match(menu, /value="breeze_tts_2"/);
+        assert.match(menu, /value="breeze_api"/);
+    }
+});
+
+test('completed regeneration refreshes the text summary without creating a media player', () => {
+    const preview = {}, button = {setAttribute() {}};
+    const cached = {id: '0-0', text: 'Old text'};
+    const card = {querySelector: selector => selector === '.library-chunk-preview' ? preview : selector === '.library-chunk-play' ? button : null};
+    const context = vm.createContext({document: {querySelector: () => card}, chunkReviewModalData: {chunks: [cached]}});
+    const start = source.indexOf('function updateLibraryCompletedChunk(');
+    vm.runInContext(source.slice(start, source.indexOf('\nfunction ', start + 10)), context);
+    context.updateLibraryCompletedChunk('0-0', {file_url: '/test.wav', text: 'New <literal> text'});
+    assert.equal(preview.textContent, 'New <literal> text');
+    assert.equal(cached.text, 'New <literal> text');
+});
+
 for (const engine of ['breeze_tts_2', 'breeze_api']) {
     test(`${engine} lists shared samples and sends sample paths for bulk regeneration`, async () => {
         const voiceMap = new Map();

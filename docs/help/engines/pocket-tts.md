@@ -16,7 +16,7 @@ Preset voices initialize and generate more simply than a new audio prompt. Use C
 
 *Pocket TTS Clone uses a saved reference from Voices → Voice prompts; Preset mode does not require one.*
 
-The normal setup installs `pocket-tts==1.0.3`. TTS-Story intentionally uses the older `b6369a24` model variant and declares this integration English-only, even if a newer upstream release advertises additional capabilities.
+Install Pocket TTS from **Settings → Engines → Pocket TTS**. It uses an optional isolated environment with `pocket-tts==1.0.3`; installing the core application alone does not install it. TTS-Story intentionally uses the older `b6369a24` model variant and declares this integration English-only, even if a newer upstream release advertises additional capabilities.
 
 No GPU is used. Initial model or voice assets may download the first time they are selected. The built-in preset voices use the non-cloning model and do not require Hugging Face authentication. Custom voice cloning uses Kyutai's gated weights.
 

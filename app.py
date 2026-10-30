@@ -166,7 +166,7 @@ from src.localai_voice_profiles import (
     LocalAIVoiceProfileManager,
     build_tts_story_voice_reference,
 )
-from src.voice_transcription import VoiceTranscriptionError, VoiceTranscriptGenerator
+from src.voice_transcription import VoiceTranscriptionError, VoiceTranscriptionUnavailable, VoiceTranscriptGenerator, transcription_available
 from src.tts_engine import (
     TTSEngine,
     KOKORO_AVAILABLE,
@@ -8904,6 +8904,8 @@ def transcribe_chatterbox_voice(voice_id: str):
     try:
         transcript = voice_transcript_generator.transcribe(audio_path)
         _update_voice_prompt_transcript(audio_path, transcript)
+    except VoiceTranscriptionUnavailable as exc:
+        return jsonify({"success": False, "error": str(exc), "code": "transcription_not_installed", "settings_tab": "transcription"}), 503
     except VoiceTranscriptionError as exc:
         return jsonify({"success": False, "error": str(exc)}), 422
     except Exception as exc:  # pragma: no cover - defensive model/runtime failure
@@ -10316,27 +10318,37 @@ def resume_job(job_id: str):
             processed_chunks = int(job_entry.get("processed_chunks") or 0)
             post_total = int(job_entry.get("post_process_total") or 0)
             post_done = int(job_entry.get("post_process_done") or 0)
-            if total_chunks and processed_chunks >= total_chunks and (post_total == 0 or post_done >= post_total):
+            # A pause can land after the last synthesized chunk but before the
+            # first merge. Zero post-processing work recorded is not completion.
+            already_completed = job_entry.get("status") == "completed" or (
+                total_chunks > 0 and processed_chunks >= total_chunks
+                and post_total > 0 and post_done >= post_total
+            )
+            if already_completed:
                 job_entry["status"] = "completed"
                 job_entry["progress"] = 100
                 job_entry["eta_seconds"] = 0
                 job_entry["interrupted_at"] = None
-                _persist_job_state(job_id, force=True)
-                return jsonify({"success": True, "message": "Job already completed"})
-            resumable_statuses = {"paused", "interrupted"}
-            if processed_chunks > 0 or job_entry.get('engine') == 'breeze_api':
-                resumable_statuses.add("failed")
-            if job_entry.get("status") not in resumable_statuses:
-                return jsonify({"success": False, "error": "Job is not paused"}), 409
-            pause_flags.pop(job_id, None)
-            resume_from = job_entry.get("resume_from_chunk_index")
-            if resume_from is None:
-                resume_from = job_entry.get("processed_chunks") or 0
-            job_entry["resume_from_chunk_index"] = int(resume_from or 0)
-            job_entry["status"] = "queued"
-            job_entry["paused_at"] = None
-            job_entry["interrupted_at"] = None
-            job_entry["error"] = None
+            else:
+                resumable_statuses = {"paused", "interrupted"}
+                if processed_chunks > 0 or job_entry.get('engine') == 'breeze_api':
+                    resumable_statuses.add("failed")
+                if job_entry.get("status") not in resumable_statuses:
+                    return jsonify({"success": False, "error": "Job is not paused"}), 409
+                pause_flags.pop(job_id, None)
+                resume_from = job_entry.get("resume_from_chunk_index")
+                if resume_from is None:
+                    resume_from = job_entry.get("processed_chunks") or 0
+                job_entry["resume_from_chunk_index"] = int(resume_from or 0)
+                job_entry["status"] = "queued"
+                job_entry["paused_at"] = None
+                job_entry["interrupted_at"] = None
+                job_entry["error"] = None
+        if already_completed:
+            # Persistence takes queue_lock itself; never call it while holding
+            # the non-reentrant lock or every queue/detail request will hang.
+            _persist_job_state(job_id, force=True)
+            return jsonify({"success": True, "message": "Job already completed"})
         job_data = _build_job_data_from_entry(job_id, job_entry)
         job_queue.put(job_data)
         _persist_job_state(job_id, force=True)
@@ -13919,6 +13931,7 @@ def _engine_setup_catalog(config: Optional[Dict[str, Any]] = None) -> List[Dict[
         ("localai_tts", "LocalAI TTS", "service", bool(
             (config.get("localai_tts_model") or "").strip()
         ), "localai-tts"),
+        ("voice_transcription", "Voice transcription · SenseVoice", "utility", transcription_available(), "transcription"),
     ]
     install_targets = {
         "kokoro": "kokoro",
@@ -13935,6 +13948,7 @@ def _engine_setup_catalog(config: Optional[Dict[str, Any]] = None) -> List[Dict[
         "audio8_tts": "audio8_tts",
         "breeze_tts_2": "breeze_tts_2",
         "edge_tts": "edge_tts",
+        "voice_transcription": "voice_transcription",
     }
     return [{
         "id": engine_id,
@@ -13986,7 +14000,7 @@ def _run_engine_install_job(job_id: str, engine: str) -> None:
             return_code = process.wait()
         job["status"] = "complete" if return_code == 0 else "failed"
         job["return_code"] = return_code
-        job["restart_required"] = return_code == 0
+        job["restart_required"] = return_code == 0 and engine != "voice_transcription"
         job["finished_at"] = datetime.now().isoformat()
         if return_code == 0:
             _reset_engine_first_run_notice(engine)
@@ -14026,7 +14040,7 @@ def _run_engine_uninstall_job(job_id: str, engine: str) -> None:
             return_code = process.wait()
         job["status"] = "complete" if return_code == 0 else "failed"
         job["return_code"] = return_code
-        job["restart_required"] = return_code == 0
+        job["restart_required"] = return_code == 0 and engine != "voice_transcription"
         job["finished_at"] = datetime.now().isoformat()
     except Exception as exc:
         logger.exception("Optional engine removal failed: %s", engine)
@@ -14135,6 +14149,8 @@ def install_optional_engine():
         return _engine_management_denied("Engine installation")
     payload = request.get_json(silent=True) or {}
     engine = str(payload.get("engine") or "").strip().lower()
+    if engine == "voice_transcription" and voice_transcript_generator.is_running:
+        return jsonify({"success": False, "error": "A voice sample is being transcribed. Wait for it to finish before repairing the tool."}), 409
     breeze_runtime = payload.get("runtime", "pytorch")
     if engine == "breeze_tts_2" and breeze_runtime not in ("pytorch", "q8"):
         return jsonify({"success": False, "error": "Unknown Breeze runtime."}), 400
@@ -14198,6 +14214,8 @@ def uninstall_optional_engine():
         }), 409
     payload = request.get_json(silent=True) or {}
     engine = str(payload.get("engine") or "").strip().lower()
+    if engine == "voice_transcription" and voice_transcript_generator.is_running:
+        return jsonify({"success": False, "error": "A voice sample is being transcribed. Wait for it to finish before removing the tool."}), 409
     allowed = {
         entry["uninstall_target"]
         for entry in _engine_setup_catalog()

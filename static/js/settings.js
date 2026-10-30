@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function readyEngineIds() {
-    return new Set(engineSetupCatalog.filter(engine => engine.ready).map(engine => engine.id));
+    return new Set(engineSetupCatalog.filter(engine => engine.ready && engine.kind !== 'utility').map(engine => engine.id));
 }
 
 function filterEngineSelectors() {
@@ -189,6 +189,7 @@ function renderEngineSetupStatus() {
         const entries = engineStatusForTab(tabName);
         panel.querySelector('.engine-setup-status')?.remove();
         if (!entries.length) return;
+        const isUtility = entries.every(entry => entry.kind === 'utility');
         const ready = entries.every(engine => engine.ready);
         const installTarget = entries.find(engine => !engine.ready && engine.install_target)?.install_target;
         const uninstallEntry = entries.find(engine => engine.ready && engine.uninstall_target);
@@ -209,8 +210,8 @@ function renderEngineSetupStatus() {
             installButton.type = 'button';
             installButton.className = 'btn btn-primary engine-install-btn';
             installButton.dataset.icon = 'download';
-            installButton.dataset.idleLabel = 'Install engine';
-            installButton.textContent = 'Install engine';
+            installButton.dataset.idleLabel = isUtility ? 'Install tool' : 'Install engine';
+            installButton.textContent = installButton.dataset.idleLabel;
             installButton.dataset.installEngine = installTarget;
             installButton.addEventListener('click', () => startEngineInstall(installTarget, status, installButton));
             status.appendChild(installButton);
@@ -233,8 +234,8 @@ function renderEngineSetupStatus() {
             const uninstallButton = document.createElement('button');
             uninstallButton.type = 'button';
             uninstallButton.className = 'btn btn-danger';
-            uninstallButton.dataset.idleLabel = 'Remove engine';
-            uninstallButton.textContent = 'Remove engine';
+            uninstallButton.dataset.idleLabel = isUtility ? 'Remove tool' : 'Remove engine';
+            uninstallButton.textContent = uninstallButton.dataset.idleLabel;
             uninstallButton.dataset.uninstallEngine = uninstallEntry.uninstall_target;
             uninstallButton.addEventListener('click', () => startEngineUninstall(
                 uninstallEntry,
@@ -552,7 +553,9 @@ function pollEngineInstall(jobId, statusElement, button, output, action = 'insta
                     });
                     renderEngineSetupStatus();
                     await loadHealthStatus();
-                    alert('The engine runtime and its downloaded models were removed. Restart TTS-Story to finish unloading it. Your projects, generated audio, and saved voice samples were kept.');
+                    alert(engine === 'voice_transcription'
+                        ? 'The transcription tool and its downloaded model were removed. Your voice samples and saved transcripts were kept. No backend restart is needed.'
+                        : 'The engine runtime and its downloaded models were removed. Restart TTS-Story to finish unloading it. Your projects, generated audio, and saved voice samples were kept.');
                     return;
                 }
                 const settingsTab = statusElement.dataset.engineSetupTab || '';

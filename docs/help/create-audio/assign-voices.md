@@ -8,6 +8,8 @@ In the **Output** section, choose the job **Engine** first. Voice selectors and 
 
 If you have not chosen an engine, read [Choose the Right Engine](help:choose-engine).
 
+The Cast summary shows how many speakers are ready and how many still need a voice. **Review next** opens a speaker missing a voice first, then the next speaker not marked ready. The **Choose the engine** link takes you directly to the Output selector.
+
 ## Understand the assignment control
 
 Click a speaker in the Cast list (or its **Review** link) to open the **Edit speaker** drawer. Depending on the engine, its **Voice** section can show:
@@ -32,7 +34,7 @@ Cloud voices are populated from the catalog loaded in Settings. Cloning voices c
 4. Confirm that two similarly named speakers were not detected by mistake.
 5. For an untagged manuscript, assign **Speaker 1**.
 
-TTS-Story prevents submission when no valid assignments have been collected. If at least one assignment exists but a detected speaker has no selection of its own, that speaker inherits the first/default assignment. This fallback avoids a failed job, but it can give two characters the same voice, so review and assign every speaker explicitly.
+TTS-Story checks the entire cast before submission. If a speaker lacks a valid assignment or configured default, generation stops and opens that speaker's properties. A configured default can still be shared, but assign characters explicitly when they should sound different. **Mark as ready** protects a prepared speaker from default batch actions; it is not required merely to generate audio once the voice is assigned.
 
 ## Use Quick test effectively
 
@@ -89,7 +91,7 @@ Build profile uses only bounded excerpts tagged for the selected speaker. It doe
 
 ## Generate voices and Auto assign
 
-For tagged manuscripts, **Generate voices** (the **…** button to the right of **Build profiles**) can design samples from speaker-profile information, while **Auto assign** matches detected speaker names to available samples using a threshold.
+For tagged manuscripts, **Generate voices** beside **Build profiles** designs samples from speaker-profile information, while **Auto assign** matches detected speaker names to available samples using a threshold. Batch actions skip speakers marked **Ready** by default. Enable **Include ready speakers in batch actions** only when you deliberately want to prepare approved speakers again.
 
 These are accelerators, not editorial decisions:
 

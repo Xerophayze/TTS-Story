@@ -2,10 +2,12 @@
 
 TTS-Story installs its core application first and lets you add only the speech engines you intend to use. Open [Settings → Engines](app:settings) to manage them.
 
-The engine list is divided into two groups:
+The speech engines are divided into two groups:
 
 - **Local · this computer** engines run model inference through files installed on this computer.
 - **Cloud · remote** engines connect TTS-Story to an online service or a separately hosted server such as LocalAI.
+
+The separate **Utilities** group contains **Voice transcription**, an optional CPU-only SenseVoice tool. Use **Install tool** to download its isolated runtime and model. It never appears in the TTS engine selector and requires no backend restart. Removing it keeps your samples and saved transcripts. See [Reference Voice Prompts](help:voice-prompts).
 
 A grey dot (*Not installed*) or amber dot (*Needs setup*) means the engine still needs installation or configuration. A green dot (*Ready*) means it appears in **Settings → General → Default engine** and in the Generate **Engine** list. While an installation or removal runs, the panel's status pill shows *Working…*.
 

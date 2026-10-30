@@ -1,27 +1,3 @@
-## Gemini TTS cloud preview
-
-Gemini candidates now appear directly beneath the existing Speaker Properties controls when the speaker opens, including candidates created in bulk. New auditions preserve the previously assigned voice until a replacement is selected. Pending auditions are retained without rebilling; completed/selected auditions can receive new candidates in a new batch. Bulk results distinguish newly created auditions from retained ones. **Generate Voice** uses that same profile's prompt, model, and candidate count; there is no second speaker-design form to open. Failed bulk requests are shown as errors instead of an unexplained empty audition, including Google's error reason when available. Cloud batch checkpoints save in parallel with the next speaker's requests (one save at a time), and pause/completion still wait for checkpoint persistence.
-
-**Bulk Gemini casting:** Use **Generate Voices** beside **Build Profiles**, select **Gemini TTS · Cloud Voice Design**, and choose Flash or Flash-Lite. Up to four candidates per speaker run concurrently; speakers run sequentially, with pause/resume checkpoints between speakers. Creation requires the dedicated Gemini TTS key and billing confirmation. Existing speaker auditions are preserved instead of generating duplicates. Completed candidates survive partial failures and are saved with the project; open each speaker to audition and select a voice (including single candidates). Google supplies the preview passage. Keep the page open during requests and save the project after selection.
-
-**Selecting a designed voice:** Gemini hosted voices require a Gemini narration engine. If another engine is selected, **Use voice** offers to switch the project's narration engine to Gemini before assigning the candidate. This affects all speakers, so review their assignments before generation. Cancelling preserves all candidates. After confirmed candidate cleanup, audition previews collapse and the selected voice remains in the speaker dropdown.
-
-In Speaker Properties, select **Gemini TTS · Cloud Voice Design** and click **Generate Voice**. Controls and compact candidate previews appear inline, using the speaker's description. Up to four candidates are requested concurrently (subject to Google quotas); successful candidates are retained even if another request fails. Requests are billable and creation is not automatically retried. Selecting a voice keeps the speaker window open; save your project afterward. The standalone designer remains available from Available Voices and settings.
-
-**Manage hosted custom voices:** Open **Available Voices → Gemini Custom Voices · Cloud** to refresh, search by name or ID, play previews, design new voices, or delete individual voices from Google. Compact rows also support checkbox selection, **Select visible**, **Clear selection**, and **Delete selected**. This includes older candidates with no audition grouping. Deletion requires confirmation and leaves existing audio files unchanged, but future synthesis/regeneration needs a replacement wherever the deleted ID was assigned. Preset voices cannot be deleted. Previews load only when Play is clicked and share one player. Renaming hosted voices is not currently offered.
-
-Gemini audition cleanup: after selecting a candidate, confirm removal of its unselected siblings from Google storage. Only IDs recorded together in that audition are removed; presets, the selected voice, and unrelated designs are preserved. Pending auditions belong to the speaker profile and are included when saving the project. Reopening Speaker Properties restores them; a project/speaker-scoped browser draft also protects completed candidates across page reloads. Save the project for portability to another browser. If none of the pending candidates suit the speaker, click **Generate Voice** again and confirm permanent deletion of that pending audition followed by billable replacement generation. Cancel keeps the candidates. Any deletion failure stops replacement generation and retains the failed candidates for retry. Previously assigned voices from other auditions are untouched. Older voices without a speaker-linked audition remain available in the custom voice library. No existing audio files are deleted.
-
-Gemini 3.8 Flash TTS and Flash-Lite TTS are optional cloud engines. Open **Settings → Engine Settings → Gemini TTS**, enter a dedicated TTS API key, choose a default Google preset voice, and save. This key is separate from Gemini manuscript preparation and never falls back to the LLM key. Select either model on the main page, then choose presets in Speaker Properties. **Quick Test** makes a billable synthesis request.
-
-Directed manuscripts are supported: passage directions are sent as structured delivery metadata, separately from spoken text. Permanent Voice Type profiles are not prepended. Local voice samples are neither offered nor uploaded; Google voice cloning is not included. Presets and hosted designed voices are available for single-chunk and bulk-speaker Library regeneration.
-
-**Gemini Voice Design:** The designer starts with the speaker's Voice Design Prompt (or Voice Type). Enter a name and stable vocal description, select Flash or Flash-Lite, and create 1–4 candidates. Play the supplied previews and click **Use voice**, then save your TTS-Story project. These are reusable Google `voice_...` IDs, not local cloning samples. Google chooses the preview text. Google documents a 200-voice project limit and one-year expiry; expired or deleted IDs must be replaced in saved productions. If creation times out, check the custom voice library before retrying to avoid creating duplicate voices. See [Google's Voice Design guide](https://ai.google.dev/gemini-api/docs/voice-design).
-
-Use a billing-enabled Google project for private client manuscripts: paid-service inputs/outputs are not used to improve Google's products; unpaid-service data may be. Commercial output use remains subject to [Google's API terms](https://ai.google.dev/gemini-api/terms), content rights, and usage policies. A separate API key within the same Google project does not isolate billing or quotas. See [current pricing](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts).
-
-The integration retries rate limits, stops on ambiguous network failures to avoid automatic duplicate billing, and validates audio before saving. Start with a short scene; live account access and output quality must be verified with your own key.
-
 ## ❤️ Thank You for Supporting Our Work
 
 We are deeply grateful to everyone who uses, shares, contributes to, and supports TTS-Story. Your encouragement helps us continue improving the project and keeping it freely available to the community.
@@ -32,12 +8,17 @@ If you appreciate what we do and would like to support ongoing development:
 
 ---
 
-# Current Updates and Notes - updated 09-13-2026
+## Current Updates and Notes — October 30, 2026
 
-- **IndexTTS 2.5 and emotional direction** - upgraded isolated installation with multilingual voice cloning, GPU/BF16 support, and passage directions translated into IndexTTS emotion controls. Version 2 remains selectable. Existing users can reinstall IndexTTS from Engine Settings to obtain the updated runtime.
-- **Per-chunk IndexTTS emotion strength** - Review Chunks now exposes a 0–1 strength control when IndexTTS is selected. It starts with the saved strength when available and saves successful overrides per chunk without changing global settings. Regenerate the chunk, then recompile the chapter/full story to include the edit.
-- **IndexTTS runtime efficiency and diagnostics** - bounded multi-speaker reference caching, persistent emotion-result caching for repeated directions and retries, inference-only emotion decoding, and separate GPU placement/timing logs. Models stay loaded within a batch; first-run downloads and startup still take additional time.
-- **Strict Book Conversion V3 - Directed** - supports directed narration with both Breeze and IndexTTS, adding a consistent speaker Voice Type alongside passage-specific delivery cues. Breeze synthesis combines the voice identity with each passage direction; IndexTTS translates the passage direction into emotional guidance without prepending the Voice Type. Speaker properties and editable directions are available in Library review. The V2 prompt and a dated backup are preserved.
+- **Estudio interface:** redesigned manuscript, Cast, Library, and settings workflow, contributed by [LaMarCab76](https://github.com/LaMarCab76). See [Credits](#credits).
+- **Ready-aware batches:** profile building, voice generation, and Auto assign skip ready speakers by default while preserving selections and pending auditions. An explicit option includes ready speakers.
+- **[Gemini TTS](docs/help/engines/gemini-tts.md):** optional Flash/Flash-Lite cloud narration, preset and designed voices, inline auditions, and custom-voice management. Single-candidate batches now assign each speaker's generated voice automatically; Auto assign can recover saved custom voices without generating again. Multiple candidates remain available for review.
+- **[Local voice transcription](docs/help/voices/voice-prompts.md):** install the isolated CPU tool from Settings → Engines → Utilities. No core FunASR install or GPU is needed.
+- **Kokoro and Pocket TTS:** device-selection and completed-chunk ordering fixes for more reliable generation and pause/resume.
+- **[IndexTTS 2.5](docs/help/engines/index-tts.md):** updated isolated installation, passage emotion guidance, and per-chunk emotion strength in Library review.
+- **Strict Book Conversion V3 – Directed:** separates stable speaker Voice Type from passage delivery cues for Breeze and IndexTTS.
+
+**Update notes:** restart the backend and refresh the browser after updating. Gemini TTS requires its own API key; voice creation and synthesis may be billable. Google-hosted designs are separate from local reference samples. See the [Gemini TTS guide](docs/help/engines/gemini-tts.md) for setup, audition management, and provider limits.
 
 ### Previous Updates
 
@@ -87,10 +68,10 @@ TTS-Story is a web-based, multi-voice text-to-speech application for creating na
 
 ## Highlights
 
-- Twenty selectable TTS engine options spanning local CPU, local GPU, self-hosted, and cloud generation.
+- TTS engine options spanning local CPU, local GPU, self-hosted, and cloud generation.
 - Multi-speaker narration using tags such as `[narrator]...[/narrator]` and `[alice-female]...[/alice-female]`.
 - Shared reference-voice library for Chatterbox, VoxCPM, Qwen3 Clone, OmniVoice, Pocket TTS Clone, IndexTTS, Dot.TTS, Audio8 TTS, and Breeze TTS 2.
-- Built-in voices, custom Kokoro blends, reference cloning, and Qwen3/Breeze/OmniVoice voice-design workflows.
+- Built-in voices, custom Kokoro blends, reference cloning, and Qwen3/Breeze/OmniVoice/Gemini voice-design workflows.
 - Optional text preparation with Gemini, Atlas Cloud, OpenRouter, LM Studio, or Ollama, including configurable backup profiles.
 - Automatic chapter/section detection, separate chapter exports, and optional combined Full Story output.
 - Job queue with progress, ETA, pause/resume, cancellation, retry handling, and recovery checkpoints.
@@ -149,7 +130,7 @@ setup.bat --repair
 
 ## Supported Engines and Hardware
 
-TTS-Story exposes twenty normal generation choices. Qwen3 VoiceDesign and OmniVoice Design are additional Voice Creation workflows rather than full-job engines.
+TTS-Story offers both local and connected generation engines. Qwen3 VoiceDesign and OmniVoice Design are additional Voice Creation workflows rather than full-job engines.
 
 ### Local engine hardware guide
 
@@ -180,6 +161,7 @@ Cloud engines perform model inference remotely and therefore require **no local 
 | **[Microsoft Azure Speech](docs/help/engines/azure-speech.md)** | **0 GB** | Azure Speech key, matching region, and quota | Supported regional service with usage billing. |
 | **[Microsoft Edge TTS](docs/help/engines/edge-tts.md)** | **0 GB** | Internet connection; no API key | Experimental consumer endpoint with no availability guarantee. |
 | **[ElevenLabs](docs/help/engines/elevenlabs.md)** | **0 GB** | API key, model/voice access, and character quota | Subscription and concurrency limits apply. |
+| **[Gemini TTS · Flash / Flash-Lite](docs/help/engines/gemini-tts.md)** | **0 GB** | Dedicated Gemini TTS API key, model access, and quota | Preset or Google-hosted designed voices, passage direction, and billable cloud requests; local reference samples are not uploaded. |
 | **[Breeze API](docs/help/engines/breeze-api.md)** | **0 GB** | API key, credits, model and local sample or saved voice ID | Production-scoped uploads, cloning and passage direction. Commercial outputs require an active paid subscription at generation time, not just credits. Separate from local Breeze. |
 | **[OpenAI-compatible TTS](docs/help/engines/openai-tts.md)** | **0 GB** | Compatible endpoint, model, voice, and key when required | Cost and capabilities depend on the endpoint. |
 | **[LocalAI TTS](docs/help/engines/localai-tts.md)** | Depends on the LocalAI host | Running LocalAI server with a TTS model; key only if authentication is enabled | Discovers TTS models and saved profiles, while also accepting freeform voice/speaker IDs and language values for models that do not advertise a voice catalog. |
@@ -286,6 +268,10 @@ TTS-Story's application code is licensed under [Apache 2.0](LICENSE). Third-part
 
 TTS-Story integrates the work of the following projects, authors, and providers. Optional engines and remote connections are used only when installed or configured; inclusion here does not imply sponsorship or endorsement.
 
+### Interface contributions
+
+- **Estudio workspace redesign** by [LaMarCab76](https://github.com/LaMarCab76), contributed through [pull request #43](https://github.com/Xerophayze/TTS-Story/pull/43): the redesigned Generate and Cast workspace, speaker drawer, Job Queue, Library, Voices, Settings, Help, and associated interface assets and documentation.
+
 ### Speech models and inference projects
 
 - [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) by hexgrad
@@ -310,7 +296,8 @@ TTS-Story integrates the work of the following projects, authors, and providers.
 - [edge-tts](https://github.com/rany2/edge-tts) by rany2 and contributors — community client used for the experimental Microsoft Edge online TTS connection; not the Azure SDK or an official Microsoft client.
 - [ElevenLabs](https://elevenlabs.io/) and [Replicate](https://replicate.com/) — hosted speech/model inference.
 - [OpenAI](https://openai.com/) — API conventions supported by our OpenAI-compatible TTS and LLM connections. A compatible endpoint may be operated by another provider; compatibility does not imply an OpenAI-hosted model.
-- [Google Gemini](https://ai.google.dev/) by Google, [Atlas Cloud](https://www.atlascloud.ai/), and [OpenRouter](https://openrouter.ai/) — LLM connections for manuscript preparation.
+- [Google Gemini](https://ai.google.dev/) by Google — manuscript preparation plus optional cloud TTS and hosted voice design, using separate LLM and TTS API-key settings.
+- [Atlas Cloud](https://www.atlascloud.ai/) and [OpenRouter](https://openrouter.ai/) — LLM connections for manuscript preparation.
 - [Ollama](https://ollama.com/) and [LM Studio](https://lmstudio.ai/) — local LLM server connections for manuscript preparation.
 
 ### Audio tools, transcription, and supporting libraries

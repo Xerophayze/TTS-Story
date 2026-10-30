@@ -669,7 +669,7 @@ let libraryVoiceFilters = {
     language: 'all'
 };
 
-// Load library on tab switch
+// Load only when visible; large production catalogs are not Generate-page data.
 document.addEventListener('DOMContentLoaded', () => {
     loadLibrary();
     if (typeof setupGlobalPlayerControls === 'function') {
@@ -740,6 +740,7 @@ document.addEventListener('library:refresh', () => {
 
 // Load library items
 async function loadLibrary({ force = false } = {}) {
+    if (!force && !document.getElementById('library-tab')?.classList?.contains('active')) return;
     const refreshBtn = document.getElementById('refresh-library-btn');
     if (refreshBtn) refreshBtn.classList.add('is-loading');
     try {
@@ -4338,6 +4339,8 @@ async function populateLibraryVoiceSelects(engine) {
             <option value="index_tts">IndexTTS</option>
             <option value="dots_tts">Dot.TTS · Voice Clone</option>
             <option value="audio8_tts">Audio8 TTS · Voice Clone</option>
+            <option value="breeze_tts_2">Breeze TTS 2 · Local</option>
+            <option value="breeze_api">Breeze · API</option>
             <option value="azure_speech">Microsoft Azure Speech</option>
             <option value="edge_tts">Microsoft Edge TTS (Experimental)</option>
             <option value="elevenlabs">ElevenLabs</option>
@@ -5069,6 +5072,8 @@ function updateLibraryCompletedChunk(chunkId, chunk) {
         if (voiceLabelEl && newVoiceLabel) {
             voiceLabelEl.textContent = newVoiceLabel;
         }
+        const preview = card.querySelector('.library-chunk-preview');
+        if (preview && typeof chunk.text === 'string') preview.textContent = chunk.text;
     }
     const cachedChunk = (chunkReviewModalData?.chunks || []).find(item => item.id === chunkId);
     if (cachedChunk) {
@@ -5940,6 +5945,8 @@ function _ensureLibraryAwrEntryModal() {
                                     <option value="index_tts">IndexTTS</option>
                                     <option value="dots_tts">Dot.TTS</option>
                                     <option value="audio8_tts">Audio8 TTS</option>
+                                    <option value="breeze_tts_2">Breeze TTS 2 · Local</option>
+                                    <option value="breeze_api">Breeze · API</option>
                                     <option value="azure_speech">Microsoft Azure Speech</option>
                                     <option value="edge_tts">Microsoft Edge TTS</option>
                                     <option value="elevenlabs">ElevenLabs</option>

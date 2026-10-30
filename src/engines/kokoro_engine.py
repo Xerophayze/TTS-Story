@@ -32,7 +32,7 @@ class KokoroEngine(TtsEngineBase):
 
     name = "kokoro"
     capabilities = EngineCapabilities(
-        supports_voice_cloning=True,
+        supports_voice_cloning=False,  # Named voices and blends, not reference-audio cloning.
         supported_languages=None,  # Determined by kokoro pipelines dynamically
     )
 
@@ -130,20 +130,19 @@ class KokoroEngine(TtsEngineBase):
 
                 output_files.append(str(output_path))
                 chunk_index += 1
-                if callable(progress_cb):
-                    try:
-                        progress_cb()
-                    except Exception:
-                        # JobPaused or other cancellation exception - re-raise so caller handles it
-                        raise
                 if callable(chunk_cb):
                     chunk_meta = {
                         "speaker": speaker,
                         "text": chunk_text,
                         "segment_index": seg_idx,
                         "chunk_index": chunk_idx,
+                        "order_index": chunk_index - 1,
                     }
                     chunk_cb(chunk_index - 1, chunk_meta, str(output_path))
+                # Register the completed clip before a pause/cancel check can
+                # raise from progress_cb and stop the worker.
+                if callable(progress_cb):
+                    progress_cb()
 
         return output_files
 
@@ -186,6 +185,7 @@ class KokoroEngine(TtsEngineBase):
         fx_settings: Optional[VoiceFXSettings] = None,
         max_samples: Optional[int] = None,
     ) -> np.ndarray:
+        sample_rate = sample_rate or DEFAULT_SAMPLE_RATE
         pipeline = self._get_pipeline(lang_code)
         voice_input = self._resolve_voice_input(pipeline, voice, lang_code)
 
@@ -222,7 +222,7 @@ class KokoroEngine(TtsEngineBase):
     def _get_pipeline(self, lang_code: str) -> KPipeline:
         if lang_code not in self.pipelines:
             logging.info("Creating Kokoro pipeline for %s", lang_code)
-            self.pipelines[lang_code] = KPipeline(lang_code=lang_code)
+            self.pipelines[lang_code] = KPipeline(lang_code=lang_code, device=self.device)
         return self.pipelines[lang_code]
 
     # ------------------------------------------------------------------

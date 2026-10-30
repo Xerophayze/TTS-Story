@@ -39,6 +39,34 @@ def _get_queue():
     return {job["job_id"]: job for job in payload["jobs"]}
 
 
+@pytest.mark.parametrize("status,post_total,post_done,should_queue", [
+    ("paused", 0, 0, True),
+    ("paused", 2, 1, True),
+    ("paused", 2, 2, False),
+    ("completed", 0, 0, False),
+])
+def test_resume_after_final_chunk_preserves_pending_exports_and_never_persists_under_lock(
+        queue_state, monkeypatch, status, post_total, post_done, should_queue):
+    state, pending = queue_state
+    state["last-chunk"] = _job(status=status, total_chunks=1, processed_chunks=1,
+                              post_process_total=post_total, post_process_done=post_done)
+    monkeypatch.setattr(app_module, "start_worker_thread", lambda: None)
+    monkeypatch.setattr(app_module, "pause_flags", {"last-chunk": True})
+    monkeypatch.setattr(app_module, "_build_job_data_from_entry", lambda job_id, entry: {"job_id": job_id})
+    persisted = []
+    def persist(job_id, **kwargs):
+        assert not app_module.queue_lock.locked(), "persistence must be outside queue_lock"
+        persisted.append(job_id)
+    monkeypatch.setattr(app_module, "_persist_job_state", persist)
+    response = app_module.app.test_client().post('/api/jobs/last-chunk/resume')
+    assert response.status_code == 200
+    assert pending.qsize() == int(should_queue)
+    assert state["last-chunk"]["status"] == ("queued" if should_queue else "completed")
+    assert persisted == ["last-chunk"]
+    if should_queue:
+        assert state["last-chunk"]["resume_from_chunk_index"] == 1
+
+
 def test_title_prefers_submitted_collection_title_and_keeps_text_title(queue_state):
     state, _ = queue_state
     state["a"] = _job(

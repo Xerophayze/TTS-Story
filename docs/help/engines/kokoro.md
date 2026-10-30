@@ -18,7 +18,7 @@ Kokoro does **not** clone a person from reference audio in TTS-Story. A custom b
 
 *Use the Kokoro sub-tab of Voices to audition a voice before assigning it to a long project.*
 
-The normal TTS-Story setup installs the Kokoro package and required speech components. The model and voice files may download on first use. An NVIDIA GPU speeds generation, but the adapter automatically falls back to CPU and Kokoro is one of the more practical local CPU engines.
+Install Kokoro from **Settings → Engines → Kokoro**. It uses an isolated environment; installing the core application alone does not install this optional engine. The model and voice files may download on first use. With device selection set to **Auto**, the adapter chooses CUDA when available and CPU otherwise. An explicit CPU choice is honored even on a CUDA machine; an explicit unavailable CUDA device can fail rather than silently switch. Kokoro is one of the more practical local CPU engines.
 
 Open [Settings → Engines](app:settings/kokoro), select **Kokoro**, and leave the 500-character chunk target in place for the first test. On Generate, assign a compatible built-in or custom voice to every speaker in its Edit speaker drawer; the voice code prefix sets the language (for example `bf_` = British English female).
 

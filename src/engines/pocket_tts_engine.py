@@ -152,8 +152,9 @@ class PocketTTSEngine(TtsEngineBase):
         # Stamp each segment with its narrative order_index before any grouping
         # so filenames always reflect playback order regardless of processing order.
         _order = 0
-        for seg in segments:
+        for original_segment_index, seg in enumerate(segments):
             seg["_chunk_order_start"] = _order
+            seg["_original_segment_index"] = original_segment_index
             _order += len(seg.get("chunks") or [])
         total_chunks_count = _order
 
@@ -205,7 +206,7 @@ class PocketTTSEngine(TtsEngineBase):
                 output_path = output_dir / f"chunk_{order_index:04d}.wav"
                 tasks.append({
                     "chunk_index": order_index,
-                    "segment_index": seg_idx,
+                    "segment_index": segment["_original_segment_index"],
                     "speaker": speaker,
                     "chunk_text": chunk_text,
                     "output_path": output_path,
@@ -270,20 +271,19 @@ class PocketTTSEngine(TtsEngineBase):
         )
         sf.write(str(output_path), audio, self.sample_rate)
         output_path_str = str(output_path)
-        if callable(progress_cb):
-            try:
-                progress_cb()
-            except Exception:
-                # JobPaused or other cancellation exception - re-raise so caller handles it
-                raise
         if callable(chunk_cb):
             chunk_meta = {
                 "speaker": task["speaker"],
                 "text": task["chunk_text"],
                 "segment_index": task["segment_index"],
                 "chunk_index": task["speaker_chunk_index"],
+                "order_index": task["chunk_index"],
             }
-            chunk_cb(task["speaker_chunk_index"], chunk_meta, output_path_str)
+            chunk_cb(task["chunk_index"], chunk_meta, output_path_str)
+        # Keep the finished file and its metadata together even when a pause
+        # or cancellation is raised from the progress callback.
+        if callable(progress_cb):
+            progress_cb()
         return task["chunk_index"], output_path_str
 
     def cleanup(self) -> None:  # pragma: no cover
@@ -363,7 +363,8 @@ class PocketTTSEngine(TtsEngineBase):
                 raise ValueError(
                     f"Pocket TTS voice cloning requires HuggingFace authentication. "
                     f"Please: 1) Accept terms at https://huggingface.co/kyutai/pocket-tts "
-                    f"2) Run 'huggingface-cli login' or set HF_TOKEN environment variable. "
+                    f"2) Save a Hugging Face read token in Settings → Engines → Pocket TTS "
+                    f"and use Verify voice-cloning access. "
                     f"Alternatively, use a built-in voice: {list(self._builtin_voices())}. "
                     f"Original error: {e}"
                 ) from e

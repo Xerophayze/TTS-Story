@@ -341,7 +341,7 @@ def test_reference_sample_engines_never_expose_the_kokoro_voice_catalog():
     assert "turboControl.hidden = !showReferenceControl;" in javascript
     assert "select.innerHTML = '<option value=\"\">Voice samples are listed below</option>';" in javascript
     assert ".assignment-selection-group [data-role][hidden]" in stylesheet
-    assert "/static/css/style.css?v=47" in template
+    assert int(re.search(r'/static/css/style\.css\?v=(\d+)', template).group(1)) >= 48
     assert int(re.search(r'/static/js/main\.js\?v=(\d+)', template).group(1)) >= 68
 
 
@@ -360,7 +360,8 @@ def test_voice_candidate_count_defaults_to_one_and_is_configurable():
     javascript = (PROJECT_ROOT / "static" / "js" / "main.js").read_text(encoding="utf-8")
 
     assert 'data-role="speaker-voice-candidate-count"' in javascript
-    assert 'min="1" max="10" step="1"' in javascript
+    assert 'min="1" max="${maxCandidates}" step="1"' in javascript
+    assert "const maxCandidates = voiceDesignEngine === 'gemini' ? 4 : 10;" in javascript
     assert "profile?.voice_candidate_count, 10) || 1" in javascript
     assert "candidates.length === 1" in javascript
 
@@ -371,8 +372,9 @@ def test_bulk_generation_exposes_and_applies_candidate_count():
 
     assert 'id="speaker-batch-candidate-count"' in template
     assert "Candidates per speaker" in template
-    assert "voice_candidate_count: batchCandidateCount" in javascript
-    assert "voice_design_engine: batchDesignEngine" in javascript
+    assert "candidateCount:bulkVoiceGenerationState.candidate_count" in javascript.replace(" ", "")
+    assert "voice_candidate_count: options.candidateCount" in javascript
+    assert "voice_design_engine: normalizeVoiceDesignEngine(designEngine)" in javascript
 
 
 def test_project_schema_persists_casting_and_engine_state():

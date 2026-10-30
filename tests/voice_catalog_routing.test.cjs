@@ -24,7 +24,9 @@ test('Breeze keeps the shared sample selector after queue.js loads and engine sw
             const value = selector.match(/value="([^"]+)"/)?.[1];
             return this.options.find(option => option.value === value) || null;
         },
-        closest: () => row,
+        // This fixture represents the opened speaker drawer, not the hidden
+        // holding list whose selects intentionally contain only one option.
+        closest: selector => selector === '#inline-voice-assignment-list' ? null : row,
     };
     const play = { disabled: true };
     const row = {
@@ -59,7 +61,7 @@ test('Breeze keeps the shared sample selector after queue.js loads and engine sw
     context.availableVoices = {};
     // Execute the real scripts together, in the order used by index.html.
     // Previously queue.js overwrote main.js's isTurboEngine function here.
-    for (const name of ['main.js', 'queue.js']) {
+    for (const name of ['localai-models.js', 'main.js', 'queue.js']) {
         vm.runInContext(fs.readFileSync(path.join(root, 'static/js', name), 'utf8'), context, { filename: name });
     }
     vm.runInContext(`availableChatterboxVoices = [

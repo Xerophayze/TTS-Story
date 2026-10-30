@@ -10,6 +10,62 @@ from src.engines.omnivoice_clone_engine import _check_omnivoice_available
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_transcription_utility_is_installable_but_not_a_tts_engine(monkeypatch):
+    monkeypatch.setattr(app_module, "transcription_available", lambda: False)
+    entry = next(e for e in app_module._engine_setup_catalog(dict(app_module.DEFAULT_CONFIG)) if e["id"] == "voice_transcription")
+    assert entry["kind"] == "utility"
+    assert entry["install_target"] == "voice_transcription"
+    assert entry["action"] == "install"
+    monkeypatch.setattr(app_module, "transcription_available", lambda: True)
+    entry = next(e for e in app_module._engine_setup_catalog(dict(app_module.DEFAULT_CONFIG)) if e["id"] == "voice_transcription")
+    assert entry["ready"]
+    assert entry["uninstall_target"] == "voice_transcription"
+    assert "voice_transcription" not in app_module.AVAILABLE_ENGINES
+
+
+def test_transcription_install_is_cpu_only_and_downloads_before_readiness(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine_manager, "ROOT", tmp_path)
+    directory = tmp_path / "engines" / "voice_transcription"
+    directory.mkdir(parents=True)
+    (directory / ".ready").touch()
+    monkeypatch.setattr(engine_manager, "ensure_venv", lambda path: path / "python")
+    commands = []
+    def run(command, **kwargs):
+        assert not (directory / ".ready").exists()
+        commands.append(command)
+    monkeypatch.setattr(engine_manager, "run", run)
+    engine_manager.install_isolated_engine("voice_transcription")
+    assert any("torch==2.6.0" in c for c in commands)
+    assert not any("cu128" in str(c) or "cu124" in str(c) for c in commands)
+    assert commands[-2][-1] == "--check-env"
+    assert commands[-1][-1] == "--download-model"
+    assert (directory / ".ready").is_file()
+
+
+def test_missing_transcription_returns_install_guidance(tmp_path, monkeypatch):
+    from src import voice_transcription
+    audio = tmp_path / "sample.wav"
+    audio.touch()
+    monkeypatch.setattr(app_module, "VOICE_PROMPT_DIR", tmp_path)
+    monkeypatch.setattr(app_module, "_load_chatterbox_voice_entries", lambda: [{"id": "sample", "file_name": "sample.wav"}])
+    monkeypatch.setattr(voice_transcription, "transcription_available", lambda: False)
+    monkeypatch.setattr(app_module, "voice_transcript_generator", voice_transcription.VoiceTranscriptGenerator())
+    response = app_module.app.test_client().post("/api/chatterbox-voices/sample/transcribe")
+    assert response.status_code == 503
+    assert response.json["code"] == "transcription_not_installed"
+    assert "Install tool" in response.json["error"]
+
+
+def test_transcription_repair_and_removal_wait_for_active_request(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(app_module, "_engine_management_request_allowed", lambda: True)
+    monkeypatch.setattr(app_module, "voice_transcript_generator", SimpleNamespace(is_running=True))
+    for operation in ("install", "uninstall"):
+        response = app_module.app.test_client().post(f"/api/engines/{operation}", json={"engine": "voice_transcription"})
+        assert response.status_code == 409
+        assert "being transcribed" in response.json["error"]
+
+
 def test_core_requirements_exclude_optional_tts_runtimes():
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
     for optional_package in (
@@ -19,6 +75,17 @@ def test_core_requirements_exclude_optional_tts_runtimes():
         assert optional_package not in requirements
     assert (ROOT / "requirements-engines" / "qwen3.txt").is_file()
     assert (ROOT / "scripts" / "install_engine.py").is_file()
+
+
+def test_cpu_only_torch_install_does_not_choose_cuda_on_nvidia_machine(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(engine_manager, "torch_works", lambda _: False)
+    monkeypatch.setattr(engine_manager, "has_nvidia", lambda: True)
+    monkeypatch.setattr(engine_manager.sys, "platform", "win32")
+    monkeypatch.setattr(engine_manager, "run", lambda cmd, **kwargs: calls.append(cmd))
+    engine_manager.install_torch(tmp_path / "python", cpu_only=True)
+    assert calls[0][-1] == "https://download.pytorch.org/whl/cpu"
+    assert not any("cuda" in arg or "cu124" in arg or "cu128" in arg for arg in calls[0])
 
 
 def test_chatterbox_uses_an_isolated_runtime():

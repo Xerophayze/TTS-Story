@@ -104,6 +104,9 @@ class IsolatedEngineProxy(TtsEngineBase):
         if not isolated_engine_available(engine_name):
             raise ImportError(f"{engine_name} isolated environment is not installed")
         self.name = engine_name
+        super().__init__(device=constructor.get("device", "auto"))
+        if engine_name == "kokoro":
+            self.capabilities = EngineCapabilities(supports_voice_cloning=False)
         self.constructor = constructor
         self.environment = {
             str(key): str(value)
@@ -153,6 +156,7 @@ class IsolatedEngineProxy(TtsEngineBase):
                 elif event.get("event") == "complete":
                     complete = event
                 elif event.get("event") == "engine_ready":
+                    self.device = event.get("device") or self.device
                     logger.info(
                         "[%s worker] engine ready device=%s dtype=%s",
                         self.name, event.get("device", "unknown"), event.get("dtype", "unknown"),
@@ -161,12 +165,14 @@ class IsolatedEngineProxy(TtsEngineBase):
             if code != 0:
                 raise RuntimeError("Isolated engine failed:\n" + "\n".join(output[-40:]))
             return complete
-        except BaseException:
-            if process and process.poll() is None:
-                process.terminate()
-            raise
         finally:
-            job_file.unlink(missing_ok=True)
+            try:
+                # A Windows venv executable can be a launcher with its own
+                # Python child. Pause/cancel must stop the owned tree and wait
+                # for it, not orphan a model-holding interpreter.
+                stop_owned_worker(process, graceful=False)
+            finally:
+                job_file.unlink(missing_ok=True)
 
     def generate_batch(self, segments: List[Dict], voice_config: Dict[str, Dict], output_dir: Path,
                        speed: float = 1.0, sample_rate: Optional[int] = None, progress_cb=None,

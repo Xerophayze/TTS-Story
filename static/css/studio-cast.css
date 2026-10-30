@@ -352,6 +352,23 @@
 /* --------------------------------------------------------------------------
    Footnotes, duplicate warning, actions
    -------------------------------------------------------------------------- */
+#cast-section .cast-review-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 20px;
+    color: var(--st-text-muted);
+    font-size: 12px;
+}
+
+#cast-section .cast-footnote.cast-workflow-hint {
+    display: block;
+    padding-bottom: 10px;
+}
+
+#cast-section .cast-workflow-hint a { color: var(--st-accent); }
+
 #cast-section .cast-footnote {
     display: flex;
     align-items: flex-start;
@@ -422,7 +439,7 @@
 
 #cast-section .speakers-actions {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 8px;
     margin: 0;
     padding: 12px 20px 18px;
@@ -436,8 +453,8 @@
 
 #cast-section #auto-assign-voices-btn,
 #cast-section #build-speaker-profiles-btn {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 1 1 110px;
+    min-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -448,21 +465,20 @@
     color: var(--st-accent);
 }
 
-/* The more_horiz button: markup pinned by tests (`class="btn btn-secondary btn-sm" disabled`). */
+/* Keep batch voice generation visible as a labeled action. */
 #cast-section #generate-voices-btn {
-    flex: none;
-    width: 30px;
-    padding: 0;
-    gap: 0;
+    flex: 1 1 130px;
+    padding: 0 10px;
+    gap: 6px;
     overflow: hidden;
     background: transparent;
     border-color: var(--st-border-control);
     color: var(--st-text-btn);
-    font-size: 0;
+    font-size: 12.5px;
 }
 
 #cast-section #generate-voices-btn::before {
-    content: 'more_horiz';
+    content: 'record_voice_over';
     font-size: 17px;
     /* The design draws this icon at the font's default weight (400). */
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;

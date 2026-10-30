@@ -30,7 +30,7 @@ function environment() {
     });
     context.window = context;
     context.addEventListener = () => {};
-    for (const script of ['main.js', 'breeze-api.js', 'queue.js']) {
+    for (const script of ['localai-models.js', 'main.js', 'breeze-api.js', 'queue.js']) {
         vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/js', script), 'utf8'), context);
     }
     return {context, rows, elements};

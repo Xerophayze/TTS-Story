@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TTS-Story - Multi-Voice TTS</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231b1916'/%3E%3Cpath d='M18 22h6v20h-6zM28 22h6v20h-6zM38 22h6v20h-6z' fill='%23e2a04f'/%3E%3Ccircle cx='32' cy='16' r='4' fill='%23ece6dc'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23ece6dc'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="/static/css/style.css?v=47">
+    <link rel="stylesheet" href="/static/css/style.css?v=48">
     <link rel="stylesheet" href="/static/css/help.css?v=4">
     <link rel="stylesheet" href="/static/css/studio.css?v=1">
     <link rel="stylesheet" href="/static/css/studio-generate.css?v=1">
-    <link rel="stylesheet" href="/static/css/studio-cast.css?v=1">
+    <link rel="stylesheet" href="/static/css/studio-cast.css?v=2">
     <link rel="stylesheet" href="/static/css/studio-queue.css?v=1">
     <link rel="stylesheet" href="/static/css/studio-library.css?v=1">
     <link rel="stylesheet" href="/static/css/studio-voices.css?v=1">
@@ -214,7 +214,12 @@
                                 <button type="button" class="seg-item" data-cast-view="details" aria-pressed="false">Details</button>
                             </div>
                         </div>
+                        <p class="cast-footnote cast-workflow-hint"><a href="#job-tts-engine" id="cast-choose-engine">Choose the engine</a> first, then click a speaker below to assign and preview a voice.</p>
                         <div id="stats-section" class="cast-body" style="display: none;">
+                            <div class="cast-review-summary">
+                                <span id="cast-assignment-summary" role="status" aria-live="polite"></span>
+                                <button type="button" id="cast-review-next" class="btn btn-ghost btn-sm">Review next</button>
+                            </div>
                             <div class="speakers-header-row">
                                 <div id="speakers-list" class="cast-list" data-cast-view="list"></div>
                                 <div id="speakers-duplicates" class="speakers-duplicates" style="display: none;"></div>
@@ -223,6 +228,7 @@
                                     <button type="button" id="build-speaker-profiles-btn" class="btn btn-ghost btn-sm" disabled title="Describe every character and suggest a voice type">Build profiles</button>
                                     <button type="button" id="generate-voices-btn" class="btn btn-secondary btn-sm" disabled title="Checking voice-design engine availability…" aria-label="Generate voices">Generate voices</button>
                                 </div>
+                                <label class="cast-footnote"><input type="checkbox" id="batch-include-ready"> Include ready speakers in batch actions</label>
                                 <p id="generate-voices-unavailable" class="cast-footnote hidden">Generate voices needs Qwen3-TTS, Breeze TTS 2 or Gemini TTS. Set one up in Settings → Engines.</p>
                             </div>
                             <div id="inline-voice-assignments" style="display: none;">
@@ -866,6 +872,12 @@
                                     <button type="button" class="engine-tab-btn" data-engine-tab="gemini-tts">Gemini TTS</button>
                                 </div>
                             </section>
+                            <section class="engine-tab-group" aria-labelledby="utility-tabs-label">
+                                <h4 class="engine-tab-group-heading" id="utility-tabs-label">Utilities</h4>
+                                <div class="engine-tab-group-buttons">
+                                    <button type="button" class="engine-tab-btn" data-engine-tab="transcription">Voice transcription</button>
+                                </div>
+                            </section>
                             <div class="engine-legend">
                                 <span class="engine-legend-item"><span class="dot dot-green" aria-hidden="true"></span><span>Ready · <span id="engine-ready-count">0</span></span></span>
                                 <span class="engine-legend-item"><span class="dot dot-amber" aria-hidden="true"></span>Needs setup</span>
@@ -875,6 +887,23 @@
                         </div>
 
                         <div class="engine-detail">
+                        <div class="engine-panel" id="engine-panel-transcription">
+                            <div class="engine-panel-head" data-engine-setup-anchor>
+                                <span class="engine-group-label">Local utility · not a TTS engine</span>
+                                <div class="section-title-inline settings-panel-title">
+                                    <h4>Voice transcription</h4>
+                                    <span class="engine-status-pill" data-engine-status-pill>Checking…</span>
+                                    <button type="button" class="help-icon" data-help-id="voice-prompts" aria-label="Help: Reference voice transcripts">?</button>
+                                </div>
+                                <p class="engine-desc">Adds exact-reference transcripts to saved voice samples using SenseVoiceSmall. Install this tool separately; reinstalling Qwen, VoxCPM, or the core app does not install it.</p>
+                                <p class="engine-hw"><span class="ms" aria-hidden="true">memory</span>CPU only · no GPU memory · isolated dependencies</p>
+                            </div>
+                            <div class="engine-card">
+                                <h5 class="engine-card-title">How it works</h5>
+                                <p>Installation downloads the CPU runtime and pinned model files. Then open Voices → Voice prompts, select a sample's More actions → Generate transcript, or transcribe selected samples in bulk. Review the result for names and unusual words.</p>
+                                <p>Each request runs locally in a short-lived worker that exits and releases its model when finished. Removing this tool keeps your voices, saved transcripts, projects, and generated audio. No cloud API key or backend restart is required.</p>
+                            </div>
+                        </div>
                         <div class="engine-panel" id="engine-panel-audio8-tts">
                             <div class="engine-panel-head">
                                 <span class="engine-group-label">Local engine</span>
@@ -2750,7 +2779,9 @@
                 <button type="button" class="modal-close" id="speaker-batch-modal-close" aria-label="Close" title="Close"><span class="ms" aria-hidden="true">close</span></button>
             </div>
             <div class="modal-body">
-                <p class="help-text cast-modal-intro">Designs a voice for every speaker in the cast from its character profile. Choose Qwen3-TTS, Breeze TTS 2, or Gemini cloud voice design. Local models stay loaded during the batch when possible. Gemini requires the dedicated TTS API key and creates billable hosted voices; no local samples are uploaded.</p>
+                <p class="help-text cast-modal-intro">Design voices for speakers that still need preparation. Ready speakers are skipped by default and pending auditions are kept. Gemini requires the dedicated TTS API key and creates billable hosted voices.</p>
+                <label class="help-text"><input type="checkbox" id="speaker-batch-include-ready"> Include ready speakers</label>
+                <p class="help-text" id="speaker-batch-scope" role="status"></p>
                 <div class="form-group">
                     <label for="speaker-batch-design-engine">Voice design engine</label>
                     <select id="speaker-batch-design-engine">
@@ -2774,7 +2805,7 @@
                 <div class="form-group">
                     <label for="speaker-batch-candidate-count">Candidates per speaker</label>
                     <input type="number" id="speaker-batch-candidate-count" min="1" max="10" step="1" value="1">
-                    <p class="help-text">Local engines assign a single candidate automatically. Multiple candidates—and all Gemini candidates—are selected by opening the speaker in the Cast list.</p>
+                    <p class="help-text">A single candidate is assigned automatically when compatible with the narration engine, including Gemini. With multiple candidates, open the speaker in the Cast list to choose one.</p>
                 </div>
                 <div class="batch-progress" id="speaker-batch-progress" style="display: none;">
                     <div class="batch-progress-track">
@@ -2821,6 +2852,7 @@
                     <span class="ms" aria-hidden="true">info</span>
                     <span>No speakers detected yet. Tag dialogue like [narrator]…[/narrator] in the manuscript first.</span>
                 </div>
+                <p id="auto-assign-ready-summary" class="help-text" role="status"></p>
                 <table id="auto-assign-table" class="auto-assign-table st-table hidden">
                     <thead>
                         <tr>
@@ -3206,15 +3238,15 @@
 
     <script src="/static/js/help.js?v=4"></script>
     <script src="/static/js/localai-models.js?v=1"></script>
-    <script src="/static/js/main.js?v=95"></script>
+    <script src="/static/js/main.js?v=99"></script>
     <script src="/static/js/breeze-api.js?v=5"></script>
     <script src="/static/js/gemini-tts.js?v=13"></script>
     <script src="/static/js/queue.js?v=9"></script>
-<script src="/static/js/library.js?v=63"></script>
+<script src="/static/js/library.js?v=64"></script>
     <script src="/static/js/voice-manager.js?v=19"></script>
-<script src="/static/js/settings.js?v=37"></script>
+<script src="/static/js/settings.js?v=38"></script>
     <script src="/static/js/studio.js?v=1"></script>
     <script src="/static/js/manuscript-view.js?v=1"></script>
-    <script src="/static/js/cast-view.js?v=1"></script>
+    <script src="/static/js/cast-view.js?v=2"></script>
 </body>
 </html>

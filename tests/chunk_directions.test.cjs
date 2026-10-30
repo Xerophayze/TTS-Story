@@ -6,6 +6,7 @@ const {test} = require('node:test');
 
 function context() {
     const ctx = vm.createContext({console, document: {addEventListener() {}}, window: {}});
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/js/localai-models.js'), 'utf8'), ctx);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/js/library.js'), 'utf8'), ctx);
     return ctx;
 }

@@ -583,12 +583,20 @@ async function generateAndSaveVoiceCandidates(speaker, displayName, statusEl, en
     return candidates;
 }
 
-async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl, designEngine) {
+async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl, designEngine, options = {}) {
     if (!speaker) return { success: false, error: 'Missing speaker name' };
+    if (shouldSkipReadySpeaker(speaker, options.includeReady)) return {success: true, skipped: true};
+    if (normalizeVoiceDesignEngine(designEngine) !== 'gemini'
+        && (speakerVoiceDesignCandidates[normalizeSpeakerKey(speaker)] || []).length) {
+        return {success: true, reused: true};
+    }
+    if (options.candidateCount) updateSpeakerProfileEntry(speaker, {
+        voice_candidate_count: options.candidateCount, voice_design_engine: normalizeVoiceDesignEngine(designEngine)
+    });
     if (normalizeVoiceDesignEngine(designEngine) === 'gemini') {
         try {
             const result = await generateGeminiSpeakerBatch(speaker, displayName, statusEl);
-            return {success: true, error: '', reused: !!result?.reused};
+            return {success: true, error: '', reused: !!result?.reused, assigned: !!result?.assigned};
         } catch (error) {
             return {success: false, error: error.message || 'Gemini voice generation failed'};
         }
@@ -618,7 +626,7 @@ async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl, d
                 selected_voice_path: promptValue
             });
         }
-        return { success: true, error: '' };
+        return { success: true, error: '', assigned: candidates.length === 1 };
     } catch (error) {
         console.error('Batch voice generation failed', error);
         if (error?.code === 'VOICE_DESIGN_BACKEND_RESTART_REQUIRED') throw error;
@@ -631,26 +639,30 @@ async function generateSpeakerVoicePromptBatch(speaker, displayName, statusEl, d
 
 async function generateGeminiSpeakerBatch(speaker, displayName, statusEl) {
     const {profile} = findSpeakerProfile(speaker);
-    const scope = JSON.stringify([activeProjectId || geminiAuditionDraftKey(document.getElementById('input-text')?.value || 'unsaved'), normalizeSpeakerKey(speaker)]);
+    const scope = geminiBatchSpeakerScope(speaker);
     const existing = restoreGeminiAudition(profile?.gemini_voice_audition, scope);
     // Pending auditions survive resume without rebilling. A selected audition
     // is finished, however: an explicit new batch must create new choices while
     // leaving the speaker's current voice assignment untouched.
     if (existing.candidates.length && !existing.selected_id) {
         updateSpeakerProfileEntry(speaker, {voice_design_engine: 'gemini', gemini_voice_audition: existing});
+        existing.requested_count ??= Number.parseInt(profile?.voice_candidate_count, 10) || 1;
+        const assigned = await assignSingleGeminiBatchCandidate(speaker, existing, scope);
         if (statusEl) statusEl.textContent = `Keeping existing Gemini candidates for ${speaker}; no new requests made.`;
-        return {reused: true};
+        return {reused: true, assigned};
     }
     const description = profile?.voice_design_prompt?.trim() || profile?.voice?.trim();
     if (!description) throw new Error(`Add a Voice Type or Voice Design Prompt for ${speaker} first.`);
     const count = Math.max(1, Math.min(4, Number.parseInt(profile?.voice_candidate_count, 10) || 1));
     const state = {group_id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
-        engine: bulkVoiceGenerationState?.gemini_model || 'gemini_tts', candidates: [], selected_id: ''};
+        engine: bulkVoiceGenerationState?.gemini_model || 'gemini_tts', requested_count: count, candidates: [], selected_id: ''};
     const completed = [];
     const persistAudition = () => {
         state.updated_at = Date.now();
         const copy = JSON.parse(JSON.stringify(state));
-        updateSpeakerProfileEntry(speaker, {voice_design_engine: 'gemini', gemini_voice_audition: copy});
+        if (geminiBatchSpeakerScope(speaker) === scope) {
+            updateSpeakerProfileEntry(speaker, {voice_design_engine: 'gemini', gemini_voice_audition: copy});
+        }
         try { localStorage.setItem(geminiAuditionDraftKey(scope), JSON.stringify({scope, state: copy})); } catch { /* Project checkpoint also retains candidates. */ }
     };
     const outcomes = await createGeminiCandidates(count, {name: displayName || speaker, description, engine: state.engine}, (candidate, index) => {
@@ -668,6 +680,74 @@ async function generateGeminiSpeakerBatch(speaker, displayName, statusEl) {
         persistAudition();
         throw new Error(state.last_error);
     }
+    return {assigned: await assignSingleGeminiBatchCandidate(speaker, state, scope)};
+}
+
+function geminiBatchSpeakerScope(speaker) {
+    return JSON.stringify([activeProjectId || geminiAuditionDraftKey(document.getElementById('input-text')?.value || 'unsaved'), normalizeSpeakerKey(speaker)]);
+}
+
+function persistGeminiSpeakerAudition(speaker, state, scope = geminiBatchSpeakerScope(speaker)) {
+    const copy = {...state, updated_at: Date.now()};
+    updateSpeakerProfileEntry(speaker, {voice_design_engine: 'gemini', gemini_voice_audition: copy});
+    try { localStorage.setItem(geminiAuditionDraftKey(scope), JSON.stringify({scope, state: copy})); } catch { /* Project save also retains the selection. */ }
+}
+
+async function assignSingleGeminiBatchCandidate(speaker, state, scope) {
+    if (state.requested_count !== 1 || state.candidates.length !== 1 || state.last_error
+        || state.selected_id || geminiBatchSpeakerScope(speaker) !== scope
+        || shouldSkipReadySpeaker(speaker, bulkVoiceGenerationState?.include_ready)
+        || !window.isGeminiTtsEngine?.(getSelectedJobEngine())) return false;
+    const candidate = state.candidates[0];
+    if (await assignGeminiSpeakerVoice(speaker, candidate.id, candidate.name, state.engine) === false) return false;
+    state.selected_id = candidate.id;
+    persistGeminiSpeakerAudition(speaker, state, scope);
+    return true;
+}
+
+function getAutoAssignVoiceChoices() {
+    const engine = typeof getSelectedJobEngine === 'function' ? getSelectedJobEngine() : '';
+    if (!window.isGeminiTtsEngine?.(engine)) return availableChatterboxVoices || [];
+    // Hosted Google IDs and local reference paths are not interchangeable.
+    // Never propose preset voices as substitutes for newly designed actors.
+    const voices = new Map();
+    for (const voice of window.geminiTtsVoices || []) {
+        if (voice.designed && /^voice_[A-Za-z0-9_-]+$/.test(voice.short_name || '')) {
+            voices.set(voice.short_name, {name: voice.display_name || voice.short_name, prompt_path: voice.short_name});
+        }
+    }
+    for (const profile of Object.values(typeof speakerProfiles !== 'undefined' ? speakerProfiles : {})) {
+        for (const candidate of restoreGeminiAudition(profile?.gemini_voice_audition).candidates) {
+            if (!voices.has(candidate.id)) voices.set(candidate.id, {name: candidate.name, prompt_path: candidate.id});
+        }
+    }
+    return [...voices.values()];
+}
+
+function getGeminiAutoAssignProposal(speaker, voices) {
+    if (!window.isGeminiTtsEngine?.(typeof getSelectedJobEngine === 'function' ? getSelectedJobEngine() : '')) return null;
+    const {profile} = findSpeakerProfile(speaker);
+    const state = restoreGeminiAudition(profile?.gemini_voice_audition, geminiBatchSpeakerScope(speaker));
+    const pending = state.candidates.length && !state.selected_id;
+    if (pending && (state.candidates.length > 1 || state.last_error || Number(state.requested_count || profile?.voice_candidate_count || 1) > 1)) {
+        return {speaker, score: 0, bestVoice: null, bestPromptValue: '', needsReview: true};
+    }
+    const id = state.selected_id || (pending ? state.candidates[0].id : '');
+    if (!id) return null;
+    const bestVoice = voices.find(voice => voice.prompt_path === id);
+    return {speaker, score: bestVoice ? 1 : 0, bestVoice, bestPromptValue: bestVoice ? id : ''};
+}
+
+function shouldSkipReadySpeaker(speaker, includeReady = false) {
+    return includeReady !== true && typeof speakerReadyState !== 'undefined' && speakerReadyState[speaker] === true;
+}
+
+function getPreparationSpeakers(speakers, includeReady = false) {
+    return (speakers || []).filter(speaker => !shouldSkipReadySpeaker(speaker, includeReady));
+}
+
+function includeReadyInBatchActions() {
+    return document.getElementById('batch-include-ready')?.checked === true;
 }
 
 function bulkVoiceSpeakerSignature(speakers) {
@@ -726,14 +806,19 @@ async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, compl
         : [];
     let successCount = resume ? Math.max(0, Number(bulkVoiceGenerationState.success_count || 0)) : 0;
     let reusedCount = resume ? Math.max(0, Number(bulkVoiceGenerationState.reused_count || 0)) : 0;
+    let skippedCount = resume ? Math.max(0, Number(bulkVoiceGenerationState.skipped_count || 0)) : 0;
+    let assignedCount = resume ? Math.max(0, Number(bulkVoiceGenerationState.assigned_count || 0)) : 0;
     bulkVoiceGenerationState = {
-        version: 1,
+        version: 2,
         status: 'running',
         speaker_signature: bulkVoiceSpeakerSignature(speakers),
         total_speakers: speakers.length,
         next_index: startIndex,
         success_count: successCount,
         reused_count: reusedCount,
+        skipped_count: skippedCount,
+        assigned_count: assignedCount,
+        include_ready: resume ? bulkVoiceGenerationState.include_ready === true : options.includeReady === true,
         failures,
         prefix,
         candidate_count: Math.max(1, Math.min(Number.parseInt(document.getElementById('speaker-batch-candidate-count')?.value, 10) || 1, 10)),
@@ -762,21 +847,32 @@ async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, compl
         if (fill) {
             fill.style.width = `${Math.round((index / speakers.length) * 100)}%`;
         }
-        const result = await generateSpeakerVoicePromptBatch(speaker, displayName, statusEl, bulkVoiceGenerationState.design_engine);
-        if (result.success) {
+        const result = shouldSkipReadySpeaker(speaker, bulkVoiceGenerationState.include_ready)
+            ? {success: true, skipped: true}
+            : await generateSpeakerVoicePromptBatch(speaker, displayName, statusEl, bulkVoiceGenerationState.design_engine, {
+                includeReady: bulkVoiceGenerationState.include_ready, candidateCount: bulkVoiceGenerationState.candidate_count
+            });
+        if (result.skipped) skippedCount += 1;
+        else if (result.success) {
             successCount += 1;
             if (result.reused) reusedCount += 1;
+            if (result.assigned) assignedCount += 1;
         } else {
             failures.push({ speaker, error: result.error });
         }
         bulkVoiceGenerationState.next_index = index + 1;
         bulkVoiceGenerationState.success_count = successCount;
         bulkVoiceGenerationState.reused_count = reusedCount;
+        bulkVoiceGenerationState.skipped_count = skippedCount;
+        bulkVoiceGenerationState.assigned_count = assignedCount;
         bulkVoiceGenerationState.failures = failures;
         bulkVoiceGenerationState.updated_at = new Date().toISOString();
         if (options.shouldPause?.()) {
             bulkVoiceGenerationState.status = 'paused';
         }
+        // Ready speakers need no per-speaker save or catalog refresh. The final
+        // checkpoint (or a requested pause) records their skipped counts.
+        if (result.skipped && bulkVoiceGenerationState.status !== 'paused') continue;
         if (bulkVoiceGenerationState.design_engine === 'gemini') {
             if (statusEl) statusEl.textContent = `Saving casting progress after ${speaker}…`;
             await flushCheckpoint();
@@ -790,15 +886,19 @@ async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, compl
             fill.style.width = `${Math.round(((index + 1) / speakers.length) * 100)}%`;
         }
         if (bulkVoiceGenerationState.status === 'paused') {
-            if (bulkVoiceGenerationState.design_engine === 'gemini') await window.loadGeminiTtsCatalog(true);
-            else { await refreshChatterboxVoices(); populateReferenceSelects(); }
+            if (successCount > 0) {
+                if (bulkVoiceGenerationState.design_engine === 'gemini') await window.loadGeminiTtsCatalog(true);
+                else { await refreshChatterboxVoices(); populateReferenceSelects(); }
+            }
             if (statusEl) statusEl.textContent = `Paused after ${index + 1} of ${speakers.length}. Reopen this window to resume.`;
             return { paused: true, successCount, failures };
         }
     }
     await flushCheckpoint();
-    if (bulkVoiceGenerationState.design_engine === 'gemini') await window.loadGeminiTtsCatalog(true);
-    else { await refreshChatterboxVoices(); populateReferenceSelects(); }
+    if (successCount > 0) {
+        if (bulkVoiceGenerationState.design_engine === 'gemini') await window.loadGeminiTtsCatalog(true);
+        else { await refreshChatterboxVoices(); populateReferenceSelects(); }
+    }
     bulkVoiceGenerationState.status = 'completed';
     bulkVoiceGenerationState.completed_at = new Date().toISOString();
     bulkVoiceGenerationState.updated_at = bulkVoiceGenerationState.completed_at;
@@ -807,17 +907,13 @@ async function runBatchVoiceGeneration(prefix, statusEl, progressEls = {}, compl
         statusEl.textContent = '';
     }
     if (completeSummary) {
-        completeSummary.textContent = bulkVoiceGenerationState.design_engine === 'gemini'
-            ? `New auditions created for ${successCount - reusedCount} speakers; ${reusedCount} pending auditions retained without new requests. Open each speaker in the Cast list to review them; current voice assignments are unchanged.${failures.length ? ` Failed: ${failures.map(item => `${item.speaker}: ${item.error}`).join(' | ')}` : ''}`
-            : failures.length
-            ? `Generated ${getVoiceDesignEngineConfig(bulkVoiceGenerationState.design_engine).label} voices for ${successCount} of ${speakers.length} speakers. Failed: ${failures.map(item => `${item.speaker}: ${item.error}`).join(' | ')}`
-            : `Voices ready for all ${speakers.length} speakers. ${bulkVoiceGenerationState.design_engine === 'gemini' ? 'Existing Gemini auditions were preserved. Open each speaker to preview and select a hosted voice, including single candidates.' : 'Speakers configured for multiple candidates still require a final selection.'}`;
+        completeSummary.textContent = `${assignedCount} voices assigned automatically; ${successCount - reusedCount} new auditions; ${reusedCount} pending auditions retained; ${skippedCount} ready speakers skipped. Open speakers with multiple candidates in the Cast list to choose a voice.${failures.length ? ` Failed: ${failures.map(item => `${item.speaker}: ${item.error}`).join(' | ')}` : ''}`;
     }
     if (completeCard) {
         completeCard.classList.remove('hidden');
     }
     if (label) {
-        label.textContent = `Done: ${successCount}/${speakers.length} ready${reusedCount ? ` (${reusedCount} retained)` : ''}.`;
+        label.textContent = `Done: ${successCount} prepared, ${skippedCount} skipped, ${failures.length} failed.`;
     }
     if (fill) {
         fill.style.width = '100%';
@@ -1183,11 +1279,17 @@ function resolveBookTitleFromSections(sections) {
     return '';
 }
 
-async function fetchSpeakerProfiles() {
+async function fetchSpeakerProfiles(options = {}) {
     if (!currentStats?.speakers?.length) {
-        setSpeakerProfiles({});
         return;
     }
+    const includeReady = options.includeReady === true;
+    const targets = getPreparationSpeakers(currentStats.speakers, includeReady);
+    if (!targets.length) {
+        showNotification('All speakers are marked ready. No profiles were changed.', 'info');
+        return;
+    }
+    const projectAtRequest = activeProjectId;
     const contextParts = [];
     if (latestGeminiBookTitle) {
         contextParts.push(`Book title: ${latestGeminiBookTitle}`);
@@ -1200,7 +1302,7 @@ async function fetchSpeakerProfiles() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                speakers: currentStats.speakers,
+                speakers: targets,
                 context,
                 prompt_override: promptOverride || undefined,
                 processed_text: processedText || undefined
@@ -1210,19 +1312,42 @@ async function fetchSpeakerProfiles() {
         if (!data.success) {
             throw new Error(data.error || 'Failed to build speaker profiles');
         }
-        setSpeakerProfiles(data.profiles || {});
+        if (activeProjectId !== projectAtRequest || document.getElementById('input-text')?.value?.trim() !== processedText) {
+            showNotification('The project or manuscript changed while profiles were being built. Existing profiles were kept.', 'warning');
+            return;
+        }
+        const missing = [];
+        let updated = 0;
+        for (const speaker of targets) {
+            if (shouldSkipReadySpeaker(speaker, includeReady)) continue;
+            const key = normalizeSpeakerKey(speaker);
+            const generated = Object.entries(data.profiles || {}).find(([name, profile]) =>
+                normalizeSpeakerKey(profile?.name || name) === key || normalizeSpeakerKey(name) === key)?.[1];
+            if (!generated) {missing.push(speaker); continue;}
+            const existing = findSpeakerProfile(speaker).profile || {};
+            const voice = generated.voice || existing.voice || '';
+            updateSpeakerProfileEntry(speaker, {
+                name: speaker,
+                description: generated.description || existing.description || '',
+                voice,
+                voice_design_prompt: buildLocalVoiceDesignPrompt(speaker, voice, generated.voice_design_prompt || existing.voice_design_prompt || ''),
+                voice_preview_text: generated.voice_preview_text || existing.voice_preview_text || ''
+            });
+            updated += 1;
+        }
         if (activeSpeakerModal) {
             renderSpeakerProfileSummary(activeSpeakerModal);
         }
-        const missingSpeakers = Array.isArray(data.missing_speakers) ? data.missing_speakers : [];
+        const missingSpeakers = missing;
         if (missingSpeakers.length) {
             showNotification(
                 `Speaker profiles generated, but ${missingSpeakers.length} speaker${missingSpeakers.length === 1 ? '' : 's'} still need a profile: ${missingSpeakers.join(', ')}`,
                 'warning'
             );
         } else {
-            showNotification('Speaker profiles and voice types generated.', 'success');
+            showNotification(`${updated} speaker profiles updated; ready speakers and saved voice selections were preserved.`, 'success');
         }
+        if (typeof castViewRender === 'function') castViewRender();
     } catch (error) {
         console.error('Speaker profile generation failed:', error);
         showNotification(error.message || 'Failed to generate speaker profiles.', 'warning');
@@ -4183,6 +4308,15 @@ function setupEventListeners() {
     batchDesignEngineSelect?.addEventListener('change', updateBatchGeminiControls);
     updateBatchGeminiControls();
     const batchStatus = document.getElementById('speaker-batch-status');
+    const batchIncludeReady = document.getElementById('speaker-batch-include-ready');
+    const updateBatchScope = () => {
+        const speakers = currentStats?.speakers || [];
+        const pending = speakers.slice(Number(batchModalConfirm?.dataset.resume === 'true' ? bulkVoiceGenerationState?.next_index || 0 : 0));
+        const eligible = getPreparationSpeakers(pending, batchIncludeReady?.checked === true);
+        const summary = document.getElementById('speaker-batch-scope');
+        if (summary) summary.textContent = `${eligible.length} speakers to prepare; ${pending.length - eligible.length} ready speakers will be skipped. Pending auditions are retained.`;
+    };
+    batchIncludeReady?.addEventListener('change', updateBatchScope);
     const batchProgress = document.getElementById('speaker-batch-progress');
     const batchProgressFill = document.getElementById('speaker-batch-progress-fill');
     const batchProgressLabel = document.getElementById('speaker-batch-progress-label');
@@ -4230,7 +4364,7 @@ function setupEventListeners() {
             buildSpeakerProfilesBtn.disabled = true;
             buildSpeakerProfilesBtn.textContent = 'Building…';
             try {
-                await fetchSpeakerProfiles();
+                await fetchSpeakerProfiles({includeReady: includeReadyInBatchActions()});
             } finally {
                 buildSpeakerProfilesBtn.textContent = idleLabel;
                 buildSpeakerProfilesBtn.disabled = !currentStats?.speakers?.length;
@@ -4479,6 +4613,11 @@ function setupEventListeners() {
                 delete batchModalConfirm.dataset.resume;
             }
             updateBatchGeminiControls();
+            if (batchIncludeReady) {
+                batchIncludeReady.disabled = batchModalConfirm.dataset.resume === 'true';
+                batchIncludeReady.checked = batchIncludeReady.disabled ? bulkVoiceGenerationState.include_ready === true : includeReadyInBatchActions();
+            }
+            updateBatchScope();
             batchPrefixInput?.focus();
         });
     }
@@ -4524,6 +4663,8 @@ function setupEventListeners() {
             delete batchModalConfirm.dataset.resume;
             batchModalConfirm.textContent = 'Generate';
             batchStartOver.classList.add('hidden');
+            if (batchIncludeReady) batchIncludeReady.disabled = false;
+            updateBatchScope();
             if (batchStatus) batchStatus.textContent = 'The previous checkpoint was cleared. A new batch will start from the first speaker.';
             await persistBulkVoiceGenerationState();
         });
@@ -4534,6 +4675,7 @@ function setupEventListeners() {
             batchGenerationInFlight = true;
             batchPauseRequested = false;
             const resumeRequested = batchModalConfirm.dataset.resume === 'true';
+            if (batchIncludeReady) batchIncludeReady.disabled = true;
             batchModalConfirm.disabled = true;
             batchModalConfirm.textContent = 'Generating...';
             try {
@@ -4543,14 +4685,13 @@ function setupEventListeners() {
                     Math.min(Number.parseInt(resumeRequested ? bulkVoiceGenerationState.candidate_count : batchCandidateCountInput?.value, 10) || 1, batchDesignEngine === 'gemini' ? 4 : 10)
                 );
                 if (batchCandidateCountInput) batchCandidateCountInput.value = String(batchCandidateCount);
-                if (batchDesignEngine === 'gemini' && !window.confirm(`Generate Gemini hosted voice candidates for this cast? Up to ${batchCandidateCount} candidates per remaining speaker will be billed by Google. Pending auditions will be kept without new requests. Previously selected auditions will receive new candidates without changing the assigned voice.\n\nKeep this page open while generation runs. Pause stops after the current speaker. Select voices afterward by opening each speaker in the Cast list.`)) return;
-                await requireVoiceDesignBackend(batchDesignEngine);
-                (currentStats?.speakers || []).forEach(speaker => {
-                    updateSpeakerProfileEntry(speaker, {
-                        voice_candidate_count: batchCandidateCount,
-                        voice_design_engine: batchDesignEngine
-                    });
-                });
+                const includeReady = resumeRequested ? bulkVoiceGenerationState.include_ready === true : batchIncludeReady?.checked === true;
+                const remaining = (currentStats?.speakers || []).slice(resumeRequested ? bulkVoiceGenerationState.next_index || 0 : 0);
+                const eligible = getPreparationSpeakers(remaining, includeReady);
+                if (eligible.length) {
+                    if (batchDesignEngine === 'gemini' && !window.confirm(`Prepare Gemini hosted voices for ${eligible.length} speakers? Up to ${batchCandidateCount} candidates per speaker may be billed by Google. Ready speakers are ${includeReady ? 'included' : 'skipped'}. Pending auditions are kept without new requests.\n\nKeep this page open while generation runs. Pause stops after the current speaker. Select voices afterward in the Cast list.`)) return;
+                    await requireVoiceDesignBackend(batchDesignEngine);
+                }
                 const batchResult = await runBatchVoiceGeneration(batchPrefixInput?.value || '', batchStatus, {
                     container: batchProgress,
                     fill: batchProgressFill,
@@ -4561,7 +4702,8 @@ function setupEventListeners() {
                 }, {
                     resume: resumeRequested,
                     shouldPause: () => batchPauseRequested,
-                    designEngine: batchDesignEngine
+                    designEngine: batchDesignEngine,
+                    includeReady
                 });
                 if (batchResult?.paused) {
                     batchModalConfirm.classList.remove('hidden');
@@ -4596,6 +4738,7 @@ function setupEventListeners() {
                 showNotification(error.message || 'Voice generation stopped.', 'warning');
             } finally {
                 batchGenerationInFlight = false;
+                if (batchIncludeReady) batchIncludeReady.disabled = batchModalConfirm.dataset.resume === 'true';
                 batchModalConfirm.disabled = false;
                 if (batchModalConfirm.dataset.resume !== 'true') batchModalConfirm.textContent = 'Generate';
             }
@@ -4619,6 +4762,7 @@ function setupEventListeners() {
     const autoAssignTable = document.getElementById('auto-assign-table');
     const autoAssignNoVoices = document.getElementById('auto-assign-no-voices');
     const autoAssignNoSpeakers = document.getElementById('auto-assign-no-speakers');
+    const autoAssignReadySummary = document.getElementById('auto-assign-ready-summary');
     const autoAssignThresholdSlider = document.getElementById('auto-assign-threshold-slider');
     const autoAssignThresholdLabel = document.getElementById('auto-assign-threshold-label');
 
@@ -4645,9 +4789,11 @@ function setupEventListeners() {
     }
 
     function buildAutoAssignProposals() {
-        const speakers = Array.isArray(currentStats?.speakers) ? currentStats.speakers : [];
-        const voices = availableChatterboxVoices || [];
+        const speakers = getPreparationSpeakers(currentStats?.speakers || [], includeReadyInBatchActions());
+        const voices = getAutoAssignVoiceChoices();
         return speakers.map(speaker => {
+            const hosted = getGeminiAutoAssignProposal(speaker, voices);
+            if (hosted) return hosted;
             let bestScore = 0;
             let bestVoice = null;
             voices.forEach(v => {
@@ -4668,28 +4814,28 @@ function setupEventListeners() {
 
     function renderAutoAssignTable(threshold) {
         const speakers = Array.isArray(currentStats?.speakers) ? currentStats.speakers : [];
-        const voices = availableChatterboxVoices || [];
+        const voices = getAutoAssignVoiceChoices();
         if (!autoAssignTableBody || speakers.length === 0 || voices.length === 0) return;
         const proposals = buildAutoAssignProposals();
         const sortedVoices = voices.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         autoAssignTableBody.innerHTML = '';
-        proposals.forEach(({ speaker, score, bestPromptValue }) => {
+        proposals.forEach(({ speaker, score, bestPromptValue, needsReview }) => {
             const meetsThreshold = score >= threshold;
             const promptValue = meetsThreshold ? bestPromptValue : '';
             const scoreClass = score >= 0.9 ? 'score-high' : score >= threshold ? 'score-med' : 'score-none';
-            const scoreLabel = score > 0 ? `${Math.round(score * 100)}%` : 'No match';
+            const scoreLabel = needsReview ? 'Choose a candidate in Speaker Properties' : score > 0 ? `${Math.round(score * 100)}%` : 'No match';
             const voiceOptions = sortedVoices
                 .map(v => {
                     const vPath = (v.prompt_path || v.file_name || '').trim();
                     const selected = vPath && vPath === promptValue ? ' selected' : '';
-                    return `<option value="${vPath}"${selected}>${v.name || vPath}</option>`;
+                    return `<option value="${escapeHtml(vPath)}"${selected}>${escapeHtml(v.name || vPath)}</option>`;
                 })
                 .join('');
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="speaker-name-cell">${speaker}</td>
+                <td class="speaker-name-cell">${escapeHtml(speaker)}</td>
                 <td>
-                    <select class="auto-assign-voice-select" data-speaker="${speaker}">
+                    <select class="auto-assign-voice-select" data-speaker="${escapeHtml(speaker)}">
                         <option value="">— No assignment —</option>
                         ${voiceOptions}
                     </select>
@@ -4706,11 +4852,17 @@ function setupEventListeners() {
 
     function openAutoAssignModal() {
         const speakers = Array.isArray(currentStats?.speakers) ? currentStats.speakers : [];
-        const voices = availableChatterboxVoices || [];
+        const voices = getAutoAssignVoiceChoices();
+        const eligible = getPreparationSpeakers(speakers, includeReadyInBatchActions());
+        const skipped = speakers.length - eligible.length;
+        if (autoAssignReadySummary) autoAssignReadySummary.textContent = skipped
+            ? `${eligible.length} speakers to assign; ${skipped} ready speakers skipped. To include them, close this dialog and enable Include ready speakers in batch actions.`
+            : `${eligible.length} speakers to assign. Review each match before applying.`;
+        if (autoAssignConfirmBtn) autoAssignConfirmBtn.disabled = !eligible.length || !voices.length;
 
         autoAssignNoSpeakers?.classList.toggle('hidden', speakers.length > 0);
         autoAssignNoVoices?.classList.toggle('hidden', voices.length > 0);
-        autoAssignTable?.classList.toggle('hidden', speakers.length === 0 || voices.length === 0);
+        autoAssignTable?.classList.toggle('hidden', eligible.length === 0 || voices.length === 0);
 
         if (autoAssignThresholdSlider) {
             autoAssignThresholdSlider.value = 80;
@@ -4733,12 +4885,32 @@ function setupEventListeners() {
         if (autoAssignTableBody) autoAssignTableBody.innerHTML = '';
     }
 
-    function applyAutoAssignSelections() {
+    async function applyAutoAssignSelections() {
         if (!autoAssignTableBody) return;
-        autoAssignTableBody.querySelectorAll('.auto-assign-voice-select').forEach(select => {
+        const gemini = window.isGeminiTtsEngine?.(typeof getSelectedJobEngine === 'function' ? getSelectedJobEngine() : '');
+        let assigned = 0;
+        for (const select of autoAssignTableBody.querySelectorAll('.auto-assign-voice-select')) {
             const speaker = select.dataset.speaker;
             const promptValue = select.value?.trim();
-            if (!speaker) return;
+            if (!speaker) continue;
+            if (shouldSkipReadySpeaker(speaker, includeReadyInBatchActions())) continue;
+            if (gemini) {
+                // A blank/no-match proposal must preserve the current choice,
+                // not silently fall back to Iapetus or another preset.
+                if (!promptValue) continue;
+                const voice = getAutoAssignVoiceChoices().find(item => item.prompt_path === promptValue);
+                if (!voice) continue;
+                try {
+                    if (await assignGeminiSpeakerVoice(speaker, promptValue, voice.name) === false) continue;
+                    const {profile} = findSpeakerProfile(speaker);
+                    const state = restoreGeminiAudition(profile?.gemini_voice_audition, geminiBatchSpeakerScope(speaker));
+                    if (state.candidates.some(item => item.id === promptValue)) {
+                        persistGeminiSpeakerAudition(speaker, {...state, selected_id: promptValue});
+                    }
+                    assigned += 1;
+                } catch (error) { showNotification(`Could not assign ${speaker}: ${error.message}`, 'warning'); }
+                continue;
+            }
             if (promptValue) {
                 turboSelectionState[speaker] = promptValue;
             } else {
@@ -4752,8 +4924,8 @@ function setupEventListeners() {
                 const row = refSelect.closest('.voice-assignment-row');
                 if (row) updateInlineSampleButtonState(row, { stopPlayback: false });
             });
-        });
-        showNotification('Voice samples assigned.', 'success');
+        }
+        showNotification(gemini ? `${assigned} custom Gemini voices assigned. Unmatched speakers keep their current voice.` : 'Voice samples assigned.', gemini && !assigned ? 'info' : 'success');
         closeAutoAssignModal();
         if (typeof castViewRender === 'function') castViewRender();
     }
@@ -5695,6 +5867,12 @@ async function assignGeminiSpeakerVoice(speaker, id, label, designEngine = 'gemi
         select.dispatchEvent(new Event('change', {bubbles: true}));
         if (select.value !== id) throw new Error('Could not retain the selected voice. Candidates have not been discarded.');
     }
+    updateSpeakerProfileEntry(speaker, {
+        selected_voice_id: id,
+        selected_voice_name: label || id,
+        // Hosted Google IDs must never become local reference-audio paths.
+        selected_voice_path: ''
+    });
     return true;
 }
 
@@ -6314,6 +6492,15 @@ function getProjectState() {
     };
 }
 
+function getProjectTimestamp(project) {
+    for (const value of [project?.saved_at, project?.updated_at, project?.created_at]) {
+        if (!value) continue;
+        const date = new Date(value);
+        if (Number.isFinite(date.getTime())) return date.getTime();
+    }
+    return 0;
+}
+
 function renderProjectList() {
     const list = document.getElementById('project-list');
     if (!list) return;
@@ -6323,14 +6510,14 @@ function renderProjectList() {
         return;
     }
     list.innerHTML = '';
-    projects.sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
+    projects.sort((a, b) => getProjectTimestamp(b) - getProjectTimestamp(a));
     projects.forEach(project => {
         const row = document.createElement('div');
         row.className = 'project-row';
         row.innerHTML = `
             <div class="project-row-info">
                 <strong>${escapeHtml(project.name || 'Untitled Project')}</strong>
-                <span>${new Date(project.saved_at).toLocaleString()}</span>
+                <span>${getProjectTimestamp(project) ? new Date(getProjectTimestamp(project)).toLocaleString() : 'Date unavailable'}</span>
             </div>
             <div class="project-row-actions">
                 <button class="btn btn-sm btn-secondary" data-project-action="load" data-project-id="${escapeHtml(String(project.id))}">Load</button>
@@ -7132,6 +7319,12 @@ async function generateAudio() {
     }
 }
 
+function findUnassignedSpeakers(assignments, speakers) {
+    const values = assignments || {};
+    if (Object.hasOwn(values, 'default')) return [];
+    return (speakers || []).filter(speaker => !Object.hasOwn(values, speaker));
+}
+
 async function submitGenerateAudioJob() {
     const text = document.getElementById('input-text').value;
     
@@ -7165,13 +7358,16 @@ async function submitGenerateAudioJob() {
     // Get voice assignments
     let voiceAssignments = getVoiceAssignments();
     
-    const hasDetectedSpeakers = Array.isArray(currentStats?.speakers) && currentStats.speakers.length > 0;
-    // Require per-speaker assignments since default voice selectors are no longer shown
-    if (Object.keys(voiceAssignments).length === 0) {
-        const warningMessage = hasDetectedSpeakers
-            ? 'Assign voices for the detected speakers before generating audio.'
-            : 'Assign a voice for Speaker 1 before generating audio.';
-        showNotification(warningMessage, 'warning');
+    const hasDetectedSpeakers = currentStats?.has_speaker_tags
+        && Array.isArray(currentStats.speakers) && currentStats.speakers.length > 0;
+    const missingSpeakers = findUnassignedSpeakers(voiceAssignments,
+        hasDetectedSpeakers ? currentStats.speakers : ['Speaker 1']);
+    // Partial casts must be fixed too, not just a completely empty assignment
+    // map. Open the first unresolved speaker instead of leaving a vague error.
+    if (Object.keys(voiceAssignments).length === 0 || missingSpeakers.length) {
+        const first = missingSpeakers[0] || 'Speaker 1';
+        showNotification(`Choose your TTS engine, then assign a voice for ${first}${missingSpeakers.length > 1 ? ` and ${missingSpeakers.length - 1} other speaker(s)` : ''}. Opening Speaker Properties.`, 'warning');
+        openSpeakerEditModal(first);
         return;
     }
     
