@@ -44,27 +44,60 @@ If you appreciate what we do and would like to support ongoing development:
 
 TTS-Story is a web-based, multi-voice text-to-speech application for creating narrated stories and audiobooks. It supports local CPU and GPU models, hosted speech providers, speaker tagging, voice cloning, optional LLM-assisted text preparation, chapter collections, chunk-level repair, and MP3/M4B export workflows.
 
-<div align="center">
-  <table>
-    <tr>
-      <td>
-        <a href="https://github.com/user-attachments/assets/fdec637a-e543-4000-88d9-050ca68a413f" target="_blank">
-          <img src="https://github.com/user-attachments/assets/fdec637a-e543-4000-88d9-050ca68a413f" alt="TTS-Story Generate interface" width="280" />
-        </a>
-      </td>
-      <td>
-        <a href="https://github.com/user-attachments/assets/00dd7984-d685-4482-8401-2ad03dac44e4" target="_blank">
-          <img src="https://github.com/user-attachments/assets/00dd7984-d685-4482-8401-2ad03dac44e4" alt="TTS-Story voice assignments" width="280" />
-        </a>
-      </td>
-      <td>
-        <a href="https://github.com/user-attachments/assets/dcf91a06-5f26-45a1-858f-157aff6d60ca" target="_blank">
-          <img src="https://github.com/user-attachments/assets/dcf91a06-5f26-45a1-858f-157aff6d60ca" alt="TTS-Story Audio Library" width="280" />
-        </a>
-      </td>
-    </tr>
-  </table>
-</div>
+## Interface tour
+
+The redesigned Estudio interface, shown with Lewis Carroll's *Alice's Adventures in Wonderland*. Click any screenshot to view it full size.
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <strong>Manuscript and Cast</strong><br />
+      <a href="docs/screenshots/studio-manuscript.jpg">
+        <img src="docs/screenshots/studio-manuscript.jpg" alt="Estudio script view with passage directions, detected speakers, voice assignments, and Ready indicators" width="420" />
+      </a><br />
+      <sub>Read the directed script and manage the cast alongside it.</sub>
+    </td>
+    <td align="center" width="50%">
+      <strong>Speaker properties</strong><br />
+      <a href="docs/screenshots/studio-speaker-properties.jpg">
+        <img src="docs/screenshots/studio-speaker-properties.jpg" alt="Speaker drawer with character profile, voice type, selected sample playback, pitch, speed, and voice design" width="420" />
+      </a><br />
+      <sub>Assign and preview voices, tune delivery, and mark speakers Ready.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <strong>Audio Library</strong><br />
+      <a href="docs/screenshots/studio-library.jpg">
+        <img src="docs/screenshots/studio-library.jpg" alt="Audio Library with an expanded audiobook chapter collection, durations, review buttons, and export controls" width="420" />
+      </a><br />
+      <sub>Browse productions, listen by chapter, review chunks, and export audio.</sub>
+    </td>
+    <td align="center" width="50%">
+      <strong>Chunk review and repair</strong><br />
+      <a href="docs/screenshots/studio-chunk-review.jpg">
+        <img src="docs/screenshots/studio-chunk-review.jpg" alt="Chapter chunk editor with editable voice direction and text, engine and voice selectors, audio effects, and silence controls" width="420" />
+      </a><br />
+      <sub>Edit individual lines and delivery cues without redoing the whole book.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <strong>Voice libraries</strong><br />
+      <a href="docs/screenshots/studio-voice-library.jpg">
+        <img src="docs/screenshots/studio-voice-library.jpg" alt="Voices workspace with Kokoro preset previews grouped by language and tabs for reference samples, blends, voice creation, and Gemini cloud voices" width="420" />
+      </a><br />
+      <sub>Explore presets, reusable samples, blends, and designed voices.</sub>
+    </td>
+    <td align="center" width="50%">
+      <strong>Engine management</strong><br />
+      <a href="docs/screenshots/studio-engine-settings.jpg">
+        <img src="docs/screenshots/studio-engine-settings.jpg" alt="Engine settings separating local engines, cloud connections, and utilities, with readiness status and repair and removal controls" width="420" />
+      </a><br />
+      <sub>Manage isolated local engines, cloud connections, and optional tools.</sub>
+    </td>
+  </tr>
+</table>
 
 ## Highlights
 
