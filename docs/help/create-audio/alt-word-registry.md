@@ -11,7 +11,7 @@ The working manuscript remains readable while the engine receives the replacemen
 3. Click **Add entry**.
 4. Enter the **Original word / phrase** exactly as it appears in the manuscript.
 5. Enter the phonetic or expanded **Replacement word / phrase**.
-6. Choose a **TTS engine** and a compatible **Voice**.
+6. Choose a **Preview engine** and a compatible **Preview voice**. These choices are only for testing; they do not change the job engine or speaker assignments. Cloud previews may be billable.
 7. Compare **Play original** with **Play replacement**.
 8. Select **OK**.
 

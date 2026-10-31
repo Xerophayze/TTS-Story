@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/static/css/studio-library.css?v=1">
     <link rel="stylesheet" href="/static/css/studio-voices.css?v=1">
     <link rel="stylesheet" href="/static/css/studio-settings.css?v=1">
+    <link rel="stylesheet" href="/static/css/tutorial.css?v=5">
 </head>
 <body>
     <div class="app-shell">
@@ -33,6 +34,7 @@
                 <button class="tab-button" data-tab="voices"><span class="ms" aria-hidden="true">record_voice_over</span><span class="tab-label">Voices</span></button>
                 <button class="tab-button" data-tab="settings"><span class="ms" aria-hidden="true">tune</span><span class="tab-label">Settings</span></button>
                 <button class="tab-button tab-button-help" data-tab="help"><span class="ms" aria-hidden="true">help</span><span class="tab-label">Help Center</span></button>
+                <button type="button" class="guided-tours-shortcut" id="guided-tours-shortcut"><span class="ms" aria-hidden="true">tour</span><span>Guided Tours</span></button>
             </div>
             <div class="sidebar-status" role="status" aria-label="Engine status">
                 <span id="mode-indicator"><span class="dot" aria-hidden="true"></span><strong id="current-mode">Loading…</strong></span>
@@ -138,7 +140,7 @@
                     <div id="gemini-progress" class="gemini-progress" style="display: none;">
                         <div class="progress-label">
                             <span class="ms ms-16 prep-strip-icon" aria-hidden="true">auto_fix_high</span>
-                            <span id="gemini-progress-text">Preparing LLM request…</span>
+                            <span id="gemini-progress-text" role="status" aria-live="polite">Preparing LLM request…</span>
                             <span id="gemini-progress-count"></span>
                             <span class="prep-strip-spacer"></span>
                             <button id="gemini-pause-btn" class="btn btn-ghost btn-xs">Pause</button>
@@ -2672,6 +2674,10 @@
                         <button type="button" data-help-article="job-review"><span>5</span>Review and correct</button>
                     </div>
                 </section>
+                <section class="guided-tours-section" aria-labelledby="guided-tours-heading">
+                    <div><span class="help-start-kicker">Learn by doing</span><h3 id="guided-tours-heading">Guided Tours</h3><p>Follow interactive, step-by-step tours through the actual interface.</p></div>
+                    <button type="button" class="btn btn-primary" id="guided-tours-help-btn">Browse guided tours</button>
+                </section>
                 <div id="help-center-categories" class="help-center-categories"></div>
             </div>
 
@@ -2734,13 +2740,25 @@
         </div>
     </div>
 
+    <dialog id="guided-tours-dialog" class="guided-tours-dialog" aria-labelledby="guided-tours-dialog-title">
+        <div class="guided-tours-header"><div><span class="help-start-kicker">Learn at your own pace</span><h2 id="guided-tours-dialog-title">Guided Tours</h2></div><button type="button" class="btn btn-secondary" id="guided-tours-close-btn" aria-label="Close guided tours">Close</button></div>
+        <p>Choose a tour and follow the highlighted controls at your own pace.</p>
+        <div class="guided-tours-list">
+            <article class="guided-tour-entry"><div><h3>Getting Your First Audio</h3><p>Set up an engine, add a sample story, assign voices, and follow your audio into the Library.</p></div><button type="button" class="btn btn-primary" id="tutorial-replay-btn">Start tour</button></article>
+            <article class="guided-tour-entry"><div><h3>Settings and Engine Setup</h3><p>Explore local and cloud engines, installation, credentials, audio settings, and text-prep providers.</p></div><button type="button" class="btn btn-secondary" id="tutorial-settings-btn">Start tour</button></article>
+            <article class="guided-tour-entry"><div><h3>Discover and Manage Voices</h3><p>Browse built-in voices, import or download reference samples, explore external libraries, and manage voice designs.</p></div><button type="button" class="btn btn-secondary" id="tutorial-voices-btn">Start tour</button></article>
+            <article class="guided-tour-entry"><div><h3>Prepare Your Manuscript</h3><p>Import documents, use Prep text, switch between Script and Raw tags, and manage alternate pronunciations.</p></div><button type="button" class="btn btn-secondary" id="tutorial-manuscript-btn">Start tour</button></article>
+            <article class="guided-tour-entry"><div><h3>Review, Repair, and Export</h3><p>Navigate the Library, adjust speaker and chunk settings, regenerate passages, rebuild, and export audio.</p></div><button type="button" class="btn btn-secondary" id="tutorial-review-btn">Start tour</button></article>
+        </div>
+    </dialog>
+
     <div class="modal-overlay hidden" id="first-run-welcome-overlay">
         <div class="modal hidden first-run-welcome-modal" id="first-run-welcome-modal" role="dialog" aria-modal="true" aria-labelledby="first-run-welcome-title">
             <div class="modal-header">
                 <h3 id="first-run-welcome-title">Welcome to TTS-Story</h3>
             </div>
             <div class="modal-body">
-                <p>TTS-Story is installed and ready. Voice engines are now optional, so you can install or configure only the ones you plan to use.</p>
+                <p>Welcome! Turn stories into audio with multiple speakers, local or cloud voices, chapter exports, and tools to review and repair individual chunks. The guided tutorial will walk you through setup and your first generation.</p>
                 <ol class="first-run-steps">
                     <li>Open <strong>Settings → Engines</strong>.</li>
                     <li>Choose a local engine and click <strong>Install engine</strong>, or enter the credentials required by a cloud or self-hosted engine.</li>
@@ -2750,6 +2768,7 @@
             </div>
             <div class="modal-footer first-run-actions">
                 <button type="button" class="btn btn-secondary" id="first-run-close-btn">Explore first</button>
+                <button type="button" class="btn btn-primary" id="first-run-tutorial-btn">Getting Your First Audio</button>
                 <button type="button" class="btn btn-primary" id="first-run-settings-btn">Open engine settings</button>
             </div>
         </div>
@@ -3185,9 +3204,10 @@
                         <input type="text" id="awr-replacement-input" class="awr-text-input" placeholder="e.g. Wooster-sher">
                     </div>
                     <div class="awr-preview-section">
+                        <p class="awr-preview-explanation">Preview testing only: choose an engine and voice to compare pronunciations. These choices do not change your job's engine or speaker voices. Cloud previews may incur charges.</p>
                         <div class="awr-preview-row">
                             <div class="awr-preview-field">
-                                <label class="awr-label" for="awr-preview-engine">TTS engine</label>
+                                <label class="awr-label" for="awr-preview-engine">Preview engine</label>
                                 <select id="awr-preview-engine" class="awr-select">
                                     <option value="kokoro">Kokoro · Local</option>
                                     <option value="kokoro_replicate">Kokoro · Replicate</option>
@@ -3215,7 +3235,7 @@
                                 </select>
                             </div>
                             <div class="awr-preview-field awr-preview-field-voice">
-                                <label class="awr-label" for="awr-preview-voice">Voice</label>
+                                <label class="awr-label" for="awr-preview-voice">Preview voice</label>
                                 <select id="awr-preview-voice" class="awr-select">
                                     <option value="">-- Select voice --</option>
                                 </select>
@@ -3238,13 +3258,14 @@
 
     <script src="/static/js/help.js?v=4"></script>
     <script src="/static/js/localai-models.js?v=1"></script>
-    <script src="/static/js/main.js?v=99"></script>
+    <script src="/static/js/main.js?v=100"></script>
     <script src="/static/js/breeze-api.js?v=5"></script>
     <script src="/static/js/gemini-tts.js?v=13"></script>
     <script src="/static/js/queue.js?v=9"></script>
-<script src="/static/js/library.js?v=64"></script>
+<script src="/static/js/library.js?v=65"></script>
     <script src="/static/js/voice-manager.js?v=19"></script>
 <script src="/static/js/settings.js?v=38"></script>
+    <script src="/static/js/tutorial.js?v=10"></script>
     <script src="/static/js/studio.js?v=1"></script>
     <script src="/static/js/manuscript-view.js?v=1"></script>
     <script src="/static/js/cast-view.js?v=2"></script>

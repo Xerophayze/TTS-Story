@@ -741,10 +741,16 @@ document.addEventListener('library:refresh', () => {
 // Load library items
 async function loadLibrary({ force = false } = {}) {
     if (!force && !document.getElementById('library-tab')?.classList?.contains('active')) return;
+    // A tab change, queue update and tutorial may request the same expensive listing together.
+    if (loadLibrary.pending) {
+        if (!force) return loadLibrary.pending;
+        await loadLibrary.pending;
+    }
+    const request = (async () => {
     const refreshBtn = document.getElementById('refresh-library-btn');
     if (refreshBtn) refreshBtn.classList.add('is-loading');
     try {
-        const response = await fetch('/api/library');
+        const response = await fetch(force ? '/api/library?refresh=1' : '/api/library');
         const data = await response.json();
 
         if (data.success) {
@@ -754,7 +760,7 @@ async function loadLibrary({ force = false } = {}) {
             }
             const signature = JSON.stringify(items);
             const container = document.getElementById('library-items');
-            if (!force && signature === libraryLastListingSignature && container && container.childElementCount) {
+            if (signature === libraryLastListingSignature && container && container.childElementCount) {
                 // Nothing changed: keep players, expanded cards and the open review as they are.
                 libraryBrowseItems = items;
                 return;
@@ -774,6 +780,10 @@ async function loadLibrary({ force = false } = {}) {
     } finally {
         if (refreshBtn) refreshBtn.classList.remove('is-loading');
     }
+    })();
+    loadLibrary.pending = request;
+    try { return await request; }
+    finally { if (loadLibrary.pending === request) loadLibrary.pending = null; }
 }
 
 // Display library items

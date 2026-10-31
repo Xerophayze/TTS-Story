@@ -247,7 +247,7 @@ JOB_METADATA_FILENAME = "metadata.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 DEFAULT_LLM_PROVIDER = "gemini"
 SUPPORTED_LLM_PROVIDERS = ("gemini", "atlas", "openrouter", "local")
-LIBRARY_CACHE_TTL = 5  # seconds
+LIBRARY_CACHE_TTL = 60  # seconds; application writes invalidate immediately
 MIN_CHATTERBOX_PROMPT_SECONDS = 5.0
 MIN_VOICE_DESIGN_PREVIEW_SECONDS = 10.0
 MIN_VOICE_DESIGN_PREVIEW_WORDS = 40
@@ -11952,7 +11952,8 @@ def get_library():
         with log_request_timing("GET /api/library"):
             now = time.time()
             cached_items = library_cache["items"]
-            if cached_items is not None and (now - library_cache["timestamp"]) <= LIBRARY_CACHE_TTL:
+            force_refresh = request.args.get('refresh') == '1'
+            if not force_refresh and cached_items is not None and (now - library_cache["timestamp"]) <= LIBRARY_CACHE_TTL:
                 return jsonify({
                     "success": True,
                     "items": cached_items,

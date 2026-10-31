@@ -38,6 +38,20 @@ def _items_by_id(items):
     return {item["job_id"]: item for item in items}
 
 
+def test_listing_cache_refresh_and_application_invalidation(monkeypatch, library_dir):
+    calls = []
+    monkeypatch.setattr(app_module, '_build_library_listing', lambda: calls.append(1) or [])
+    client = app_module.app.test_client()
+    assert client.get('/api/library').get_json()['cached'] is False
+    assert client.get('/api/library').get_json()['cached'] is True
+    assert len(calls) == 1
+    assert client.get('/api/library?refresh=1').get_json()['cached'] is False
+    assert len(calls) == 2
+    app_module.invalidate_library_cache()
+    assert client.get('/api/library').get_json()['cached'] is False
+    assert len(calls) == 3
+
+
 def test_chapter_production_reports_full_story_and_chapter_durations(library_dir):
     job_dir = library_dir / "book-job"
     _write_wav(job_dir / "chapter_01" / "one.wav", 1.5)

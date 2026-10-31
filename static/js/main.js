@@ -3845,9 +3845,22 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
         inputEl.value = outputs.join('\n\n').trim();
 
         lastAnalyzedText = '';
-        showNotification('LLM processing complete! Text updated.', 'success');
+        if (pauseBtn) pauseBtn.disabled = true;
+        if (abortBtn) abortBtn.disabled = true;
+        updateGeminiProgress({
+            visible: true,
+            label: 'Analyzing speakers…',
+            count: `${sections.length} / ${sections.length} sections complete`,
+            indeterminate: true
+        });
         const analysisSucceeded = await analyzeText({ auto: true });
         if (analysisSucceeded) {
+            updateGeminiProgress({
+                visible: true,
+                label: 'Preparing character profiles and voice types…',
+                count: 'Final step',
+                indeterminate: true
+            });
             await fetchSpeakerProfiles();
         }
     } catch (error) {
@@ -3881,7 +3894,7 @@ async function _runGeminiPrep(buttonEl, text, textHash, savedProgress) {
     }
 }
 
-function updateGeminiProgress({ visible, label, count, fill }) {
+function updateGeminiProgress({ visible, label, count, fill, indeterminate = false }) {
     const container = document.getElementById('gemini-progress');
     const textEl = document.getElementById('gemini-progress-text');
     const countEl = document.getElementById('gemini-progress-count');
@@ -3889,11 +3902,13 @@ function updateGeminiProgress({ visible, label, count, fill }) {
 
     if (!container || !textEl || !countEl || !fillEl) return;
 
+    fillEl.classList.toggle('indeterminate', visible && indeterminate);
     if (visible) {
         container.style.display = 'block';
         if (label) textEl.textContent = label;
-        if (count) countEl.textContent = count;
-        if (typeof fill === 'number') fillEl.style.width = `${Math.min(Math.max(fill, 0), 100)}%`;
+        if (count !== undefined) countEl.textContent = count;
+        if (indeterminate) fillEl.style.width = '45%';
+        else if (typeof fill === 'number') fillEl.style.width = `${Math.min(Math.max(fill, 0), 100)}%`;
     } else {
         container.style.display = 'none';
         fillEl.style.width = '0%';

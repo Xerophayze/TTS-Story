@@ -95,3 +95,20 @@ test('Library data is not fetched while the Generate page is active', async () =
     await context.loadLibrary({force: true});
     assert.equal(requests, 2, 'an explicitly forced refresh is still allowed');
 });
+
+test('Library shares an in-flight request and explicitly refreshes from disk', async () => {
+    const library = fs.readFileSync(path.join(__dirname, '../static/js/library.js'), 'utf8');
+    const urls = [];
+    let release;
+    const first = new Promise(resolve => { release = resolve; });
+    const context = vm.createContext({document: {getElementById: id => id === 'library-tab' ? {classList: {contains: () => true}} : null},
+        fetch: async url => { urls.push(url); if (urls.length === 1) await first; return {json: async () => ({success: true, items: []})}; },
+        displayLibraryItems: () => {}, libraryLastListingSignature: '', chunkReviewModalJobId: null});
+    vm.runInContext(library.slice(library.indexOf('async function loadLibrary('), library.indexOf('// Display library items')), context);
+    const a = context.loadLibrary(), b = context.loadLibrary();
+    assert.deepEqual(urls, ['/api/library']);
+    release();
+    await Promise.all([a, b]);
+    await context.loadLibrary({force: true});
+    assert.deepEqual(urls, ['/api/library', '/api/library?refresh=1']);
+});
