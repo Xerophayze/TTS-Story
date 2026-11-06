@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates ffmpeg rubberband-cli sox libsox-fmt-all \
       espeak-ng libsndfile1 libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 10001 tts \
-    && useradd --uid 10001 --gid 10001 --home-dir /home/tts --create-home tts
+    && groupadd --gid 1000 tts \
+    && useradd --uid 1000 --gid 1000 --home-dir /home/tts --create-home tts
 
 WORKDIR /app
 COPY requirements.txt ./

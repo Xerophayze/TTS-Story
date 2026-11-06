@@ -50,11 +50,11 @@ Compose defines five named volumes:
 | `tts-models` | `/app/models` | Application-managed models, where supported |
 | `tts-cache` | `/home/tts/.cache` | Hugging Face / XDG model caches |
 
-The container uses UID/GID **10001:10001**. Docker named volumes are
+The container uses UID/GID **1000:1000**. Docker named volumes are
 recommended. For host bind mounts, create directories owned by that UID/GID
 before starting, and do not make the application directories world-writable.
 
-This can usually be done in Linux via running the command `chown -R 10001:10001 <bind/mount/on/host>`
+This can usually be done in Linux via running the command `chown -R 1000:1000 <bind/mount/on/host>`
 
 The container sets `TTS_STORY_CONFIG_FILE=/app/data/config.json`.
 
