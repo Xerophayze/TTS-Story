@@ -197,7 +197,7 @@ CORS(app)
 app.register_blueprint(create_help_blueprint())
 
 # Configuration
-CONFIG_FILE = "config.json"
+CONFIG_FILE = os.environ.get("TTS_STORY_CONFIG_FILE", "config.json")
 # Use Flask's static folder so paths stay correct even when the server is launched
 # from a different working directory.
 OUTPUT_DIR = Path(app.static_folder) / "audio"
@@ -14732,4 +14732,9 @@ if __name__ == '__main__':
     _cleanup_orphaned_regen_folders()
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and os.environ.get("TTS_STORY_SKIP_BROWSER") != "1":
         threading.Timer(1.5, lambda: webbrowser.open("http://localhost:5000")).start()
-    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
+    if os.environ.get("TTS_STORY_PRODUCTION") == "1":
+        from waitress import serve
+
+        serve(app, host='0.0.0.0', port=5000, threads=8)
+    else:
+        app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
