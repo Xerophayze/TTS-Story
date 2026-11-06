@@ -1,0 +1,80 @@
+name: docker-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Docker image version (e.g. 0.2.0)"
+        required: true
+        type: string
+      publish_docker:
+        description: "Publish docker images"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    name: docker-publish (${{ matrix.backend }})
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [cpu, cuda]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Set Docker image tags
+        id: tags
+        shell: bash
+        env:
+          VERSION_TAG: ${{ inputs.tag }}
+          BACKEND: ${{ matrix.backend }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERSION_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][a-zA-Z0-9][a-zA-Z0-9.-]*)?$ ]]; then
+            echo "Invalid version tag: $VERSION_TAG" >&2
+            exit 1
+          fi
+          REPOSITORY="${GITHUB_REPOSITORY,,}"
+          IMAGE_NAME="ghcr.io/${REPOSITORY}"
+          SUFFIX=""
+          if [[ "$BACKEND" == "cuda" ]]; then
+            SUFFIX="-cuda"
+          fi
+
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE_NAME}:${VERSION_TAG}${SUFFIX}"
+            echo "${IMAGE_NAME}:latest${SUFFIX}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate with GHCR
+        if: ${{ inputs.publish_docker }}
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ${{ matrix.backend }}
+          platforms: linux/amd64
+          push: ${{ inputs.publish_docker }}
+          tags: ${{ steps.tags.outputs.tags }}
+          provenance: mode=max
+          sbom: true
