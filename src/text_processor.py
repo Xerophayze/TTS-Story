@@ -7,6 +7,41 @@ from typing import List, Dict, Tuple
 from src.pause_markers import pause_seconds_for_text, split_text_and_pause_markers
 from src.tag_validation import speaker_names
 
+TAG_TOKEN_PATTERN = re.compile(r"\[(/?)([^\[\]]+)\]")
+
+
+def repair_speaker_tags(text: str) -> str:
+    """Normalize malformed tag pairs produced by LLMs.
+
+    A closing tag always closes the currently open block, whatever name it
+    carries, and stray closing tags are removed. Unclosed blocks are closed at
+    the end so the parser can still attribute their text.
+    """
+    if not text:
+        return text
+    out = []
+    position = 0
+    open_tag = None
+    for match in TAG_TOKEN_PATTERN.finditer(text):
+        name = match.group(2).strip()
+        if not name:
+            continue
+        out.append(text[position:match.start()])
+        position = match.end()
+        if match.group(1) == "/":
+            if open_tag is not None:
+                out.append(f"[/{open_tag}]")
+                open_tag = None
+            continue
+        if open_tag is not None:
+            out.append(f"[/{open_tag}]")
+        open_tag = name
+        out.append(f"[{name}]")
+    out.append(text[position:])
+    if open_tag is not None:
+        out.append(f"[/{open_tag}]")
+    return "".join(out)
+
 
 class TextProcessor:
     """Processes text for TTS generation"""
