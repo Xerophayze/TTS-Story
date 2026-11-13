@@ -93,7 +93,7 @@ from src.local_llm_processor import (
 )
 from src.replicate_api import ReplicateAPI
 from src.system_tools import find_system_tool
-from src.text_processor import TextProcessor
+from src.text_processor import TextProcessor, repair_speaker_tags
 from src.engines import TtsEngineBase
 from src.engines.chatterbox_turbo_local_engine import (
     CHATTERBOX_TURBO_AVAILABLE,
@@ -10587,6 +10587,7 @@ def process_text_with_gemini():
                 preferred_profile=active_profile,
             )
             active_profile = profile_used["id"]
+            response_text = repair_speaker_tags(response_text)
             detected_speakers = text_processor.extract_speakers(response_text)
             for speaker_name in detected_speakers:
                 known_speakers.add(speaker_name)
@@ -10675,7 +10676,7 @@ def process_full_text_with_gemini():
 
         return jsonify({
             "success": True,
-            "result_text": response_text.strip(),
+            "result_text": repair_speaker_tags(response_text).strip(),
             "llm_profile_used": profile_used,
             "llm_provider_used": profile_used["provider"],
             "provider_failures": provider_failures,
@@ -10893,6 +10894,8 @@ def process_gemini_section():
         audit = None
         if locked is not None:
             response_text, audit = assemble_directed(locked, response_text)
+        else:
+            response_text = repair_speaker_tags(response_text)
         detected_speakers = text_processor.extract_speakers(response_text)
 
         return jsonify({
