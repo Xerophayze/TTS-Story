@@ -13667,7 +13667,13 @@ def extract_document_text():
     if not file.filename:
         return jsonify({"success": False, "error": "No file selected"}), 400
     
-    filename = secure_filename(file.filename)
+    original_name = file.filename
+    # secure_filename drops non-ASCII characters, which also removes the
+    # extension from names like "第一章.txt". Sanitize the stem but keep the
+    # original suffix so format detection still works.
+    suffix = Path(original_name).suffix
+    safe_stem = secure_filename(Path(original_name).stem) or "document"
+    filename = f"{safe_stem}{suffix}"
     
     try:
         file_content = file.read()
