@@ -120,7 +120,7 @@ class TextProcessor:
             r'(?:\[(?:emotion|direction)\](.*?)\[/(?:emotion|direction)\]\s*)?'
             r'\[([a-zA-Z0-9_\-]+)\]'                  # Speaker opening tag (group 2)
             r'(.*?)'                                   # Speaker content (group 3)
-            r'\[/\2\]'                                 # Speaker closing tag (backreference)
+            r'\[/[^\[\]]+\]'                           # Tolerate wrong closing names
         )
         
         matches = list(re.finditer(combined_pattern, text, re.DOTALL))
