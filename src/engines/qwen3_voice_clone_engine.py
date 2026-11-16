@@ -135,12 +135,14 @@ class Qwen3VoiceCloneEngine(TtsEngineBase):
         try:
             prompt_text = self._transcribe_audio(prompt_path) if prompt_path else ""
             language = lang_code or self.default_language or "Auto"
+            _max_new_tokens = max(512, len(text) * 3)
             wavs, sr = self.model.generate_voice_clone(
                 text=text,
                 language=language,
                 ref_audio=prompt_path,
                 ref_text=prompt_text or "",
                 x_vector_only_mode=not bool(prompt_text),
+                max_new_tokens=_max_new_tokens,
             )
             audio = np.asarray(wavs[0], dtype=np.float32)
             self._sample_rate = int(sr)
@@ -220,6 +222,7 @@ class Qwen3VoiceCloneEngine(TtsEngineBase):
             language = (assignment.extra.get("language") if assignment.extra else None) or self.default_language
             prompt_path = assignment.audio_prompt_path or self.default_prompt
             prompt_text = assignment.extra.get("prompt_text") or self.default_prompt_text
+            force_x_vector = bool((assignment.extra or {}).get("x_vector_only"))
             fx_settings = VoiceFXSettings.from_payload(assignment.fx_payload)
 
             if prompt_path:
@@ -228,7 +231,7 @@ class Qwen3VoiceCloneEngine(TtsEngineBase):
                 from ..audio_effects import convert_mp3_to_wav_if_needed
                 prompt_path, temp_mp3_conv = convert_mp3_to_wav_if_needed(prompt_path)
 
-            if prompt_path and not prompt_text:
+            if not force_x_vector and prompt_path and not prompt_text:
                 prompt_text = self._transcribe_audio(prompt_path)
 
             if not prompt_path:
@@ -244,13 +247,12 @@ class Qwen3VoiceCloneEngine(TtsEngineBase):
                     else:
                         fx_settings = None
 
-            x_vector_only_mode = False
-            if not prompt_text:
+            x_vector_only_mode = force_x_vector or not bool(prompt_text)
+            if x_vector_only_mode and not force_x_vector:
                 logger.warning(
                     "No transcript available for %s. Using x_vector_only_mode=True (quality may be reduced).",
                     Path(prompt_path).name if prompt_path else "unknown",
                 )
-                x_vector_only_mode = True
 
             logger.info(
                 "Qwen3 Voice Clone segment %s/%s speaker=%s language=%s prompt=%s",
@@ -265,12 +267,14 @@ class Qwen3VoiceCloneEngine(TtsEngineBase):
                 for chunk_idx, chunk_text in enumerate(chunks):
                     order_index = segment["_chunk_order_start"] + chunk_idx
                     output_path = output_dir / f"chunk_{order_index:04d}.wav"
+                    _max_new_tokens = max(512, len(chunk_text) * 3)
                     wavs, sr = self.model.generate_voice_clone(
                         text=chunk_text,
                         language=language or "Auto",
                         ref_audio=prompt_path,
                         ref_text=prompt_text or "",
                         x_vector_only_mode=x_vector_only_mode,
+                        max_new_tokens=_max_new_tokens,
                     )
                     audio = np.asarray(wavs[0], dtype=np.float32)
                     self._sample_rate = int(sr)
