@@ -6939,9 +6939,9 @@ def _save_external_voice_archives(archives: set) -> None:
 
 
 def _save_chatterbox_voice_entries(entries: List[Dict[str, Any]]) -> None:
-    CHATTERBOX_VOICE_REGISTRY.parent.mkdir(parents=True, exist_ok=True)
-    with CHATTERBOX_VOICE_REGISTRY.open("w", encoding="utf-8") as handle:
-        json.dump(entries, handle, indent=2)
+    # Atomic write (src/json_storage.write_json_atomic) keeps existing readers on the
+    # same file/JSON (indent=2) while bringing approve/reject writes under atomic semantics.
+    write_json_atomic(CHATTERBOX_VOICE_REGISTRY, entries, indent=2)
 
 
 def _cleanup_orphaned_chatterbox_voices() -> int:
@@ -7022,6 +7022,24 @@ def _slugify_filename(value: str) -> str:
     return value or "voice"
 
 
+def _is_designed_voice_entry(entry: Dict[str, Any]) -> bool:
+    """True when the registry entry is a qwen3_voice_design designed-voice record."""
+    voice_design = entry.get("voice_design")
+    if not isinstance(voice_design, dict):
+        return False
+    return voice_design.get("engine") == "qwen3_voice_design"
+
+
+def _designed_voice_code(entry: Dict[str, Any]) -> str:
+    """Deterministic, stable reference code for a designed-voice record.
+
+    Uses a dedicated ``designed_`` prefix to avoid clashing with the Kokoro
+    ``custom_`` scheme (``CUSTOM_CODE_PREFIX``). The code is derived purely from
+    the record's id, so it is stable for the record's lifetime.
+    """
+    return f"designed_{entry.get('id')}"
+
+
 def _serialize_chatterbox_voice(entry: Dict[str, Any]) -> Dict[str, Any]:
     file_name = entry.get("file_name")
     file_path = VOICE_PROMPT_DIR / file_name if file_name else None
@@ -7037,7 +7055,7 @@ def _serialize_chatterbox_voice(entry: Dict[str, Any]) -> Dict[str, Any]:
             size_bytes = None
             duration_seconds = None
     transcript = _get_voice_prompt_transcript(file_path) if exists and file_path else ""
-    return {
+    serialized = {
         "id": entry.get("id"),
         "name": entry.get("name"),
         "file_name": file_name,
@@ -7056,6 +7074,12 @@ def _serialize_chatterbox_voice(entry: Dict[str, Any]) -> Dict[str, Any]:
         "archived": bool(entry.get("archived", False)),
         "source": "local",  # local voices vs external
     }
+    # Additive: surface a deterministic reference code for designed-voice records
+    # so downstream consumers (and the completed save task result) can reference
+    # the voice. All existing keys above remain unchanged.
+    if _is_designed_voice_entry(entry):
+        serialized["voice_code"] = _designed_voice_code(entry)
+    return serialized
 
 
 def _resolve_chatterbox_voice(entry_id: str, entries: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -7065,19 +7089,217 @@ def _resolve_chatterbox_voice(entry_id: str, entries: List[Dict[str, Any]]) -> O
     return None
 
 
+# Prefix for the deterministic reference code surfaced on designed-voice records
+# (see ``_designed_voice_code``). Kept in sync with that helper.
+DESIGNED_VOICE_CODE_PREFIX = "designed_"
+
+
+def _resolve_designed_voice_prompt_file(voice: Optional[str]) -> Optional[str]:
+    """Resolve a ``designed_<id>`` voice code to its stored prompt ``file_name``.
+
+    Designed voices live in the chatterbox voice registry. A consumer references
+    one by its deterministic ``voice_code`` (``designed_<record_id>``). For
+    prompt-based engines the resolved value is a ``data/voice_prompts/`` filename
+    supplied as ``audio_prompt_path`` — matching the existing chatterbox prompt
+    contract. Returns the ``file_name`` when the code maps to a designed-voice
+    record, or ``None`` otherwise (unknown code / not a designed voice / missing
+    file name), so callers can preserve prior behavior and let the reference fall
+    through as before.
+
+    This is deliberately NOT the ``build_tts_story_voice_reference`` /
+    ``TTS_STORY_VOICE_PREFIX`` LocalAI-profile reference scheme.
+    """
+    if not voice or not isinstance(voice, str):
+        return None
+    if not voice.startswith(DESIGNED_VOICE_CODE_PREFIX):
+        return None
+    record_id = voice[len(DESIGNED_VOICE_CODE_PREFIX):]
+    if not record_id:
+        return None
+    entry = _resolve_chatterbox_voice(record_id, _load_chatterbox_voice_entries())
+    if entry is None or not _is_designed_voice_entry(entry):
+        return None
+    file_name = entry.get("file_name")
+    if not file_name or not isinstance(file_name, str):
+        return None
+    return file_name
+
+
+# Default language group (and single-char lang_code) used when a designed
+# voice's ``language`` cannot be mapped to a known Kokoro language group.
+_DEFAULT_DESIGNED_VOICE_LANG_KEY = "american_english"
+_DEFAULT_DESIGNED_VOICE_LANG_CODE = "a"
+
+
+def _designed_voice_lang_code(language: Optional[str]) -> str:
+    """Map a designed-voice record's ``language`` to a Kokoro single-char lang code.
+
+    Designed voices store ``language`` as a free-form label (e.g. ``"English"``,
+    ``"Brazilian Portuguese"``, or a locale like ``"en-US"``). VoiceManager groups
+    voices by a single-character ``lang_code`` (``a`` = American English, ``b`` =
+    British English, ...). This resolves the label to one of those codes, falling
+    back to the default American English group when the language is unknown/missing.
+    """
+    if not language:
+        return _DEFAULT_DESIGNED_VOICE_LANG_CODE
+    text = str(language).strip().lower().replace("_", " ").replace("-", " ")
+    if not text:
+        return _DEFAULT_DESIGNED_VOICE_LANG_CODE
+    # Full-label / locale-prefix matches, most specific first.
+    table = [
+        ("brazilian portuguese", "p"),
+        ("portuguese", "p"),
+        ("british english", "b"),
+        ("american english", "a"),
+        ("english", "a"),
+        ("spanish", "e"),
+        ("french", "f"),
+        ("hindi", "h"),
+        ("japanese", "j"),
+        ("chinese", "z"),
+        ("mandarin", "z"),
+    ]
+    for label, code in table:
+        if label in text:
+            return code
+    # Two-letter locale prefixes (e.g. "en-US" -> "en", "pt-BR" -> "pt").
+    locale_prefix = {
+        "en": "a",
+        "pt": "p",
+        "es": "e",
+        "fr": "f",
+        "hi": "h",
+        "ja": "j",
+        "zh": "z",
+    }
+    head = text.split(" ")[0]
+    if head in locale_prefix:
+        return locale_prefix[head]
+    return _DEFAULT_DESIGNED_VOICE_LANG_CODE
+
+
+def _approved_designed_voice_entries() -> List[Dict[str, Any]]:
+    """Return raw registry entries for approved, non-archived designed voices.
+
+    Promotion into the usable-voice listings is driven solely by the persisted
+    ``voice_design.approval_status == "approved"`` flag, so it survives a restart
+    with no in-memory state (the registry on disk is the single source of truth).
+    Pending/rejected records are intentionally excluded here (the listings are the
+    "usable voices" surface).
+    """
+    approved: List[Dict[str, Any]] = []
+    for entry in _load_chatterbox_voice_entries():
+        if not _is_designed_voice_entry(entry):
+            continue
+        if entry.get("archived"):
+            continue
+        voice_design = entry.get("voice_design") or {}
+        if voice_design.get("approval_status") != "approved":
+            continue
+        approved.append(entry)
+    return approved
+
+
+def _serialize_approved_designed_voice_listing(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Serialize an approved designed voice for the ``GET /api/custom-voices`` listing.
+
+    Builds on ``_serialize_chatterbox_voice`` (so ``voice_code`` and all record
+    keys are present) and additionally sets ``code == voice_code`` so consumers
+    that key off ``code`` (like Kokoro custom blends) can reference the voice.
+    """
+    serialized = _serialize_chatterbox_voice(entry)
+    voice_code = serialized.get("voice_code") or _designed_voice_code(entry)
+    serialized["voice_code"] = voice_code
+    serialized["code"] = voice_code
+    approval_status = None
+    voice_design = entry.get("voice_design")
+    if isinstance(voice_design, dict):
+        approval_status = voice_design.get("approval_status")
+    serialized["approval_status"] = approval_status
+    return serialized
+
+
 @app.route('/api/voices', methods=['GET'])
 def get_voices():
     """Get available voices"""
     voice_manager = VoiceManager()
     missing = voice_manager.missing_samples()
+    voices = voice_manager.get_all_voices()
+    # Merge approved designed voices into the matching language group's
+    # custom_voices. VoiceManager only knows the Kokoro store, so the merge is
+    # done here to avoid regressing the Kokoro assembly. Each injected item
+    # carries ``code == voice_code`` so consumers can reference it. Only approved
+    # (persisted) records are listed; pending/rejected are excluded.
+    _merge_approved_designed_voices_into_groups(voices)
     return jsonify({
         "success": True,
-        "voices": voice_manager.get_all_voices(),
+        "voices": voices,
         "samples_ready": voice_manager.all_samples_present(),
         "missing_samples": missing,
         "total_unique_voices": voice_manager.total_unique_voice_count(),
         "sample_count": voice_manager.sample_count()
     })
+
+
+def _merge_approved_designed_voices_into_groups(voices: Dict[str, Any]) -> None:
+    """Inject approved designed voices into ``get_all_voices()`` language groups.
+
+    Mutates ``voices`` in place. For each approved designed-voice record, the
+    record's ``language`` is mapped to a single-char lang code (the same scheme
+    VoiceManager groups by); the record is appended to the matching group's
+    ``custom_voices`` list, creating a group for the resolved code when none
+    exists. Each injected item carries ``code == voice_code``.
+    """
+    if not isinstance(voices, dict):
+        return
+    approved = _approved_designed_voice_entries()
+    if not approved:
+        return
+
+    # Index existing groups by their single-char lang_code for quick lookup.
+    groups_by_code: Dict[str, Dict[str, Any]] = {}
+    for group in voices.values():
+        if isinstance(group, dict) and group.get("lang_code"):
+            groups_by_code.setdefault(group["lang_code"], group)
+
+    for entry in approved:
+        lang_code = _designed_voice_lang_code(entry.get("language"))
+        group = groups_by_code.get(lang_code)
+        if group is None:
+            group = groups_by_code.get(_DEFAULT_DESIGNED_VOICE_LANG_CODE)
+        if group is None:
+            # No matching or default group exists in the assembled payload;
+            # create a minimal group so the approved voice is still surfaced.
+            lang_key = next(
+                (k for k, g in voices.items()
+                 if isinstance(g, dict) and g.get("lang_code") == lang_code),
+                None,
+            ) or _DEFAULT_DESIGNED_VOICE_LANG_KEY
+            group = {
+                "lang_code": lang_code,
+                "voices": [],
+                "samples": {},
+                "language": lang_key.replace("_", " ").title(),
+                "custom_voices": [],
+            }
+            voices[lang_key] = group
+            groups_by_code[lang_code] = group
+        custom_voices = group.setdefault("custom_voices", [])
+        if not isinstance(custom_voices, list):
+            custom_voices = []
+            group["custom_voices"] = custom_voices
+        voice_code = _designed_voice_code(entry)
+        custom_voices.append({
+            "id": entry.get("id"),
+            "code": voice_code,
+            "voice_code": voice_code,
+            "name": entry.get("name"),
+            "language": entry.get("language"),
+            "gender": entry.get("gender"),
+            "prompt_path": entry.get("file_name"),
+            "approval_status": "approved",
+            "source": "designed",
+        })
 
 
 @app.route('/api/pocket-tts/voices', methods=['GET'])
@@ -9697,7 +9919,12 @@ def preview_audio():
     }
     audio_prompt_path = data.get('audio_prompt_path') or None
     if engine_name in _PROMPT_ENGINES and voice and not audio_prompt_path:
-        audio_prompt_path = voice
+        # A ``designed_<id>`` code references a saved designed-voice record; map it
+        # to the record's stored data/voice_prompts/ filename so it is forwarded as
+        # audio_prompt_path (the existing chatterbox prompt contract). Unknown codes
+        # fall through unchanged and fail later as an unknown voice, as before.
+        _designed_file = _resolve_designed_voice_prompt_file(voice)
+        audio_prompt_path = _designed_file if _designed_file else voice
         voice = ''
 
     # Qwen3 engines don't use Kokoro-style lang codes — map 'a'/'b'/etc. to 'auto'
@@ -9771,9 +9998,19 @@ def custom_voices_collection():
     """List or create custom voice blends."""
     if request.method == 'GET':
         entries = list_custom_voice_entries()
+        voices = [_to_public_custom_voice(entry) for entry in entries]
+        # Append approved designed voices AFTER the Kokoro entries. Non-designed
+        # entries above are untouched, so the Kokoro listing stays byte-for-byte
+        # identical when no approved designed voices exist. Only approved records
+        # are listed (pending/rejected are inspectable via the detail/sample
+        # routes but not surfaced here).
+        voices.extend(
+            _serialize_approved_designed_voice_listing(entry)
+            for entry in _approved_designed_voice_entries()
+        )
         return jsonify({
             "success": True,
-            "voices": [_to_public_custom_voice(entry) for entry in entries],
+            "voices": voices,
         })
 
     try:
@@ -9794,9 +10031,45 @@ def custom_voices_collection():
 
 @app.route('/api/custom-voices/<voice_id>', methods=['GET', 'PUT', 'DELETE'])
 def custom_voice_detail(voice_id):
-    """Retrieve, update, or delete a custom voice definition."""
+    """Retrieve, update, or delete a custom voice definition.
+
+    Route-family inventory / resolved no-paths (req 2.8):
+      - approve  -> POST /api/custom-voices/<record_id>/approve   (implemented, admin-gated)
+      - reject   -> POST /api/custom-voices/<record_id>/reject    (implemented, admin-gated)
+      - sample   -> GET  /api/custom-voices/<record_id>/sample    (implemented, UNGATED read-level)
+      - lookup   -> GET  /api/custom-voices/<record_id>           (this route; returns the pending record)
+      - task-id  -> GET  /api/qwen3/voice-design/tasks/<task_id>  stays task-key-space only
+                    (intentional no-path for record ids; record ids resolve here instead).
+    Pending designed voices are returned by this detail route and by the sample
+    route, but are intentionally NOT listed in GET /api/custom-voices or
+    GET /api/voices until approved (listings are the "usable voices" surface).
+
+    For GET, the id is first resolved against the Kokoro custom-voice store. When
+    that misses, the chatterbox registry is checked: a designed-voice record is
+    returned serialized (including ``approval_status`` and ``voice_code``) so a
+    pending record is inspectable (req 2.7). When nothing matches anywhere, a 404
+    carrying ``"reason": "unknown_id"`` is returned so "pending" is distinguishable
+    from "unknown" (the body differs from the pending-record response).
+    """
     raw = _get_raw_custom_voice(voice_id)
     if not raw:
+        # Kokoro store missed. For GET, fall through to the designed-voice
+        # registry so pending records stay inspectable with a distinguishable
+        # 404 for truly unknown ids. PUT/DELETE keep the baseline 404 (designed
+        # voices are not Kokoro blends and are not editable through this route).
+        if request.method == 'GET':
+            entries = _load_chatterbox_voice_entries()
+            entry = _resolve_chatterbox_voice(voice_id, entries)
+            if entry is not None and _is_designed_voice_entry(entry):
+                return jsonify({
+                    "success": True,
+                    "voice": _serialize_chatterbox_voice(entry),
+                })
+            return jsonify({
+                "success": False,
+                "error": "Custom voice not found.",
+                "reason": "unknown_id",
+            }), 404
         return jsonify({"success": False, "error": "Custom voice not found."}), 404
 
     if request.method == 'GET':
@@ -9818,6 +10091,116 @@ def custom_voice_detail(voice_id):
     updated = replace_custom_voice(payload)
     clear_cached_custom_voice(f"{CUSTOM_CODE_PREFIX}{raw['id']}")
     return jsonify({"success": True, "voice": _to_public_custom_voice(updated)})
+
+
+def _set_designed_voice_approval_status(record_id: str, new_status: str, *, archive: bool = False):
+    """Flip a designed-voice record's approval_status and persist it atomically.
+
+    Shared by the single-record approve/reject routes below. Returns a Flask
+    response tuple. When the id does not resolve to a ``qwen3_voice_design``
+    designed-voice record (unknown id, or a non-designed registry entry) it
+    returns a 404 whose body carries ``"reason": "unknown_id"`` so callers can
+    distinguish it from a pending-record lookup (see req 2.7 / task 7).
+    """
+    entries = _load_chatterbox_voice_entries()
+    entry = _resolve_chatterbox_voice(record_id, entries)
+    if entry is None or not _is_designed_voice_entry(entry):
+        return jsonify({
+            "success": False,
+            "error": "Designed voice not found.",
+            "reason": "unknown_id",
+        }), 404
+
+    voice_design = entry.get("voice_design")
+    if not isinstance(voice_design, dict):
+        voice_design = {}
+        entry["voice_design"] = voice_design
+    voice_design["approval_status"] = new_status
+    if archive:
+        entry["archived"] = True
+
+    _save_chatterbox_voice_entries(entries)
+    return jsonify({
+        "success": True,
+        "voice": _serialize_chatterbox_voice(entry),
+    })
+
+
+@app.route('/api/custom-voices/<record_id>/approve', methods=['POST'])
+def approve_designed_voice(record_id):
+    """Approve a single pending designed-voice record.
+
+    Admin-gated via ``_engine_management_request_allowed()`` "like other admin
+    routes" (restart, engine install/uninstall): local requests are permitted,
+    and remote requests must supply an ``X-TTS-Story-Admin-Token`` matching the
+    saved ``remote_engine_management_token``. No ``Authorization: Bearer`` header
+    handler is used. Flips ``voice_design.approval_status`` to ``"approved"`` and
+    returns the serialized record (carrying ``voice_code`` and the new status).
+    Candidate-group approval (``qwen3_voice_design_approve_candidate``) is a
+    separate surface and is left untouched.
+    """
+    if not _engine_management_request_allowed():
+        return _engine_management_denied("Designed voice approval")
+    return _set_designed_voice_approval_status(record_id, "approved")
+
+
+@app.route('/api/custom-voices/<record_id>/reject', methods=['POST'])
+def reject_designed_voice(record_id):
+    """Reject a single pending designed-voice record.
+
+    Admin-gated via ``_engine_management_request_allowed()`` "like other admin
+    routes" (local requests, or a remote ``X-TTS-Story-Admin-Token``); no
+    ``Authorization: Bearer`` handler is added. Flips
+    ``voice_design.approval_status`` to ``"rejected"`` and archives the record
+    (consistent with candidate reject semantics), then returns the serialized
+    record. Candidate-group approval is left untouched.
+    """
+    if not _engine_management_request_allowed():
+        return _engine_management_denied("Designed voice approval")
+    return _set_designed_voice_approval_status(record_id, "rejected", archive=True)
+
+
+@app.route('/api/custom-voices/<record_id>/sample', methods=['GET'])
+def sample_designed_voice(record_id):
+    """Serve the stored WAV for a designed-voice record (preview/playback).
+
+    DECIDED: this route is intentionally UNGATED (read-level). Serving stored
+    audio is non-destructive and this matches the existing
+    ``preview_chatterbox_voice`` (``/api/chatterbox-voices/<voice_id>/preview``)
+    route, which serves voice-prompt WAVs without an auth gate. The admin gate
+    used by approve/reject is deliberately NOT applied here.
+
+    The exact stored WAV bytes (24 kHz mono PCM) are streamed unmodified via
+    ``send_file(..., conditional=True, as_attachment=False)`` following the
+    ``preview_chatterbox_voice`` pattern. Previews work for BOTH approved and
+    pending records so a reviewer can listen before approving (req 2.4). Unknown
+    / non-designed ids return a 404 carrying ``"reason": "unknown_id"`` to stay
+    distinguishable from a pending record (req 2.7).
+    """
+    entries = _load_chatterbox_voice_entries()
+    entry = _resolve_chatterbox_voice(record_id, entries)
+    if entry is None or not _is_designed_voice_entry(entry):
+        return jsonify({
+            "success": False,
+            "error": "Designed voice not found.",
+            "reason": "unknown_id",
+        }), 404
+
+    file_name = entry.get("file_name")
+    if not file_name:
+        return jsonify({"success": False, "error": "Voice has no associated file."}), 404
+    file_path = VOICE_PROMPT_DIR / file_name
+    if not file_path.exists():
+        return jsonify({"success": False, "error": "Audio file missing on disk."}), 404
+
+    mime_type, _ = mimetypes.guess_type(file_path.name)
+    return send_file(
+        file_path,
+        mimetype=mime_type or 'audio/wav',
+        conditional=True,
+        as_attachment=False,
+        download_name=file_path.name,
+    )
 
 
 @app.route('/api/settings', methods=['GET', 'POST'])
