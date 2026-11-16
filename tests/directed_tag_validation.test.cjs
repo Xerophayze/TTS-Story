@@ -37,3 +37,12 @@ test('warnings do not depend on a valid pair or include standalone expression cu
     }
     assert.equal(ctx.getSpeakerTagIssues('[direction]Warmly.[/direction][narrator]Hello [laugh] [question-en] [1].[/narrator]').length, 0);
 });
+
+test('explicit auto-fix replaces wrong closers while preserving words and expression cues', () => {
+    const { ctx, textarea } = context();
+    textarea.value = '[narrator]Rain [sigh] falls.[/wrong]\n[alice]Hello.[/narrator]';
+    assert.equal(ctx.getSpeakerTagIssues(textarea.value).length, 2);
+    ctx._autoFixTagBalance();
+    assert.equal(textarea.value, '[narrator]Rain [sigh] falls.[/narrator]\n[alice]Hello.[/alice]');
+    assert.equal(ctx.getSpeakerTagIssues(textarea.value).length, 0);
+});

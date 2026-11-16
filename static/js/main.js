@@ -7730,13 +7730,12 @@ function _autoFixTagBalance() {
         return;
     }
 
-    // The directed-output failure has an unambiguous correction: replace the
-    // wrong control closer, rather than adding a closer and leaving it orphaned.
-    const wrongDirectionClosers = issues.filter(issue => issue.kind === 'mismatch'
-        && issue.tag === 'direction' && !['direction', 'emotion'].includes(issue.openerTag));
-    if (wrongDirectionClosers.length && !issues.some(issue => issue.kind === 'nested')) {
+    // Replace mismatched bookends with the opening identifier; never insert
+    // another closer while leaving the incorrect one in the manuscript.
+    const wrongClosers = issues.filter(issue => issue.kind === 'mismatch');
+    if (wrongClosers.length) {
         let fixed = text;
-        for (const issue of wrongDirectionClosers.sort((a, b) => b.pos - a.pos)) {
+        for (const issue of wrongClosers.sort((a, b) => b.pos - a.pos)) {
             fixed = fixed.slice(0, issue.focusStart) + `[/${issue.openerTag}]` + fixed.slice(issue.focusEnd);
         }
         textarea.value = fixed;

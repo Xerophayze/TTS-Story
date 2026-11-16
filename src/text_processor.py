@@ -123,7 +123,7 @@ class TextProcessor:
             r'\[/\2\]'                                 # Speaker closing tag (backreference)
         )
         
-        matches = list(re.finditer(combined_pattern, text, re.DOTALL))
+        matches = list(re.finditer(combined_pattern, text, re.DOTALL | re.IGNORECASE))
         cursor = 0
         last_speaker = "default"
 

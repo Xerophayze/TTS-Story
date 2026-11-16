@@ -4,6 +4,8 @@ Speaker tags divide a manuscript into passages that can use different voices. Ex
 
 ## Speaker tag format
 
+For experiments, Prep Text also offers **Strict Book Conversion V3 - Opening Tags (Experimental)**. It asks the language model for opening speaker tags only, then converts its explicitly marked response to normal paired tags before displaying it. It does not replace the standard V3 prompt. Review speaker assignments, directions, and every source passage; the model can still omit or alter text. If the response cannot be safely converted, preparation reports an error rather than silently guessing.
+
 Wrap every spoken passage in a matching opening and closing tag:
 
 ```text

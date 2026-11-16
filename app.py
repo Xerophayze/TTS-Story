@@ -45,6 +45,7 @@ import soundfile as sf
 from src.audio_effects import VoiceFXSettings
 from src.voice_directions import attach_speaker_profiles, clean_speaker_profile
 from src.directed_prompt_presets import with_directed_presets
+from src.opening_tag_format import normalize_opening_tag_response
 from src.audio_merger import AudioMerger
 from src.custom_voice_store import (
     CUSTOM_CODE_PREFIX,
@@ -10586,6 +10587,7 @@ def process_text_with_gemini():
                 config,
                 preferred_profile=active_profile,
             )
+            response_text = normalize_opening_tag_response(prompt_prefix, response_text)
             active_profile = profile_used["id"]
             detected_speakers = text_processor.extract_speakers(response_text)
             for speaker_name in detected_speakers:
@@ -10623,6 +10625,8 @@ def process_text_with_gemini():
             "section_count": len(processed_sections)
         })
 
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
         return jsonify({
             "success": False,
@@ -10672,6 +10676,7 @@ def process_full_text_with_gemini():
             combined_prompt,
             config,
         )
+        response_text = normalize_opening_tag_response(prompt_prefix, response_text)
 
         return jsonify({
             "success": True,
@@ -10681,6 +10686,8 @@ def process_full_text_with_gemini():
             "provider_failures": provider_failures,
         })
 
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
         return jsonify({
             "success": False,
@@ -10893,6 +10900,8 @@ def process_gemini_section():
         audit = None
         if locked is not None:
             response_text, audit = assemble_directed(locked, response_text)
+        else:
+            response_text = normalize_opening_tag_response(prompt_prefix, response_text)
         detected_speakers = text_processor.extract_speakers(response_text)
 
         return jsonify({
@@ -10906,6 +10915,8 @@ def process_gemini_section():
         })
 
     except StructuredOutputError as exc:
+        return jsonify({"success": False, "error": str(exc), "retryable": False}), 400
+    except ValueError as exc:
         return jsonify({"success": False, "error": str(exc), "retryable": False}), 400
     except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
         err_str = str(exc)
@@ -13667,7 +13678,12 @@ def extract_document_text():
     if not file.filename:
         return jsonify({"success": False, "error": "No file selected"}), 400
     
-    filename = secure_filename(file.filename)
+    # Sanitize the stem separately: an entirely non-ASCII stem would otherwise
+    # lose the leading dot needed for format detection.
+    original = Path(file.filename.replace('\\', '/')).name
+    suffix = Path(original).suffix.lower()
+    safe_stem = secure_filename(Path(original).stem) or 'document'
+    filename = f'{safe_stem}{suffix}'
     
     try:
         file_content = file.read()
