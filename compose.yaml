@@ -1,0 +1,50 @@
+# Experimental single-instance Docker deployment.
+# Default binding is localhost only. Put an authenticated TLS reverse proxy
+# in front of the application if remote access is required.
+services:
+  tts-story:
+    # CPU / cloud / remote (default):
+    image: ${TTS_STORY_IMAGE:-ghcr.io/xerophayze/tts-story:latest}
+    # Pin a CPU release:
+    # image: ghcr.io/xerophayze/tts-story:0.2.0
+    # NVIDIA CUDA (also uncomment the GPU reservation below):
+    # image: ghcr.io/xerophayze/tts-story:latest-cuda
+    # image: ghcr.io/xerophayze/tts-story:0.2.0-cuda
+    # For a local build instead of GHCR:
+    # build:
+    #   context: .
+    #   target: cpu  # or cuda
+    # image: tts-story:local
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${TTS_STORY_PORT:-5000}:5000"
+    environment:
+      TZ: ${TZ:-UTC}
+      TTS_STORY_SKIP_BROWSER: "1"
+      TTS_STORY_PRODUCTION: "1"
+      TTS_STORY_CONFIG_FILE: /app/data/config.json
+    security_opt:
+      - no-new-privileges:true
+    # NVIDIA GPU passthrough: requires host NVIDIA drivers and Container Toolkit.
+    # Enable ONLY with a -cuda image; leave commented for CPU deployments.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+    volumes:
+      - tts-data:/app/data
+      - tts-audio:/app/static/audio
+      - tts-samples:/app/static/samples
+      - tts-models:/app/models
+      - tts-cache:/home/tts/.cache
+
+volumes:
+  tts-data:
+  tts-audio:
+  tts-samples:
+  tts-models:
+  tts-cache:

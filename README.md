@@ -42,6 +42,8 @@ If you appreciate what we do and would like to support ongoing development:
 
 # TTS-Story
 
+**Docker deployment:** [Docker guide](docs/docker.md) (Linux x86-64, cloud/remote providers; local engines not yet covered).
+
 TTS-Story is a web-based, multi-voice text-to-speech application for creating narrated stories and audiobooks. It supports local CPU and GPU models, hosted speech providers, speaker tagging, voice cloning, optional LLM-assisted text preparation, chapter collections, chunk-level repair, and MP3/M4B export workflows.
 
 ## Interface tour
