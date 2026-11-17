@@ -5694,6 +5694,11 @@ def _process_audio_job(job_data):
                         render_descriptor_lookup[(render_segment_index, render_chunk_index)] = descriptor
                     render_segments.append(render_segment)
 
+            # Fast lookup: absolute order_index (emitted by engine, includes pauses) -> descriptor
+            order_index_lookup: Dict[int, Dict[str, Any]] = {
+                int(d["order_index"]): d for d in normal_descriptors
+            }
+
             # Engines may restart their own filenames at zero on every call.
             # Stage every batch, then commit with stable section-relative indices.
             render_dir = output_dir / f".tts-render-{uuid.uuid4().hex}"
@@ -5750,22 +5755,21 @@ def _process_audio_job(job_data):
 
             def pause_aware_chunk_cb(_chunk_idx: int, _segment: Dict[str, Any], file_path: str):
                 nonlocal next_normal_callback
-                descriptor = render_descriptor_lookup.get((
-                    int(_segment.get("segment_index", -1)),
-                    int(_segment.get("chunk_index", -1)),
-                ))
-                if descriptor is None and _segment.get("order_index") is not None:
-                    try:
-                        descriptor = normal_descriptors[int(_segment["order_index"])]
-                    except (IndexError, TypeError, ValueError):
-                        descriptor = None
+                # order_index from the engine is the absolute position (stamped before any
+                # speaker-grouping reorder), so it reliably maps to the right descriptor.
+                descriptor = None
+                if _segment.get("order_index") is not None:
+                    descriptor = order_index_lookup.get(int(_segment["order_index"]))
                 if descriptor is None:
+                    descriptor = render_descriptor_lookup.get((
+                        int(_segment.get("segment_index", -1)),
+                        int(_segment.get("chunk_index", -1)),
+                    ))
+                if descriptor is None:
+                    # Filename encodes the absolute order_index (chunk_{order_index:04d}.wav)
                     match = re.search(r"(\d+)$", Path(file_path).stem)
                     if match:
-                        try:
-                            descriptor = normal_descriptors[int(match.group(1))]
-                        except (IndexError, ValueError):
-                            descriptor = None
+                        descriptor = order_index_lookup.get(int(match.group(1)))
                 if descriptor is None:
                     raise RuntimeError("Could not map a rendered TTS chunk to its source text")
 
