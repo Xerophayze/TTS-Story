@@ -5749,15 +5749,17 @@ def _process_audio_job(job_data):
 
             def pause_aware_chunk_cb(_chunk_idx: int, _segment: Dict[str, Any], file_path: str):
                 nonlocal next_normal_callback
-                descriptor = render_descriptor_lookup.get((
-                    int(_segment.get("segment_index", -1)),
-                    int(_segment.get("chunk_index", -1)),
-                ))
-                if descriptor is None and _segment.get("order_index") is not None:
+                descriptor = None
+                if _segment.get("order_index") is not None:
                     try:
                         descriptor = normal_descriptors[int(_segment["order_index"])]
                     except (IndexError, TypeError, ValueError):
                         descriptor = None
+                if descriptor is None:
+                    descriptor = render_descriptor_lookup.get((
+                        int(_segment.get("segment_index", -1)),
+                        int(_segment.get("chunk_index", -1)),
+                    ))
                 if descriptor is None:
                     match = re.search(r"(\d+)$", Path(file_path).stem)
                     if match:
