@@ -85,6 +85,7 @@ from src.openrouter_processor import (
     DEFAULT_OPENROUTER_BASE_URL,
     DEFAULT_OPENROUTER_MODEL,
 )
+from src.anthropic_processor import AnthropicProcessor, AnthropicProcessorError
 from src.local_llm_processor import (
     DEFAULT_LOCAL_LLM_BASE_URLS,
     LocalLLMProcessor,
@@ -247,7 +248,7 @@ PROJECTS_LOCK = threading.RLock()
 JOB_METADATA_FILENAME = "metadata.json"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 DEFAULT_LLM_PROVIDER = "gemini"
-SUPPORTED_LLM_PROVIDERS = ("gemini", "atlas", "openrouter", "local")
+SUPPORTED_LLM_PROVIDERS = ("gemini", "atlas", "openrouter", "anthropic", "local")
 LIBRARY_CACHE_TTL = 60  # seconds; application writes invalidate immediately
 MIN_CHATTERBOX_PROMPT_SECONDS = 5.0
 MIN_VOICE_DESIGN_PREVIEW_SECONDS = 10.0
@@ -308,6 +309,11 @@ DEFAULT_CONFIG = {
     "openrouter_base_url": DEFAULT_OPENROUTER_BASE_URL,
     "openrouter_model": DEFAULT_OPENROUTER_MODEL,
     "openrouter_timeout": 120,
+    "anthropic_api_key": "",
+    "anthropic_model": "",
+    "anthropic_workspace_id": "",
+    "anthropic_timeout": 300,
+    "anthropic_max_tokens": 8192,
     "azure_speech_key": "",
     "azure_speech_region": "",
     "azure_speech_default_voice": DEFAULT_AZURE_SPEECH_VOICE,
@@ -527,6 +533,7 @@ DEFAULT_CONFIG = {
 }
 
 SECRET_CONFIG_KEYS = {
+    "anthropic_api_key",
     "atlas_cloud_api_key",
     "openrouter_api_key",
     "gemini_api_key",
@@ -3930,6 +3937,7 @@ def _default_llm_model_for_provider(config: Dict[str, Any], provider: str) -> st
         "gemini": "gemini_model",
         "atlas": "atlas_cloud_model",
         "openrouter": "openrouter_model",
+        "anthropic": "anthropic_model",
         "local": "llm_local_model",
     }
     return str(config.get(model_keys.get(provider, "")) or "").strip()
@@ -3940,6 +3948,7 @@ def _default_llm_api_key_for_provider(config: Dict[str, Any], provider: str) -> 
         "gemini": "gemini_api_key",
         "atlas": "atlas_cloud_api_key",
         "openrouter": "openrouter_api_key",
+        "anthropic": "anthropic_api_key",
         "local": "llm_local_api_key",
     }
     return str(config.get(key_names.get(provider, "")) or "").strip()
@@ -4180,10 +4189,10 @@ def _run_llm_prompt_for_provider(
     if response_schema is not None:
         from src.structured_output import validate_schema, StructuredOutputError
         validate_schema(response_schema, response_schema_name, response_schema_strict)
-        if provider != "openrouter":
+        if provider not in ("openrouter", "anthropic"):
             raise StructuredOutputError(
                 f"Provider '{provider}' does not support this structured-output path; "
-                "choose an OpenRouter profile. The schema was not dropped.")
+                "choose an OpenRouter or Claude profile. The schema was not dropped.")
     if provider == "gemini":
         api_key = api_key_override or (config.get("gemini_api_key") or "").strip()
         if not api_key:
@@ -4233,6 +4242,20 @@ def _run_llm_prompt_for_provider(
                 response_schema_name=response_schema_name,
                 response_schema_strict=response_schema_strict)
         return processor.generate_text(prompt)
+
+    if provider == "anthropic":
+        processor = AnthropicProcessor(
+            api_key=api_key_override or config.get("anthropic_api_key"),
+            model_name=model_override or config.get("anthropic_model"),
+            workspace_id=config.get("anthropic_workspace_id", ""),
+            timeout=config.get("anthropic_timeout", 300),
+            max_tokens=config.get("anthropic_max_tokens", 8192),
+        )
+        return processor.generate_text(
+            prompt, response_schema=response_schema,
+            response_schema_name=response_schema_name,
+            response_schema_strict=response_schema_strict,
+        )
 
     if provider != "local":
         raise LocalLLMProcessorError(f"Unsupported LLM provider: {provider}")
@@ -4299,7 +4322,7 @@ def _run_llm_prompt_with_failover(
     failures: List[Dict[str, Any]] = []
     for index, profile in enumerate(profiles):
         provider = profile["provider"]
-        if response_schema is not None and provider != "openrouter":
+        if response_schema is not None and provider not in ("openrouter", "anthropic"):
             failures.append({
                 "profile_id": profile["id"], "profile_name": profile["name"],
                 "provider": provider, "model": profile.get("model") or "",
@@ -4354,7 +4377,7 @@ def _run_llm_prompt_with_failover(
                 **retry_options,
             )
             return result, _public_llm_profile(profile), failures
-        except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
+        except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, AnthropicProcessorError) as exc:
             action = _llm_error_action(exc)
             failures.append({
                 "profile_id": profile["id"],
@@ -9899,7 +9922,7 @@ def list_gemini_models():
             "models": models
         })
 
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, AnthropicProcessorError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -9939,7 +9962,7 @@ def list_local_llm_models():
             "success": False,
             "error": "Invalid timeout value"
         }), 400
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, AnthropicProcessorError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -9998,6 +10021,27 @@ def list_atlas_cloud_models():
             "success": False,
             "error": "Failed to list Atlas Cloud models"
         }), 500
+
+
+@app.route('/api/anthropic/models', methods=['POST'])
+def list_anthropic_models():
+    """Discover active models using the user's Claude Console account."""
+    try:
+        data = request.json or {}
+        config = load_config()
+        models = AnthropicProcessor.list_available_models(
+            api_key=data.get("api_key") or config.get("anthropic_api_key"),
+            workspace_id=data.get("workspace_id") or config.get("anthropic_workspace_id", ""),
+            timeout=data.get("timeout") or 30,
+        )
+        return jsonify({"success": True, "models": models})
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid Claude timeout value"}), 400
+    except AnthropicProcessorError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
+    except Exception:
+        logger.error("Claude model discovery failed", exc_info=True)
+        return jsonify({"success": False, "error": "Claude model discovery failed"}), 500
 
 
 @app.route('/api/openrouter/models', methods=['POST'])
@@ -10627,7 +10671,7 @@ def process_text_with_gemini():
 
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, AnthropicProcessorError, LLMProviderChainError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -10688,7 +10732,7 @@ def process_full_text_with_gemini():
 
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, AnthropicProcessorError, LLMProviderChainError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -10778,7 +10822,7 @@ def process_gemini_speaker_profiles():
             "llm_provider_used": profile_used["provider"],
             "provider_failures": provider_failures,
         })
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, AnthropicProcessorError, LLMProviderChainError) as exc:
         return jsonify({
             "success": False,
             "error": str(exc)
@@ -10918,7 +10962,7 @@ def process_gemini_section():
         return jsonify({"success": False, "error": str(exc), "retryable": False}), 400
     except ValueError as exc:
         return jsonify({"success": False, "error": str(exc), "retryable": False}), 400
-    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, LLMProviderChainError) as exc:
+    except (GeminiProcessorError, LocalLLMProcessorError, AtlasCloudProcessorError, OpenRouterProcessorError, AnthropicProcessorError, LLMProviderChainError) as exc:
         err_str = str(exc)
         transient_markers = ("503", "UNAVAILABLE", "429", "quota", "rate limit", "rate_limit", "high demand", "try again")
         explicit_retryable = getattr(exc, "retryable", None)

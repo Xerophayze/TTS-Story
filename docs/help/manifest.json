@@ -445,9 +445,9 @@
     {
       "id": "llm-cloud",
       "file": "llm/cloud-providers.md",
-      "title": "Gemini, Atlas Cloud, and OpenRouter",
+      "title": "Claude, Gemini, Atlas Cloud, and OpenRouter",
       "summary": "Configure cloud LLM providers, per-profile models and API keys, and an ordered failover chain.",
-      "keywords": ["Gemini", "Atlas Cloud", "OpenRouter", "model discovery", "API key", "backup LLM", "failover", "profile override", "daily request limit", "quota"],
+      "keywords": ["Claude", "Anthropic", "Console credits", "Gemini", "Atlas Cloud", "OpenRouter", "model discovery", "API key", "backup LLM", "failover", "profile override", "daily request limit", "quota"],
       "related": ["online-services", "llm-prompts", "cloud-errors"]
     },
     {
