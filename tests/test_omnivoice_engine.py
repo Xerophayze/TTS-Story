@@ -243,3 +243,26 @@ def test_omnivoice_records_pause_raised_by_chunk_callback(tmp_path):
             pause_cb=lambda: True,
             cancel_cb=lambda: False,
         )
+
+
+def test_grouped_callbacks_retain_original_narrative_order_index(tmp_path):
+    import numpy as np
+    import soundfile as sf
+
+    engine, _, voices = _pause_test_engine(tmp_path)
+    voices["other"] = dict(voices["narrator"])
+    segments = [{"speaker": "narrator", "chunks": ["First."]},
+                {"speaker": "other", "chunks": ["Second."]},
+                {"speaker": "narrator", "chunks": ["Third."]}]
+    callbacks = []
+
+    def fake_run_worker(job, chunk_done_cb=None, cancel_cb=None):
+        for chunk in job["chunks"]:
+            sf.write(chunk["output_path"], np.zeros(240, dtype="float32"), 24000)
+            chunk_done_cb(chunk["output_path"])
+
+    engine._run_worker = fake_run_worker
+    engine.generate_batch(segments, voices, tmp_path / "output", group_by_speaker=True,
+                          chunk_cb=lambda _index, meta, _path: callbacks.append(meta))
+    assert [(meta["text"], meta["order_index"]) for meta in callbacks] == [
+        ("First.", 0), ("Third.", 2), ("Second.", 1)]

@@ -390,6 +390,7 @@ class OmniVoiceCloneEngine(TtsEngineBase):
                                 "text": meta["text"],
                                 "segment_index": meta["segment_index"],
                                 "chunk_index": meta["chunk_index"],
+                                "order_index": meta["order_index"],
                             },
                             done_path,
                         )
