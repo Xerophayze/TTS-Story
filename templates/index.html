@@ -2391,12 +2391,13 @@
                                     <h2 class="settings-section-title" id="settings-llm-title">Text prep (LLM)</h2>
                                     <button type="button" class="help-icon" data-help-id="settings-llm" aria-label="Help: Text prep (LLM)">?</button>
                                 </div>
-                                <p class="settings-section-desc">Use Gemini, Atlas Cloud, OpenRouter, or a local LLM (LM Studio / Ollama) to clean up or tag text before TTS.</p>
+                                <p class="settings-section-desc">Use Claude, Gemini, Atlas Cloud, OpenRouter, or a local LLM to clean up or tag text before TTS.</p>
                             </div>
                             <div class="settings-grid-2">
                                 <div class="form-group">
                                     <label for="llm-provider">Primary provider</label>
                                     <select id="llm-provider">
+                                        <option value="anthropic">Claude / Anthropic (cloud)</option>
                                         <option value="gemini">Gemini (cloud)</option>
                                         <option value="atlas">Atlas Cloud (cloud)</option>
                                         <option value="openrouter">OpenRouter (cloud)</option>
@@ -2485,6 +2486,41 @@
                                 <div class="settings-card-actions" id="atlas-cloud-models-actions">
                                     <button type="button" id="fetch-atlas-cloud-models-btn" class="btn btn-ghost btn-sm">Fetch Atlas models</button>
                                     <span id="atlas-cloud-models-status" class="help-text"></span>
+                                </div>
+                            </div>
+                            <div class="settings-card" id="llm-anthropic-settings">
+                                <div class="settings-card-head">
+                                    <h4 class="settings-card-title">Claude / Anthropic</h4>
+                                    <p class="help-text">Uses your Claude Console API credits directly. Manuscript text is sent to Anthropic.</p>
+                                </div>
+                                <div class="settings-form-grid">
+                                    <div class="form-group">
+                                        <label for="anthropic-api-key">Claude Console API key</label>
+                                        <input type="password" id="anthropic-api-key" autocomplete="off" placeholder="Enter your Anthropic API key">
+                                        <small><a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer">Create or manage a Console API key</a></small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="anthropic-model">Model</label>
+                                        <select id="anthropic-model"><option value="">Fetch models to choose</option></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="anthropic-timeout">Timeout (seconds)</label>
+                                        <input type="number" id="anthropic-timeout" min="10" max="1800" step="10" value="300">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="anthropic-max-tokens">Max output tokens</label>
+                                        <input type="number" id="anthropic-max-tokens" min="256" max="64000" step="256" value="8192">
+                                        <small>Incomplete responses are rejected. Reduce chunk size if output is truncated.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="anthropic-workspace-id">Workspace ID (optional)</label>
+                                        <input type="text" id="anthropic-workspace-id" placeholder="Only for keys that require a workspace">
+                                        <small>Leave blank for an API key scoped to your Console workspace.</small>
+                                    </div>
+                                </div>
+                                <div class="settings-card-actions">
+                                    <button type="button" id="fetch-anthropic-models-btn" class="btn btn-ghost btn-sm">Fetch Claude models</button>
+                                    <span id="anthropic-models-status" class="help-text"></span>
                                 </div>
                             </div>
                             <div class="settings-card" id="llm-openrouter-settings">

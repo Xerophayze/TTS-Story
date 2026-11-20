@@ -621,6 +621,7 @@ async function initializeFirstRunWelcome() {
 }
 
 function updateLLMSettingsUI(provider = 'gemini') {
+    const anthropicSettings = document.getElementById('llm-anthropic-settings');
     const geminiCredentials = document.getElementById('gemini-credentials');
     const geminiModelGroup = document.getElementById('gemini-model-group');
     const geminiModelsActions = document.getElementById('gemini-models-actions');
@@ -648,6 +649,7 @@ function updateLLMSettingsUI(provider = 'gemini') {
     const isGemini = configuredProviders.has('gemini');
     const isAtlas = configuredProviders.has('atlas');
     const isOpenRouter = configuredProviders.has('openrouter');
+    if (anthropicSettings) anthropicSettings.style.display = configuredProviders.has('anthropic') ? '' : 'none';
     const isLocal = configuredProviders.has('local');
     if (geminiCredentials) geminiCredentials.style.display = isGemini ? '' : 'none';
     if (geminiModelGroup) geminiModelGroup.style.display = isGemini ? '' : 'none';
@@ -663,7 +665,7 @@ function updateLLMSettingsUI(provider = 'gemini') {
     if (geminiChunkChaptersGroup) geminiChunkChaptersGroup.style.display = primaryIsGemini ? '' : 'none';
     if (localChunkGroup) localChunkGroup.style.display = primaryIsGemini ? 'none' : '';
     if (localChunkChaptersGroup) localChunkChaptersGroup.style.display = primaryIsGemini ? 'none' : '';
-    if (nonGeminiTuning) nonGeminiTuning.style.display = configuredProviders.size === 1 && primaryIsGemini ? 'none' : '';
+    if (nonGeminiTuning) nonGeminiTuning.style.display = ['atlas', 'openrouter', 'local'].some(p => configuredProviders.has(p)) ? '' : 'none';
 }
 
 function createLLMBackupProfile(index) {
@@ -681,7 +683,7 @@ function createLLMBackupProfile(index) {
 }
 
 function normalizeLLMBackupProfile(profile, index) {
-    const supportedProviders = new Set(['gemini', 'atlas', 'openrouter', 'local']);
+    const supportedProviders = new Set(['gemini', 'atlas', 'openrouter', 'anthropic', 'local']);
     const provider = String(profile?.provider || 'openrouter').toLowerCase().trim();
     const rawDailyLimit = Number.parseInt(profile?.daily_request_limit, 10);
     return {
@@ -723,6 +725,7 @@ function renderLLMBackupProfiles() {
                 <div class="form-group">
                     <label>Provider</label>
                     <select data-profile-field="provider">
+                        <option value="anthropic" ${profile.provider === 'anthropic' ? 'selected' : ''}>Claude / Anthropic</option>
                         <option value="gemini" ${profile.provider === 'gemini' ? 'selected' : ''}>Gemini</option>
                         <option value="atlas" ${profile.provider === 'atlas' ? 'selected' : ''}>Atlas Cloud</option>
                         <option value="openrouter" ${profile.provider === 'openrouter' ? 'selected' : ''}>OpenRouter</option>
@@ -787,7 +790,7 @@ function renderLLMModelSuggestions() {
     const datalist = document.getElementById('llm-backup-model-suggestions');
     if (!datalist) return;
     const modelIds = new Set();
-    ['gemini-model', 'atlas-cloud-model', 'openrouter-model', 'llm-local-model'].forEach(id => {
+    ['gemini-model', 'atlas-cloud-model', 'openrouter-model', 'anthropic-model', 'llm-local-model'].forEach(id => {
         const control = document.getElementById(id);
         if (!control) return;
         if (control.tagName === 'SELECT') {
@@ -865,6 +868,34 @@ async function fetchAtlasCloudModels(buttonEl) {
         }
         renderLLMModelSuggestions();
     }
+}
+
+async function fetchAnthropicModels(buttonEl) {
+    const key = document.getElementById('anthropic-api-key')?.value.trim() || '';
+    const status = document.getElementById('anthropic-models-status');
+    const select = document.getElementById('anthropic-model');
+    if (!select || !status) return;
+    if (!key) { status.textContent = 'Enter your Claude Console API key first.'; return; }
+    buttonEl.disabled = true;
+    status.textContent = 'Loading models available to your Claude Console account...';
+    try {
+        const response = await fetch('/api/anthropic/models', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({api_key: key,
+                workspace_id: document.getElementById('anthropic-workspace-id')?.value.trim() || ''})
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to fetch Claude models');
+        if (!Array.isArray(data.models) || !data.models.length) throw new Error('No active Claude models returned.');
+        const previous = select.value;
+        select.replaceChildren(...data.models.map(name => new Option(name, name)));
+        select.value = data.models.includes(previous) ? previous
+            : data.models.find(name => name.includes('sonnet')) || data.models[0];
+        status.textContent = `Loaded ${data.models.length} models. Select one and save settings.`;
+        renderLLMModelSuggestions();
+    } catch (error) {
+        status.textContent = error.message || 'Unable to fetch Claude models.';
+    } finally { buttonEl.disabled = false; }
 }
 
 async function fetchOpenRouterModels(buttonEl) {
@@ -1368,6 +1399,8 @@ function setupSettingsListeners() {
         fetchAtlasModelsBtn.addEventListener('click', () => fetchAtlasCloudModels(fetchAtlasModelsBtn));
     }
     const fetchOpenRouterModelsBtn = document.getElementById('fetch-openrouter-models-btn');
+    const fetchAnthropicModelsBtn = document.getElementById('fetch-anthropic-models-btn');
+    fetchAnthropicModelsBtn?.addEventListener('click', () => fetchAnthropicModels(fetchAnthropicModelsBtn));
     if (fetchOpenRouterModelsBtn) {
         fetchOpenRouterModelsBtn.addEventListener('click', () => fetchOpenRouterModels(fetchOpenRouterModelsBtn));
     }
@@ -2199,6 +2232,18 @@ function applySettings(settings) {
 
     // Local LLM settings
     const llmProvider = settings.llm_provider || 'gemini';
+    setElementValue('anthropic-api-key', settings.anthropic_api_key || '');
+    setElementValue('anthropic-workspace-id', settings.anthropic_workspace_id || '');
+    setElementValue('anthropic-timeout', settings.anthropic_timeout ?? 300, 300);
+    setElementValue('anthropic-max-tokens', settings.anthropic_max_tokens ?? 8192, 8192);
+    const anthropicSelect = document.getElementById('anthropic-model');
+    const anthropicModel = settings.anthropic_model || '';
+    if (anthropicSelect && anthropicModel) {
+        if (!Array.from(anthropicSelect.options).some(o => o.value === anthropicModel)) {
+            anthropicSelect.add(new Option(anthropicModel, anthropicModel));
+        }
+        anthropicSelect.value = anthropicModel;
+    }
     setElementValue('llm-provider', llmProvider, 'gemini');
     setElementValue('atlas-cloud-api-key', settings.atlas_cloud_api_key || '');
     setElementValue('atlas-cloud-base-url', settings.atlas_cloud_base_url || ATLAS_CLOUD_BASE_URL, ATLAS_CLOUD_BASE_URL);
@@ -2839,6 +2884,11 @@ async function saveSettings() {
         gemini_speaker_profile_prompt: document.getElementById('gemini-speaker-profile-prompt')?.value || '',
         gemini_prompt_presets: geminiPresetState.list.map(preset => ({ ...preset })),
         llm_provider: document.getElementById('llm-provider')?.value || 'gemini',
+        anthropic_api_key: document.getElementById('anthropic-api-key')?.value?.trim() || '',
+        anthropic_model: document.getElementById('anthropic-model')?.value || '',
+        anthropic_workspace_id: document.getElementById('anthropic-workspace-id')?.value?.trim() || '',
+        anthropic_timeout: parseInt(document.getElementById('anthropic-timeout')?.value, 10) || 300,
+        anthropic_max_tokens: parseInt(document.getElementById('anthropic-max-tokens')?.value, 10) || 8192,
         llm_backup_profiles: llmBackupProfiles.map(profile => ({ ...profile })),
         atlas_cloud_api_key: document.getElementById('atlas-cloud-api-key')?.value || '',
         atlas_cloud_base_url: document.getElementById('atlas-cloud-base-url')?.value || ATLAS_CLOUD_BASE_URL,
@@ -3158,6 +3208,11 @@ async function resetSettings() {
         gemini_prompt: '',
         gemini_prompt_presets: [],
         llm_provider: 'gemini',
+        anthropic_api_key: '',
+        anthropic_model: '',
+        anthropic_workspace_id: '',
+        anthropic_timeout: 300,
+        anthropic_max_tokens: 8192,
         llm_backup_profiles: [],
         atlas_cloud_api_key: '',
         atlas_cloud_base_url: ATLAS_CLOUD_BASE_URL,

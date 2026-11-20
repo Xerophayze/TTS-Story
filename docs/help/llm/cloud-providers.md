@@ -1,6 +1,6 @@
-# Gemini, Atlas Cloud, and OpenRouter
+# Claude, Gemini, Atlas Cloud, and OpenRouter
 
-TTS-Story supports three cloud providers for Prep text. Each provider requires internet access, sends manuscript sections outside your computer, and may charge for usage.
+TTS-Story supports four cloud providers for Prep text. Each provider requires internet access, sends manuscript sections outside your computer, and may charge for usage.
 
 Open [Settings](app:settings), choose **Text prep (LLM)**, and select the **Primary provider** before entering its credentials.
 
@@ -30,6 +30,21 @@ During a multi-section **Prep text** job, a successful backup remains active for
 ![Text prep (LLM) settings with OpenRouter (cloud) as the primary provider, the OpenRouter card, and Fetch OpenRouter models](../../../static/help/screenshots/llm-cloud-settings.png)
 
 *Choose the cloud provider first; TTS-Story then reveals its credentials, model discovery, and request controls.*
+
+## Claude / Anthropic
+
+Claude connects directly to Anthropic's native Messages API. It uses Console API credits, independently of Claude chat subscriptions and OpenRouter billing.
+
+1. Select **Claude / Anthropic (cloud)** as Primary provider.
+2. Enter your Claude Console API key. Leave Workspace ID blank for a workspace-scoped key; enter the workspace ID if your Console credential requires it.
+3. Click **Fetch Claude models**, select an available model, and save settings. Discovery prefers a Sonnet model when no previous choice is available; it never silently substitutes a model during generation.
+4. Try a short representative section before a whole book. Confirm the original text and speaker assignments are preserved.
+
+Claude uses the shared non-Gemini chunk size and chapter splitting settings, but has its own timeout (300 seconds) and output ceiling (8,192 tokens). OpenAI/local sampling controls are not forwarded. Truncated, refused, or incomplete output is rejected rather than being accepted as a finished manuscript. Reduce the prep chunk size or raise Claude's output ceiling within the selected model's limits when necessary.
+
+The API key is included in the existing secret-redaction rules for job snapshots. Like other provider keys, it is saved in local `config.json`. Backup profiles can also use Claude. Optional JSON schemas use native structured output and are validated locally; a model that does not support the requested schema must return an error rather than silently dropping it.
+
+Reference: [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages/create), [available models](https://platform.claude.com/docs/en/api/models/list).
 
 ## Gemini
 
