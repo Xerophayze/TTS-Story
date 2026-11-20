@@ -1,0 +1,165 @@
+/* Width-driven layouts for phones, foldables and small tablets.
+   Loaded last; the desktop workspace is unchanged from 1180px upward. */
+@media (max-width: 1179px) {
+    .app-shell {
+        min-width: 0;
+        grid-template-columns: 160px minmax(0, 1fr);
+        height: 100dvh;
+    }
+    .app-sidebar { padding-inline: 8px; }
+    .app-brand { font-size: 23px; }
+    .screen-header { padding-inline: 18px; gap: 10px; }
+    .screen-title-group { flex-wrap: wrap; gap: 6px; white-space: normal; }
+    .screen-subtitle { font-size: 12px; }
+    .screen-body { padding-inline: 18px; }
+    .app-main > #generate-tab.tab-content.active { grid-template-columns: minmax(0, 1fr) 280px; }
+    #generate-tab .manuscript-header { height: auto; min-height: 60px; flex-wrap: wrap; padding: 12px 18px; gap: 10px; }
+    #generate-tab .manuscript-actions { flex-wrap: wrap; gap: 6px; }
+    #generate-tab .manuscript-header-divider { display: none; }
+    #generate-tab .manuscript-toolbar { padding-inline: 18px; flex-wrap: wrap; height: auto; min-height: 44px; }
+    #generate-tab .manuscript-editor #input-text { padding: 24px 18px; }
+    #generate-tab .manuscript-help { left: 18px; right: 18px; }
+    #generate-tab .manuscript-script { padding: 24px 18px; }
+    #generate-tab .mv-row { grid-template-columns: 86px minmax(0, 1fr); gap: 10px; }
+    #generate-tab .manuscript-footer { flex-wrap: wrap; height: auto; min-height: 34px; gap: 8px; padding: 8px 18px; }
+    #settings-tab .settings-layout { grid-template-columns: 150px minmax(0, 1fr); }
+    #settings-tab .settings-nav { padding-inline: 6px; }
+    #settings-tab .settings-nav-item { gap: 6px; padding-inline: 6px; }
+    #settings-tab .settings-section { padding: 20px 18px 32px; }
+    #settings-tab .settings-form-grid, #settings-tab .settings-grid-2 { grid-template-columns: minmax(0, 1fr); }
+    #settings-tab .engine-settings-layout { grid-template-columns: minmax(0, 1fr); }
+    #settings-tab .engine-tabs { position: static; max-height: none; padding: 14px 18px; border-bottom: 1px solid var(--st-border); }
+    #settings-tab .engine-tab-group-buttons { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    #settings-tab .engine-tab-btn { width: auto; min-height: 40px; }
+    #settings-tab .engine-detail { min-width: 0; padding: 20px 18px; }
+    #voices-tab .voices-toolbar, #voices-tab .voices-panel-bar { flex-wrap: wrap; gap: 8px; }
+    #voices-tab .voices-table-wrap { min-width: 0; overflow-x: auto; }
+    #voices-tab .voices-table { min-width: 940px; }
+    #voices-tab .voices-selection-bar, #voices-tab .gemini-voice-toolbar { flex-wrap: wrap; height: auto; padding: 8px; }
+    #queue-tab .queue-grid-head { display: none; }
+    #queue-tab .queue-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+    #queue-tab .queue-cell-job, #queue-tab .queue-cell-progress, #queue-tab .queue-cell-actions { grid-column: 1 / -1; }
+    #queue-tab .queue-details { margin-left: 0; padding-inline: 16px; }
+    #library-tab .library-search { width: min(240px, 40vw); }
+    #library-tab .library-item-summary.library-item-header { flex-wrap: wrap; gap: 10px; }
+    #library-tab .library-item-info { flex: 1 1 180px; }
+}
+
+@media (max-width: 767px) {
+    .app-shell {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+        min-height: 0;
+    }
+    .app-sidebar {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        gap: 6px 12px;
+        padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
+        border-right: 0;
+        border-bottom: 1px solid var(--st-border);
+        overflow: visible;
+    }
+    .app-brand { font-size: 23px; padding-left: 4px; white-space: nowrap; }
+    .project-switcher { max-width: 300px; min-height: 44px; justify-self: end; padding: 6px 8px; }
+    .project-switcher-kicker { font-size: 10px; }
+    .project-switcher-name { font-size: 12px; }
+    .app-sidebar .tabs {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        gap: 2px;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+    }
+    .app-sidebar .tabs .tab-button {
+        width: auto;
+        min-width: 66px;
+        height: 52px;
+        flex: 1 0 auto;
+        flex-direction: column;
+        justify-content: center;
+        gap: 3px;
+        padding: 6px 8px;
+        text-align: center;
+        font-size: 11px;
+    }
+    .app-sidebar .tab-label { flex: none; }
+    .app-sidebar .tabs .tab-button-help { margin-top: 0; }
+    .app-sidebar .guided-tours-shortcut { flex: 0 0 auto; min-height: 44px; margin: 0; }
+    .sidebar-status { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; gap: 8px; margin: 0; padding: 0 4px; border: 0; font-size: 11px; }
+    #cuda-indicator { padding: 0; font-size: 11px; }
+    .screen-header { height: auto; min-height: 60px; flex-wrap: wrap; padding: 12px 16px; }
+    .screen-title { font-size: 25px; }
+    .screen-subtitle { white-space: normal; }
+    .screen-actions { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+    .screen-body { padding: 16px 16px max(28px, env(safe-area-inset-bottom)); }
+    .screen .btn, .screen button:not(.help-icon), .screen .subtab { min-height: 40px; }
+    .screen input:not([type="checkbox"]):not([type="range"]):not([type="radio"]),
+    .screen select, .screen textarea { font-size: 16px; max-width: 100%; }
+    .screen input:not([type="checkbox"]):not([type="range"]):not([type="radio"]), .screen select { min-height: 44px; }
+    .app-main > #generate-tab.tab-content.active {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+    #generate-tab .manuscript-pane { flex: 0 0 auto; min-height: 420px; }
+    #generate-tab .manuscript-header { padding: 12px 16px; }
+    #generate-tab .manuscript-actions { width: 100%; }
+    #generate-tab .manuscript-prep { flex: 1; min-width: 0; height: 44px; }
+    #generate-tab .manuscript-prep-select { flex: 1; min-width: 0; }
+    #generate-tab .manuscript-prep-select select { width: 100%; max-width: none; }
+    #generate-tab .manuscript-toolbar { padding: 4px 16px; gap: 6px; }
+    #generate-tab .manuscript-editor { flex: none; min-height: 280px; }
+    #generate-tab .manuscript-editor #input-text { min-height: 280px; height: 38dvh; resize: vertical; padding: 20px 16px; }
+    #generate-tab .manuscript-script { max-height: 55dvh; min-height: 280px; padding: 20px 16px; }
+    #generate-tab .manuscript-help { top: 128px; left: 16px; right: 16px; }
+    #generate-tab .manuscript-help p { font-size: 13px; }
+    #generate-tab .mv-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    #generate-tab .mv-speaker { text-align: left; }
+    #generate-tab .manuscript-tag-menu { left: 8px; right: 8px; width: auto; max-width: 340px; }
+    #generate-tab .tag-error-banner, #generate-tab .prep-progress, #generate-tab .prep-resume { flex-wrap: wrap; padding-inline: 16px; }
+    #generate-tab .generate-aside { flex: 0 0 auto; min-height: 0; border-left: 0; border-top: 1px solid var(--st-border); }
+    #generate-tab .generate-aside-scroll { overflow: visible; flex: none; }
+    #generate-tab .generate-aside-footer { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+    #generate-tab .generate-audio-btn { min-height: 48px; }
+    #settings-tab .settings-layout { display: flex; flex-direction: column; min-height: 0; }
+    #settings-tab .settings-nav { flex: none; flex-direction: row; overflow-x: auto; padding: 6px 8px; border-right: 0; border-bottom: 1px solid var(--st-border); }
+    #settings-tab .settings-nav-item { width: auto; min-height: 44px; padding: 0 10px; }
+    #settings-tab .settings-nav-item > .ms { display: none; }
+    #settings-tab .settings-pane { flex: 1; min-height: 0; }
+    #settings-tab .settings-section { padding: 20px 16px 32px; }
+    #settings-tab .settings-card, #settings-tab .engine-card { padding: 14px; }
+    #settings-tab .settings-card-actions { flex-wrap: wrap; }
+    #settings-tab .engine-tabs { padding: 14px 16px; }
+    #settings-tab .engine-detail { padding: 18px 16px; }
+    #settings-tab .screen-title-group .screen-subtitle { display: none; }
+    #voices-tab .subtabs { padding-inline: 12px; gap: 8px; overflow-x: auto; flex-wrap: nowrap; }
+    #voices-tab .subtab { flex: 0 0 auto; white-space: nowrap; }
+    #voices-tab .voices-body { padding: 16px; }
+    #voices-tab .voices-toolbar .voices-search { width: 100%; flex: 1 0 100%; }
+    #voices-tab .voices-filter { max-width: 100%; flex: 1 1 130px; }
+    #voices-tab .voices-panel-bar { align-items: flex-start; }
+    #voices-tab .voices-table-wrap { overflow-x: auto; }
+    #voices-tab .voices-grid { grid-template-columns: minmax(0, 1fr); }
+    #library-tab .screen-actions { width: 100%; }
+    #library-tab .library-search { flex: 1; width: auto; min-width: 0; }
+    #library-tab .library-item-summary.library-item-header { padding: 12px; }
+    #library-tab .library-item-info { flex-basis: calc(100% - 100px); }
+    #library-tab .library-item-title { white-space: normal; overflow-wrap: anywhere; }
+    #library-tab .library-item-details { padding-inline: 12px; }
+    #library-tab .library-item-actions { flex-wrap: wrap; }
+    #library-tab .library-chapter-row { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; }
+    #library-tab .library-chapter-duration { display: none; }
+    #queue-tab .queue-row { padding: 14px 12px; }
+    #queue-tab .queue-cell-actions { justify-content: flex-start; flex-wrap: wrap; }
+    #queue-tab .queue-details { margin: 0; padding: 12px; }
+    .modal { max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+    .modal.drawer { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; }
+    .modal-body { overflow-x: auto; }
+    .modal input, .modal select, .modal textarea { font-size: 16px; }
+    .modal-footer { flex-wrap: wrap; }
+    #chunk-review-modal .chunk-review-table { overflow-x: auto; }
+    .help-layout, .help-article-layout { grid-template-columns: minmax(0, 1fr); }
+}

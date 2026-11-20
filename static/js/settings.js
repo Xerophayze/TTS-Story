@@ -1570,8 +1570,11 @@ function setupEngineTabSwitching() {
             // The detail pane shares the section scroll container: start a newly
             // opened engine at its header.
             const pane = document.getElementById('settings-pane');
-            if (!alreadyActive && pane && activeSettingsSectionId === 'engine-settings-group') {
-                pane.scrollTop = 0;
+            const compactLayout = window.matchMedia('(max-width: 1179px)').matches;
+            if (pane && activeSettingsSectionId === 'engine-settings-group' && (!alreadyActive || compactLayout)) {
+                pane.scrollTop = compactLayout && targetPanel
+                    ? pane.scrollTop + targetPanel.getBoundingClientRect().top - pane.getBoundingClientRect().top
+                    : 0;
             }
         });
     });
